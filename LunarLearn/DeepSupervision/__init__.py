@@ -1,0 +1,2 @@
+from LunarLearn.DeepSupervision.DeepSupervision import DeepSupervision
+from LunarLearn.DeepSupervision.AuxiliaryClassifier import AuxiliaryClassifier

@@ -1,0 +1,1128 @@
+After adding feature that multiply scale by scale_factor after 5 good steps (they resets to 0 when scale is to big), time of some epoch increases a lot.
+Can it be because i didnt add max scale and it just become to big?
+
+Results:
+    Epoch 1/10 - epoch_time: 19.8s - acc: 0.6274 - loss: 7.7442 - val_acc: 0.5333 - val_loss: 3.6543
+    Epoch 2/10 - epoch_time: 29.0s - acc: 0.9429 - loss: 0.1846 - val_acc: 0.6667 - val_loss: 3.5378
+    Epoch 3/10 - epoch_time: 34.5s - acc: 0.9857 - loss: 0.0402 - val_acc: 0.2889 - val_loss: 2.4866
+    Epoch 4/10 - epoch_time: 19.6s - acc: 0.9929 - loss: 0.0185 - val_acc: 0.6444 - val_loss: 2.0639
+    Epoch 5/10 - epoch_time: 19.9s - acc: 0.9964 - loss: 0.0099 - val_acc: 0.5778 - val_loss: 3.0393
+    Epoch 6/10 - epoch_time: 19.5s - acc: 0.9821 - loss: 0.0389 - val_acc: 0.6667 - val_loss: 3.8255
+    Epoch 7/10 - epoch_time: 61.3s - acc: 0.9929 - loss: 0.0243 - val_acc: 0.6444 - val_loss: 3.0320
+
+
+
+Epoch 1/10 - epoch_time: 21.4s - acc: 0.7393 - loss: 3.5128 - val_acc: 0.6000 - val_loss: 1.3962
+Epoch 2/10 - epoch_time: 67.2s - acc: 0.9643 - loss: 0.0971 - val_acc: 0.3778 - val_loss: 2.2656
+Epoch 3/10 - epoch_time: 76.1s - acc: 0.9786 - loss: 0.0535 - val_acc: 0.4222 - val_loss: 1.9843
+Epoch 4/10 - epoch_time: 78.2s - acc: 0.9964 - loss: 0.0233 - val_acc: 0.2889 - val_loss: 2.4608
+
+
+Below are results of using scale set to 256 and dynamic scale initialized at 1024 (but it quickly droped to 256 and sometimes goes to 512 or 1024 to again drop to 256).
+As you can see epoch time randomly exploads in time and then after one epoch go back to normal ~20s time. What can couse this issue or is it normal? If it can be fixed 
+how to do it? If you need some code just ask I will procide it.
+
+Fixed scale: 256
+    Epoch 1/10 - epoch_time: 20.1s - acc: 0.7500 - loss: 4.1837 - val_acc: 0.5111 - val_loss: 1.4287
+    Epoch 2/10 - epoch_time: 19.7s - acc: 0.9845 - loss: 0.0563 - val_acc: 0.5556 - val_loss: 1.6598
+    Epoch 3/10 - epoch_time: 52.4s - acc: 0.9857 - loss: 0.0417 - val_acc: 0.6222 - val_loss: 2.5002
+    Epoch 4/10 - epoch_time: 38.1s - acc: 0.9929 - loss: 0.0141 - val_acc: 0.6667 - val_loss: 2.5321
+    Epoch 5/10 - epoch_time: 19.7s - acc: 0.9810 - loss: 0.0432 - val_acc: 0.6667 - val_loss: 2.8250
+    Epoch 6/10 - epoch_time: 19.7s - acc: 0.9810 - loss: 0.0688 - val_acc: 0.5111 - val_loss: 1.4373
+    Epoch 7/10 - epoch_time: 20.1s - acc: 0.9821 - loss: 0.0411 - val_acc: 0.6000 - val_loss: 2.0486
+    Epoch 8/10 - epoch_time: 20.0s - acc: 1.0000 - loss: 0.0225 - val_acc: 0.3778 - val_loss: 1.8789
+    Epoch 9/10 - epoch_time: 19.8s - acc: 1.0000 - loss: 0.0069 - val_acc: 0.4444 - val_loss: 2.8174
+    Epoch 10/10 - epoch_time: 43.9s - acc: 0.9929 - loss: 0.0169 - val_acc: 0.5333 - val_loss: 2.1566
+
+DynamicLossScale:
+    Epoch 1/10 - epoch_time: 19.8s - acc: 0.8440 - loss: 1.4613 - val_acc: 0.3333 - val_loss: 2.6632
+    Epoch 2/10 - epoch_time: 19.5s - acc: 0.9643 - loss: 0.0818 - val_acc: 0.2667 - val_loss: 3.6250
+    Epoch 3/10 - epoch_time: 19.5s - acc: 0.9679 - loss: 0.1278 - val_acc: 0.5556 - val_loss: 1.4672
+    Epoch 4/10 - epoch_time: 19.5s - acc: 0.9821 - loss: 0.0689 - val_acc: 0.6000 - val_loss: 1.8487
+    Epoch 5/10 - epoch_time: 19.5s - acc: 0.9964 - loss: 0.0154 - val_acc: 0.5556 - val_loss: 3.0875
+    Epoch 6/10 - epoch_time: 19.5s - acc: 1.0000 - loss: 0.0066 - val_acc: 0.5778 - val_loss: 2.8258
+    Epoch 7/10 - epoch_time: 60.3s - acc: 0.9964 - loss: 0.0116 - val_acc: 0.6889 - val_loss: 3.2370
+    Epoch 8/10 - epoch_time: 35.7s - acc: 0.9964 - loss: 0.0075 - val_acc: 0.6444 - val_loss: 2.8162
+    Epoch 9/10 - epoch_time: 23.3s - acc: 0.9929 - loss: 0.0159 - val_acc: 0.4889 - val_loss: 2.9406
+    Epoch 10/10 - epoch_time: 19.7s - acc: 0.9964 - loss: 0.0072 - val_acc: 0.5333 - val_loss: 2.8328
+
+After changes there is still some issue. One thing that I saw was that this thime scale whent sometimes up to 8192 (even in epochs with good time so its not an issue)
+
+    def check_if_safe(self):
+        grads = []
+        for layer in self.layers:
+            if hasattr(layer, 'dW'):
+                grads.append(layer.dW)
+            if hasattr(layer, 'db'):
+                grads.append(layer.db)
+        if not grads:
+            return True
+        
+        combined_grad = xp.concatenate([g.ravel() for g in grads])
+
+        return bool(xp.isfinite(combined_grad).all())
+
+    def unscale_grads(self):
+        if self.check_if_safe():
+            self.good_steps += 1
+            inv_scale = 1.0 / self.scale
+            for layer in self.layers:
+                if hasattr(layer, 'dW'):
+                    layer.dW = (layer.dW * inv_scale).astype(DTYPE)
+                if hasattr(layer, 'db'):
+                    layer.db = (layer.db * inv_scale).astype(DTYPE)
+
+            if self.good_steps % self.step == 0:
+                self.scale = min(self.scale * self.scale_factor, self.max_scale)
+            return True
+        
+        else:
+            self.good_steps = 0
+            self.scale = max(self.min_scale, self.scale / self.scale_factor)
+            return False
+
+Results:
+    Epoch 1/10 - epoch_time: 20.1s - acc: 0.7369 - loss: 2.0681 - val_acc: 0.3778 - val_loss: 2.5515
+    Epoch 2/10 - epoch_time: 19.4s - acc: 0.9643 - loss: 0.1170 - val_acc: 0.4222 - val_loss: 1.9340
+    Epoch 3/10 - epoch_time: 19.5s - acc: 0.9631 - loss: 0.0719 - val_acc: 0.3333 - val_loss: 2.7657
+    Epoch 4/10 - epoch_time: 70.1s - acc: 0.9714 - loss: 0.0696 - val_acc: 0.2444 - val_loss: 2.3657
+    Epoch 5/10 - epoch_time: 19.5s - acc: 0.9714 - loss: 0.0599 - val_acc: 0.3111 - val_loss: 2.1981
+    Epoch 6/10 - epoch_time: 19.5s - acc: 0.9714 - loss: 0.0527 - val_acc: 0.2444 - val_loss: 2.2085
+    Epoch 7/10 - epoch_time: 80.2s - acc: 0.9714 - loss: 0.0600 - val_acc: 0.3111 - val_loss: 2.5257
+    Epoch 8/10 - epoch_time: 60.0s - acc: 0.9786 - loss: 0.0413 - val_acc: 0.2667 - val_loss: 2.0309
+    Epoch 9/10 - epoch_time: 19.5s - acc: 0.9667 - loss: 0.0565 - val_acc: 0.3556 - val_loss: 1.8016
+    Epoch 10/10 - epoch_time: 19.5s - acc: 0.9679 - loss: 0.0892 - val_acc: 0.3778 - val_loss: 2.3167
+
+
+My current mininet implementation. Is ist correct?
+
+scrpit code:
+    train_loader = ImageLoader(path=train_img_224, size=(224, 224), batch_size=8, shuffle=True)
+    test_loader = ImageLoader(path=test_img_224, size=(224, 224), batch_size=8, shuffle=False)
+    optim = Adam(learning_rate=0.001)
+    model = MiniNet(input_shape=(1, 28, 28), output_shape=10) # test for mnist
+    model.fit_data(train_loader=train_mnist_loader, test_loader=test_minist_loader) # test for mnist
+    model.train(optimizer=optim, epochs=10, loss='CCE')
+
+Result:
+    Epoch 1/10 - epoch_time: 81.4s - acc: 0.5138 - loss: 1.4118 - val_acc: 0.6574 - val_loss: 0.9950
+    Epoch 2/10 - epoch_time: 79.6s - acc: 0.6877 - loss: 0.9086 - val_acc: 0.7232 - val_loss: 0.8117
+    Epoch 3/10 - epoch_time: 79.6s - acc: 0.7235 - loss: 0.8015 - val_acc: 0.7399 - val_loss: 0.7659
+    Epoch 4/10 - epoch_time: 80.3s - acc: 0.7491 - loss: 0.7374 - val_acc: 0.7582 - val_loss: 0.7129
+    Epoch 5/10 - epoch_time: 80.3s - acc: 0.7601 - loss: 0.7101 - val_acc: 0.7698 - val_loss: 0.6807
+    Epoch 6/10 - epoch_time: 80.0s - acc: 0.7692 - loss: 0.6851 - val_acc: 0.7775 - val_loss: 0.6679
+    Epoch 7/10 - epoch_time: 80.4s - acc: 0.7780 - loss: 0.6676 - val_acc: 0.7879 - val_loss: 0.6388
+    Epoch 8/10 - epoch_time: 80.5s - acc: 0.7832 - loss: 0.6550 - val_acc: 0.7806 - val_loss: 0.6461
+    Epoch 9/10 - epoch_time: 80.4s - acc: 0.7835 - loss: 0.6475 - val_acc: 0.7861 - val_loss: 0.6475
+    Epoch 10/10 - epoch_time: 80.4s - acc: 0.7887 - loss: 0.6358 - val_acc: 0.7888 - val_loss: 0.6353
+
+After reducing dropout to 0.8:
+
+    Epoch 1/10 - epoch_time: 80.0s - acc: 0.7118 - loss: 0.9103 - val_acc: 0.8225 - val_loss: 0.5679
+    Epoch 2/10 - epoch_time: 83.6s - acc: 0.8406 - loss: 0.5152 - val_acc: 0.8558 - val_loss: 0.4707
+    Epoch 3/10 - epoch_time: 84.6s - acc: 0.8681 - loss: 0.4353 - val_acc: 0.8719 - val_loss: 0.4142
+    Epoch 4/10 - epoch_time: 85.0s - acc: 0.8790 - loss: 0.3965 - val_acc: 0.8846 - val_loss: 0.3844
+    Epoch 5/10 - epoch_time: 84.0s - acc: 0.8868 - loss: 0.3726 - val_acc: 0.8895 - val_loss: 0.3676
+    Epoch 7/10 - epoch_time: 88.0s - acc: 0.8954 - loss: 0.3461 - val_acc: 0.8981 - val_loss: 0.3481
+    Epoch 8/10 - epoch_time: 91.4s - acc: 0.8939 - loss: 0.3457 - val_acc: 0.8964 - val_loss: 0.3478
+    Epoch 9/10 - epoch_time: 87.0s - acc: 0.8975 - loss: 0.3402 - val_acc: 0.8971 - val_loss: 0.3574
+    Epoch 10/10 - epoch_time: 86.7s - acc: 0.8947 - loss: 0.3421 - val_acc: 0.8908 - val_loss: 0.3574
+
+
+So this. according to your optimization tricks: 
+self.dW /= self.m
+self.db /= self.m
+Should be changed to:
+inv_m = 1.0 / self.max
+self.dW *= inv_m
+self.db *= inv_m
+
+so this works like this:
+-last layer dA (loss derivatite) isnt calculated
+-instead there is used fused formula for dZ
+-then it calculates dW, db, dA_prev
+
+import LunarLearn.backend as backend
+
+xp = backend.xp
+DTYPE = backend.DTYPE
+C_DTYPE = backend.C_DTYPE
+MIXED_PRECISION = backend.MIXED_PRECISION
+
+class Dense():
+    """
+    A fully-connected (dense) layer used in neural networks.
+
+    Attributes:
+        nodes (int): Number of neurons in the layer.
+        activation (str): Name of the activation function.
+        w_init (str): Weight initialization method. Defaults to 'auto'.
+        uniform (bool): Whether to use uniform distribution for weight initialization.
+        gain (float): Gain factor used in weight initialization.
+        keep_prob (float): Dropout keep probability. Default is 1 (no dropout).
+
+        normalization (Any): Placeholder for normalization method (if used).
+        W (xp.ndarray): Weight matrix.
+        b (xp.ndarray): Bias vector.
+        W_fp16 (xp.ndarray): Weight matrix in float16
+        b_fp16 (xp.ndarray): Bias vector in float16
+        dW (xp.ndarray): Gradient of the weights.
+        db (xp.ndarray): Gradient of the biases.
+        VdW, Vdb, SdW, Sdb, GdW, Gdb (xp.ndarray): Optimizer-specific accumulators for momentum, RMSProp, Adam, etc.
+        Z (xp.ndarray): Linear output before activation.
+        A (xp.ndarray): Activation output.
+        dZ (xp.ndarray): Gradient w.r.t. linear output.
+        dA (xp.ndarray): Gradient w.r.t. activation output.
+        Z_prev (xp.ndarray): Previous linear output.
+        D (xp.ndarray): Dropout mask.
+    """
+
+    def __init__(self, nodes, activation='linear', w_init='auto', uniform=False, gain=1, keep_prob=1):
+        """
+        Initializes a Dense layer.
+
+        Args:
+            nodes (int): Number of output units.
+            activation (str): Activation function to apply.
+            w_init (str, optional): Weight initialization method. Defaults to 'auto'.
+            uniform (bool, optional): Whether to use uniform distribution. Defaults to False.
+            gain (float, optional): Gain factor for initialization. Defaults to 1.
+            keep_prob (float, optional): Probability to keep a unit active during dropout. Defaults to 1.
+        """
+        
+        self.nodes = nodes
+        self.activation = activation
+        self.w_init = w_init
+        self.uniform = uniform
+        self.gain = gain
+        self.keep_prob = xp.array(keep_prob, dtype=DTYPE)
+        self.normalization = None
+        self.W = None
+        self.b = None
+        self.W_fp16 = None
+        self.b_fp16 = None
+        self.dW = None
+        self.db = None
+        self.VdW = None
+        self.Vdb = None
+        self.SdW = None
+        self.Sdb = None
+        self.GdW = None
+        self.Gdb = None
+        self.Z = None
+        self.Z_prev = None
+        self.A = None
+        self.dZ = None
+        self.dA = None
+        self.D = None
+
+    def forward_step(self, inputs, training=True):
+        """
+        Performs the forward pass for the layer.
+
+        Args:
+            inputs (xp.ndarray): Activations from the previous layer.
+            training (bool, optional): If True, applies dropout if enabled. Defaults to True.
+        """
+
+        from LunarLearn.engine import activation
+        from LunarLearn.regularization import dropout
+
+        if MIXED_PRECISION:
+            inputs = inputs.astype(C_DTYPE, copy=False)
+            W = self.W_fp16
+            b = self.b_fp16
+
+            z = xp.matmul(W, inputs)
+            self.Z = z + b
+        else:
+            self.Z = xp.matmul(self.W, inputs) + self.b
+
+        #BatchNorm Z_norm
+        self.A = activation(self.Z, self.activation)
+        if self.keep_prob < 1:
+            self.A, self.D = dropout(self.A, self.keep_prob)
+
+        if MIXED_PRECISION:
+            self.A = self.A.astype(C_DTYPE, copy=False)
+        else:
+            self.A = self.A.astype(DTYPE, copy=False)
+
+    def backward_step(self, A_prev, loss_name, regularization, regularization_args, m0):
+        """
+        Performs the backward pass for the layer.
+
+        Args:
+            A_prev (xp.ndarray): Activations from the previous layer.
+            loss_name (str): Loss function name (e.g. 'MSE', 'CCE').
+            regularization (str): Type of regularization ('l2', 'l1', etc.), or None.
+            regularization_args (dict): Arguments for regularization function.
+            m0 (int): Sample size used for some regularization scaling.
+
+        Returns:
+            xp.ndarray: Gradient of loss with respect to previous layer activations.
+        """
+
+        from LunarLearn.engine import activation_derivative, dW_regularization
+        from LunarLearn.regularization import dropout_backward
+
+        m = A_prev.shape[1]
+
+        if self.keep_prob < 1:
+            self.dA = dropout_backward(self.dA, self.keep_prob, self.D)
+        
+        if MIXED_PRECISION:
+            dA_fp16 = self.dA.astype(C_DTYPE)
+            Z_fp16 = self.Z.astype(C_DTYPE, copy=False)
+            A_prev_fp16 = A_prev.astype(C_DTYPE, copy=False)
+
+            self.dZ = dA_fp16 * activation_derivative(Z_fp16, self.activation, loss_name)
+
+            self.dW = xp.array(1./m, dtype=C_DTYPE) * xp.matmul(self.dZ, A_prev_fp16.T)
+            self.db = xp.array(1./m, dtype=C_DTYPE) * xp.sum(self.dZ, axis=1, keepdims=True, dtype=C_DTYPE)
+
+            if regularization is not None:
+                dW_fp32 = self.dW.astype(DTYPE)
+                dW_fp32, self.old_dW = dW_regularization(dW_fp32, self.W, regularization, regularization_args)
+                self.dW = dW_fp32.astype(C_DTYPE)
+
+            dA_prev = xp.matmul(self.W_fp16.T, self.dZ)
+
+        else:
+            self.dZ = self.dA * activation_derivative(self.Z, self.activation, loss_name)
+            #BatchNorm
+            #self.dZ_norm = np.dot(self.dA, activation_derivative(self.Z_norm, self.activation))
+            #bn.backward(self.dZ_norm)
+            self.dW = xp.array(1./m, dtype=DTYPE) * xp.matmul(self.dZ, A_prev.T).astype(DTYPE, copy=False)
+            if regularization != None:
+                self.dW, self.old_dW = dW_regularization(self.dW, self.W, regularization, regularization_args, m0)
+            self.db = xp.array(1./m, dtype=DTYPE) * xp.sum(self.dZ, axis=1, keepdims=True, dtype=DTYPE)
+            dA_prev = xp.matmul(self.W.T, self.dZ).astype(DTYPE, copy=False)
+
+        dA_prev = dA_prev.astype(DTYPE, copy=False)
+
+        return dA_prev
+
+
+
+
+
+Is it correct implementation of fusion with mixed precision?
+
+Dense layer backward_step():
+
+    def backward_step(self, A_prev, loss_name, regularization, regularization_args, m0):
+        """
+        Performs the backward pass for the layer.
+
+        Args:
+            A_prev (xp.ndarray): Activations from the previous layer.
+            loss_name (str): Loss function name (e.g. 'MSE', 'CCE').
+            regularization (str): Type of regularization ('l2', 'l1', etc.), or None.
+            regularization_args (dict): Arguments for regularization function.
+            m0 (int): Sample size used for some regularization scaling.
+
+        Returns:
+            xp.ndarray: Gradient of loss with respect to previous layer activations.
+        """
+
+        from LunarLearn.engine import activation_derivative, dW_regularization
+        from LunarLearn.regularization import dropout_backward
+
+        m = A_prev.shape[1]
+
+        '''if self.keep_prob < 1:
+            self.dA = dropout_backward(self.dA, self.keep_prob, self.D)'''
+        
+        if MIXED_PRECISION:
+            if not self.dZ:
+                if self.keep_prob < 1:
+                    self.dA = dropout_backward(self.dA, self.keep_prob, self.D)
+                dA_fp16 = self.dA.astype(C_DTYPE)
+                Z_fp16 = self.Z.astype(C_DTYPE, copy=False)
+                A_prev_fp16 = A_prev.astype(C_DTYPE, copy=False)
+
+                self.dZ = dA_fp16 * activation_derivative(Z_fp16, self.activation, loss_name)
+            else:
+                self.dZ = dropout_backward(self.dZ, self.keep_prob, self.D)
+
+            self.dW = xp.array(1./m, dtype=C_DTYPE) * xp.matmul(self.dZ, A_prev_fp16.T)
+            self.db = xp.array(1./m, dtype=C_DTYPE) * xp.sum(self.dZ, axis=1, keepdims=True, dtype=C_DTYPE)
+
+            if regularization is not None:
+                dW_fp32 = self.dW.astype(DTYPE)
+                dW_fp32, self.old_dW = dW_regularization(dW_fp32, self.W, regularization, regularization_args)
+                self.dW = dW_fp32.astype(C_DTYPE)
+
+            dA_prev = xp.matmul(self.W_fp16.T, self.dZ)
+
+        else:
+            if not self.dZ:
+                if self.keep_prob < 1:
+                    self.dA = dropout_backward(self.dA, self.keep_prob, self.D)
+                self.dZ = self.dA * activation_derivative(self.Z, self.activation, loss_name)
+            else:
+                self.dZ = dropout_backward(self.dZ, self.keep_prob, self.D)
+            #BatchNorm
+            #self.dZ_norm = np.dot(self.dA, activation_derivative(self.Z_norm, self.activation))
+            #bn.backward(self.dZ_norm)
+            self.dW = xp.array(1./m, dtype=DTYPE) * xp.matmul(self.dZ, A_prev.T).astype(DTYPE, copy=False)
+            if regularization != None:
+                self.dW, self.old_dW = dW_regularization(self.dW, self.W, regularization, regularization_args, m0)
+            self.db = xp.array(1./m, dtype=DTYPE) * xp.sum(self.dZ, axis=1, keepdims=True, dtype=DTYPE)
+            dA_prev = xp.matmul(self.W.T, self.dZ).astype(DTYPE, copy=False)
+
+        dA_prev = dA_prev.astype(DTYPE, copy=False)
+        self.dZ = None
+
+        return dA_prev
+
+NN main training loop:
+
+    for i, mini_batch in enumerate(self.train_DataLoader.batches()):
+        X_mini_batch, Y_mini_batches = mini_batch
+        forward_propagation(X_mini_batch, self.layers)
+
+        self.loss = compute_loss(Y_mini_batches, self.layers[-1].A, loss, self.layers, self.regularization_name, self.regularization_args)
+
+        if FUSION:
+            fused_dZ = fuse(Y_mini_batches, self.layers[-1].A, fusion_type)
+            loss_derivative = None
+        else:
+            loss_derivative = compute_loss_derivative(Y_mini_batches, self.layers[-1].A, loss, self.layers)
+            fused_dZ = None
+
+        if MIXED_PRECISION:
+            if FUSION:
+                fused_dZ = scaler.scale_loss(fused_dZ)
+            else:
+                loss_derivative = scaler.scale_loss(loss_derivative)
+
+        self.costs.append(self.loss)
+        acc = accuracy(Y_mini_batches, self.layers[-1].A)
+        backward_propagation(loss, loss_derivative, fused_dZ, self.layers, self.regularization_name, self.regularization_args, X_mini_batch.shape[1])
+
+        clip_grads(self.layers)
+
+        if MIXED_PRECISION:
+            if scaler.unscale_grads():
+                self.optimizer.optimize(self.layers)
+            else:
+                pass
+        else:
+            self.optimizer.optimize(self.layers)
+
+Backward_propagation main script:
+    def backward_propagation(loss_name, loss_derivative, fused_dZ, layers, regularization, regularization_args, m0):
+        if loss_derivative:
+            layers[-1].dA = loss_derivative
+        else:
+            layers[-1].dZ = fused_dZ
+            
+        for i in reversed(range(1, len(layers))): #normalize params throw diffrent layers
+            layers[i-1].dA = layers[i].backward_step(layers[i-1].A, loss_name, regularization, regularization_args, m0)
+
+
+
+thats my cuurent model. Generate pytorch version for comparasion:
+
+cnn_layers = [InputConv2D(shape=(1, 28, 28)), 
+              Conv2D(filters=8, kernel_size=3, strides=1, padding='same'),
+              BatchNorm2D(),
+              ReLU(),
+              MaxPool2D(pool_size=2, strides=2),
+              Flatten(),
+              #Dense(nodes=32, activation='ReLU', keep_prob=0.7), #turn off dropout in test
+              Dense(nodes=10, activation='softmax')
+]
+
+optim = AdamW(learning_rate=0.0001)
+model = NeuralNetwork(cnn_layers)
+model.fit_data(train=train_mnist_loader, test=test_minist_loader) # test for mnist
+model.lr_decay(name='warm_restarts_cosine', lr_min=0.00001, milestones=5)
+model.train(optimizer=optim, epochs=10, loss='CCE')
+model.history.to_json('test_history.json')
+
+Right now to set lr_decay in my library you use model class function lr_decay() to pass need args, like name or lr_min/max values, then training script checks if it was called and if so sets
+self.optimizer.learning_rate to return of function that depends on the name calls given decay function and returns new lr. Is it better to change it that each decay got it own class and is set by
+model.optimizer.decay = DecayClass(args) and then during optimization if decay is not None: optimizer.decay.step() to update lr
+
+right now im initialization layers params (Weights and dimensions in cnn layers to match) by caling initailize_params() that loops throw sel.layers and based on self.layers[i].__name__ make intins for each layer.
+Is there batter way to do that?
+
+
+Why is that, during 1st epoch acc => 0.1. Im assuming its beacuse lr is 0 so it destroys trening process and net outputs random values (10 classes 10% acc). Thats my scheduler class:
+
+import LunarLearn.backend as backend
+
+xp = backend.xp
+DTYPE = backend.DTYPE
+
+class WarmCosineAnnealing:
+
+    def __init__(self, optimizer, lr_min, lr_max, milestone, multiplier=1):
+        self.optimizer = optimizer
+        self.lr_min = lr_min
+        self.lr_max = lr_max
+        self.milestone = milestone
+        self.multiplier = multiplier
+
+    def step(self, epoch):
+        T_i = self.milestone
+        t_curr = epoch
+        while t_curr >= T_i:
+            t_curr -= T_i
+            T_i *= self.multiplier
+        self.optimizer.learning_rate = self.lr_min + xp.array(0.5, dtype=DTYPE) * (self.lr_max-self.lr_min) * (1+xp.cos(xp.pi*t_curr/T_i, dtype=DTYPE))
+
+inside training loop:
+    for epoch in range(epochs):
+
+        if hasattr(self.optimizer, 'scheduler') and self.optimizer.scheduler is not None:
+            self.optimizer.scheduler.step(epoch)
+
+        ...
+
+and main code:
+
+    optim = AdamW(learning_rate=0.0001)
+    optim.scheduler = WarmCosineAnnealing(optim, lr_min=0.01, lr_max=0.00001, milestone=5)
+
+When i was using function instead class it was working fine. Function code:
+
+    def warm_restarts_cosine_annealing_decay(epoch, lr_min, lr_max, milestones, multiplier=1):
+        T_i = milestones
+        t_curr = epoch
+        while t_curr >= T_i:
+            t_curr -= T_i
+            T_i *= multiplier
+        learning_rate = lr_min + xp.array(0.5, dtype=DTYPE) * (lr_max-lr_min) * (1+xp.cos(xp.pi*t_curr/T_i, dtype=DTYPE))
+        return learning_rate
+
+
+
+
+1. Data utilities
+
+Loaders for common datasets (MNIST, CIFAR-10, Iris, Boston Housing, etc.) with automatic caching.
+
+Data splitting: train/val/test splits with shuffle.
+
+Batch generators: iterable that yields (X_batch, y_batch).
+
+Transforms: normalization, one-hot encoding, augmentation (flip, rotate, crop for images).
+
+Custom datasets support: allow users to wrap their own data in the same interface.
+
+2. Model utilities
+
+Save/load model weights.
+
+Save/load entire models (like torch.save(model)).
+
+Summary function: show architecture, number of params, layer types.
+
+Weight initialization helpers: He, Xavier, normal, uniform.
+
+3. Training helpers
+
+Callbacks system: early stopping, learning rate scheduler, logging, checkpointing.
+
+Scheduler wrappers: step-based, epoch-based, warm restarts, cosine annealing, etc.
+
+Metrics: accuracy, precision, recall, F1, confusion matrix for classification; MAE, MSE for regression.
+
+Mixed precision training support (float16/32).
+
+4. Debugging / visualization
+
+Loss/metric plotting: live during training or after.
+
+Gradient norms / histograms: detect exploding/vanishing gradients.
+
+Weight histograms: track weight distributions over time.
+
+Activation visualization: visualize feature maps for CNN layers.
+
+5. Experiment tracking
+
+Experiment logger: record hyperparameters, metrics, training times.
+
+Reproducibility helper: set global seeds, save random states.
+
+Hyperparameter search wrapper: grid search, random search.
+
+6. User convenience
+
+Prebuilt models: small CNN, MLP, ResNet-lite, Transformer-lite.
+
+Easy device switching: CPU/GPU (if you eventually wrap CUDA).
+
+One-liner training: like model.fit(X_train, y_train, epochs=10, batch_size=32).
+
+Easy evaluation: model.evaluate(X_test, y_test) returns loss + metrics.
+
+
+
+okey, right now i have get_config() function for NeuralNetwork, loss, optimizer, its scheduler, DynamicLossScaler and history. Write save function for NeuralNetwork that
+can be set (full=True/False, compressed=True/False).
+When full=True, save full neauralnetwork to resume training (like checkpoint) and oderwise save only model structure and weights so it can be used to save trained models. 
+When compressed=True, compres weights file.
+Take into account that layer apart of weights have also VdW or SdV for optimizer and BatchNorm2D layer have running_mean, and running_var
+
+So this:
+
+    def get_config(self):
+        return {
+            "module": self.__class__.__module__,
+            "class": self.__class__.__name__,
+            "params": {
+                "lr_min": self.lr_min,
+                "lr_max": self.lr_max,
+                "milestone": self.milestone,
+                "multiplier": self.multiplier
+            }
+        }
+
+should be this:
+
+    def get_config(self):
+        from LunarLearn.engine import serialize_value
+
+        return {
+            "module": self.__class__.__module__,
+            "class": self.__class__.__name__,
+            "params": {
+                k: serialize_value(v)
+                for k, v in self.__dict__.items()
+                if k != "optimizer"
+            }
+        }
+
+This is NeuralNetwork() get_config():
+    def get_config(self):
+        return {
+            "module": self.__class__.__module__,
+            "class": self.__class__.__name__,
+            "params": {
+                "layers": [
+                    {
+                    "module": layer.__class__.__module__,
+                    "class": layer.__class__.__name__,
+                    "params": layer.get_config()
+                    } for layer in self.layers
+                ],
+                "optimizer": {
+                    "module": self.optimizer.__class__.__module__,
+                    "class": self.optimizer.__class__.__name__,
+                    "params": self.optimizer.get_config()
+                } if self.optimizer else None,
+                "loss": {
+                    "module": self.loss.__class__.__module__,
+                    "class": self.loss.__class__.__module__
+                },
+                "epochs": self.epochs,
+                "trained_epochs": self.trained_epochs
+            }
+        }
+
+This is save():
+    def save(self, path, full=True, compressed=True):
+        """
+        Save model to disk.
+
+        Args:
+            path (str): base path (folder or file prefix).
+            full (bool): if True, saves full checkpoint (resume training).
+                         if False, saves only architecture + weights.
+            compressed (bool): if True, compress weights (npz compressed).
+        """
+        import os
+
+        os.makedirs(path, exist_ok=True)
+
+        # Collect config
+        config = self.get_config()
+        config["full_state"] = full  # mark type of save
+
+        # Save config JSON
+        with open(os.path.join(path, "config.json"), "w") as f:
+            json.dump(config, f, indent=2)
+
+        # Collect weights and other per-layer state
+        weights_dict = {}
+        for idx, layer in enumerate(self.layers):
+            layer_name = f"layer_{idx}_{layer.__class__.__name__}"
+
+            # Save weights/biases if present
+            if hasattr(layer, "W"):
+                weights_dict[f"{layer_name}_W"] = xp.asnumpy(layer.W)
+            if hasattr(layer, "b"):
+                weights_dict[f"{layer_name}_b"] = xp.asnumpy(layer.b)
+
+            # Save optimizer-related state like momentum/variance
+            if full and hasattr(layer, "VdW"):
+                weights_dict[f"{layer_name}_VdW"] = xp.asnumpy(layer.VdW)
+            if full and hasattr(layer, "Vdb"):
+                weights_dict[f"{layer_name}_Vdb"] = xp.asnumpy(layer.Vdb)
+            if full and hasattr(layer, "SdW"):
+                weights_dict[f"{layer_name}_SdW"] = xp.asnumpy(layer.SdW)
+            if full and hasattr(layer, "Sdb"):
+                weights_dict[f"{layer_name}_Sdb"] = xp.asnumpy(layer.Sdb)
+
+            # Save BatchNorm running stats
+            if hasattr(layer, "running_mean"):
+                weights_dict[f"{layer_name}_running_mean"] = xp.asnumpy(layer.running_mean)
+            if hasattr(layer, "running_var"):
+                weights_dict[f"{layer_name}_running_var"] = xp.asnumpy(layer.running_var)
+
+        # Save weights file
+        weights_path = os.path.join(path, "weights.npz")
+        if compressed:
+            np.savez_compressed(weights_path, **weights_dict)
+        else:
+            np.savez(weights_path, **weights_dict)
+
+
+Is is correct?
+
+Right now im building my dl library. Those are things that i already implemented:
+-Neural network model that handles forward and backward steps, fit data, save and load 
+-Layers: Dense, Conv2D, BatchNorm2D, Dropout, ReLU, Flatten, GlobalAveragePool2D, AveragePool2D, MaxPool2D
+-diffrent resblocks
+-diffrent initialization and activation function: He, Xavier, LeCun, orthogonal, sigmoid, softmax, relu, leaky_relu, linear
+-optimizers: SGD, SGD_momentum, Adam, AdamW, RMSProp, AdaGrad
+-schedulers: FixedStep, StepBased, TimeBased, WarmCossineAnnealing, warm-up, early stoping, checkpoints
+-loss: MSE, MAE, CCE, BCE, Huber
+-regularization: l1, l2, elasticnet
+-grad norm
+-fusion: if possible fuse loss/activation in last layer if possible
+-progress bar showing current batch progress, curent acc and loss, time per step and epoch acc, loss and test acc, test loss
+-savable history containing training info (proggres bar info + grad norm and scale)
+-cpu/gpu switch
+-mixed precision + DynamicLossScaler
+-full vectorization
+-DataLoader and ImageLoader (to load images from dataset folder with loading them to memroy in batches)
+-ready dataset like mnist, CIFAR
+-.architecture that show model architecture (layers, shapes, weights, nr of trainable params)
+
+My library works like this:
+model = NeuralNetwork(layers)
+optim = Adam()
+optim.scheduler = WarmCosineAnnealing()
+model.fit_data(train_dataLoader, test_dataLoader)
+model.loss = CrossEntropy()
+model.train(optim, epochs)
+
+so it automaticly handles forward and backward propagation, automatycly initialize layers and if none function is chosen it sets best one.
+After that you can save history, model or use it to predict some new values:
+model.history.to_json()
+model.save()
+model.predict(X)
+
+Also i can add that on small models, like tiny cnn network or mininet, my library got better times then torch (30% and 300% faster) using same datasets and training params.
+Acc results were practicly identical.
+
+Next im planing on adding data augmentation functions. label smoothing and inception. What else can i add? Also rate my current library
+My main goal is to create usable library that dont stand much from torch or tenserflow as my personal project and main portfolio project
+
+
+To claryfie i have visualization (to visualize history) and building model is similar to Sequentail api:
+    cnn_layers = [InputConv2D(shape=(1, 28, 28)), 
+              Conv2D(filters=8, kernel_size=3, strides=1, padding='same'),
+              BatchNorm2D(),
+              ReLU(),
+              MaxPool2D(pool_size=2, strides=2),
+              Flatten(),
+              Dense(nodes=32, activation='ReLU', keep_prob=0.7),
+              Dense(nodes=10, activation='softmax')
+    ]
+
+    model = NeuralNetwork(cnn_layers)
+
+Show me a roadmap that will cover like nearly every topic and thing that i can implement to make my library 10/10 and so i can learn everything there is from scratch
+
+
+assume that i finish this project and i also build some demos with it. Rate it from potential employer perspective. What and in which companies can i look for work? It this snading out
+from oder candidates?
+
+
+
+Eg2
+Edx2
+Egb2
+Edb2
+slow_W
+slow_b
+ema_W
+ema_b
+Sr
+Sc
+S1dw
+S1db
+
+Debugging & Transparency
+
+Gradient Checking → numerical vs analytical gradient validation.
+
+Gradient Statistics Tracking (norms, histograms, sparsity, exploding/vanishing detection).
+
+Activation Statistics Tracking (mean/var per layer, detect dead ReLUs).
+
+Weight Histories (distribution drift across epochs).
+
+Hooks System → custom forward/backward hooks per layer.
+(e.g., "let me log the output of layer 3 each epoch")
+
+🧪 Experiment Management
+
+Config Saving & Reproducibility
+
+Save random seeds, optimizer state, scheduler state, dataset splits.
+
+Export/import full training configs.
+
+Logging
+
+TensorBoard-like logger, or CSV/JSON for metrics.
+
+
+Add LearningRateMonitor, GradientNormLogger, TerminateOnNaN.
+
+🚀 Training Tricks
+
+Stochastic Weight Averaging (SWA).
+
+EMA of weights (Polyak averaging).
+
+Sharpness-Aware Minimization (SAM optimizer).
+
+🧩 Research Flexibility
+
+Custom Loss Composition
+
+Allow users to combine multiple losses easily (e.g. CE + MSE + reg terms).
+
+🖥️ Efficiency / Scaling
+
+Gradient Checkpointing (save memory by recomputing activations).
+
+Distributed Training (later: DDP / multi-GPU).
+
+📊 Visualization
+
+Learning Rate Finder (Smith’s LR range test).
+
+Loss landscape visualization (project 2D slices of parameter space).
+
+Training curves (loss, LR, grad norm).
+
+✅ If I were to prioritize for your library right now (to impress researchers fast), I’d do:
+SWA + EMA.
+Sharpness-Aware Minimization (SAM).
+
+Stochastic Weight Averaging (SWA) LR Schedule – cyclical LR for SWA.
+Exponential Moving Average + LR decay combos (EMA isn’t strictly a scheduler, but tightly related).
+Learning Rate Finder (not exactly a scheduler, but a tool: scans LR to find the sweet spot).
+
+
+1. Per-Layer Scheduling
+
+Allow every layer to have its own optimizer, LR schedule, decay, warmup.
+
+Ex: Attention heads training at high LR while embeddings anneal slowly.
+
+Very useful for transformers, where you often want embeddings to move less than upper layers.
+⚡ Wow factor: fine-grained control, out of the box.
+
+2. Plug-and-Play Optimizer Fusion
+
+Ability to mix optimizers per parameter group:
+
+Example: Conv layers on AdamW, embeddings on Shampoo, classifier head on SGD.
+
+Define rules like:
+
+optimizer = HybridOptimizer({
+    "conv*": AdamW(lr=1e-4),
+    "embed*": Shampoo(lr=5e-5),
+    "head*": SGD(lr=1e-2)
+})
+
+
+⚡ Researchers love this flexibility.
+
+3. Adaptive Optimizer Switching
+
+Train starts with Adam (fast progress), then library auto-switches to SGD once loss plateaus.
+
+There are papers showing Adam → SGD improves generalization.
+⚡ Built-in smarts = 🤯 for users.
+
+4. Advanced Regularization Modules
+
+Beyond Dropout:
+
+Stochastic Depth (residual layers randomly dropped).
+
+ShakeDrop / ShakeShake.
+
+LayerDrop (used in transformers).
+⚡ Instantly makes your library look research-ready.
+
+8. Parameter-Efficient Fine-Tuning (PEFT)
+
+Add support for LoRA, Prefix Tuning, Adapters.
+
+Hugely popular in LLM/transformer research.
+⚡ Instant employability boost if your lib handles PEFT well.
+
+9. Mixed Precision + Memory Tricks
+
+Beyond fp16/bf16, add:
+
+Quantization-aware training (INT8, 4-bit).
+
+Gradient checkpointing.
+
+ZeRO optimizer style memory partitioning.
+⚡ Makes you look like someone who thinks about scale.
+
+10. Visualization / Experiment Tracking (built-in)
+
+Minimalistic loss curves, LR schedules, activation histograms without TensorBoard bloat.
+
+Just:
+
+trainer.fit(model, data, log=True)
+
+
+⚡ Researchers love clean integrated logging.
+
+11. Meta-Learning & Few-Shot Tricks
+
+Add MAML-style optimizer wrapper.
+
+Support for task-specific adaptation in a few lines.
+⚡ Shows you’re aware of next-wave research.
+
+12. Self-Diagnosing Trainer
+
+Library auto-warns:
+
+“⚠️ Exploding gradients detected at epoch 5.”
+
+“⚠️ Vanishing gradients in layer 3.”
+⚡ Makes people trust the framework.
+
+13. Zero-Code Model Surgery
+
+Utilities like:
+
+model.replace("ReLU", GELU)
+model.freeze("embed*")
+model.insert_after("conv2", BatchNorm2D())
+
+
+⚡ Flexibility with one-liners always gets applause.
+
+14. Neural Architecture Search (NAS) Primitives
+
+Even a basic random-search or hyperband for architecture.
+
+Wrap it into trainer, so:
+
+search = NAS(model, search_space)
+search.run()
+
+⚡ Even simple implementation = instant wow.
+
+⚡⚡ If you want to stand out for employers, I’d say:
+
+PEFT support ✅
+
+Self-diagnosing training ✅
+
+These five alone scream “researcher’s library.”
+
+sparse cross entropy loss
+
+Distribution / Diversity regularizers
+
+Diversity Regularization
+
+Encourage different neurons/filters to be decorrelated (penalty on covariance).
+
+Variance Regularization
+
+Prevents collapse (e.g., all neurons giving same outputs).
+
+Entropy Regularization
+
+Encourage sparse but balanced activations.
+
+🔑 Bayesian / Robustness inspired
+
+DropConnect as Regularizer
+
+Not just a layer — treat it as regularization.
+
+KL Divergence to Prior
+
+Bayesian flavor: force weights to stay near Gaussian prior.
+
+Adversarial Regularization
+
+Add penalty from adversarial perturbations (FGSM-style).
+
+🔑 Graph / Attention specific
+
+Attention Entropy Regularization
+
+Encourage sharp or smooth attention distributions depending on use case.
+
+Graph Laplacian Regularizer
+
+For GNNs: smoothness penalty using Laplacian of graph.
+
+⚡️ My recommendation for max “WOW” factor in a deep learning library:
+
+Group Lasso (structured pruning potential).
+
+Orthogonal Regularization (for stability).
+
+Spectral Norm / Nuclear Norm (GAN/RNN researchers love this).
+
+Contractive Regularization (robustness).
+
+Diversity Regularizer (decorrelation of neurons).
+
+
+
+right now my library works like this:
+
+cnn_layers = [InputConv2D(shape=(1, 28, 28)), 
+              Conv2D(filters=8, kernel_size=3, strides=1, padding='same'),
+              BatchNorm2D(),
+              ReLU(),
+              MaxPool2D(pool_size=2, strides=2),
+              Flatten(),
+              Dense(nodes=10, activation='softmax')
+]
+
+optim = Nadam(learning_rate=0.0001)
+optim.scheduler = WarmCosineAnnealing(optim, warmup_epochs=3, max_epochs=10, min_lr=0.00001)
+model = BaseModel(cnn_layers)
+model.loss = CrossEntropyLoss()
+model.fit_data(train=train_mnist_loader, test=test_minist_loader)
+model.train(optimizer=optim, epochs=10, gradient_options={'clip_norm': 1.0})
+
+user creates layers, sets optim, scheduler, loss and other settings and train function computes forward, backward and optimizer step. Also automaticlly uses scheduler,
+mixed precision (with loss scaling), fusion, hooks, callbacks or grad options.
+
+But i also want to implement option to create model like this:
+
+def MyModel(BaseModel):
+    def __init__(self, input_nodes, output_nodes):
+        super().__init__()
+        self.input = Input(nodes=input_nodes),
+        self.dense1 = Dense(nodes=32, activation='ReLU', uniform=False, keep_prob=0.8),
+        self.dense2 = Dense(nodes=32, activation='ReLU', uniform=False, keep_prob=0.8),
+        self.dense3 = Dense(nodes=output_nodes, activation='softmax', uniform=False)
+
+    def forward(self, x):
+        x = self.input(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        out = self.dense3(x)
+
+        return out
+
+model = MyModel(784, 10)
+
+model.optim = Nadam(learning_rate=0.0001)
+model.optim.scheduler = WarmCosineAnnealing(optim, warmup_epochs=3, max_epochs=10, min_lr=0.00001)
+model.loss = CrossEntropyLoss()
+
+data = DataLoader(path)
+
+for epoch in range(10):
+    for mini_batch in DataLoader.batches():
+        x, y = mini_batch
+        logits = model(x)
+        loss = model.loss(logits, y)
+        model.backward(loss)
+        model.optim.step()
+
+
+So to do that i need feature that lists layers created in model __init__ by user in same order as in forward pass, so then model.backward() can automaticly compute grads by passing loss to 
+first layer in reverse order and outputing dA for next layer which do the same. Next optimizer go throw those layers, and if it contains dW it optimize its weights. When forward() isnt complicated
+like in this example, sequential model, layers go one by one without extra calculations, its not hard to implement since i have all the functions already, i just need to rename them and add some of 
+theme as callables. Only thing that i dont know how to implement, is function that will take created by user layers and will stack them as list in self.layers. One way is to user to 
+create self.layers = [self.input, self.dense1, self.dense2, self.dense3], but its not the cleanest way. Some problems can occure when forward() defined by user got some extra steps like in this example:
+
+ x = self.up(x)
+
+# in case of odd spatial dims, crop skip to match
+if x.size()[2:] != skip.size()[2:]:
+    diffY = skip.size(2) - x.size(2)
+    diffX = skip.size(3) - x.size(3)
+    skip = skip[:, :, diffY // 2: skip.size(2) - diffY // 2,
+                diffX // 2: skip.size(3) - diffX // 2]
+
+x = torch.cat([x, skip], dim=1)
+x = self.relu(self.conv1(x))
+x = self.relu(self.conv2(x))
+
+
+
+Crop2D, Concat
+transfer learning, fine tuning, multi tasking, federated learning
+
+upload to github
+
+finish last project for week 2
+
+as you can see, right now im building my own dl library. Rate it, its my main portfolio projects, that has is suposed to help me secure job as ml/dl engineer. Currently ive got implemented:
+-user api to create nn with:
+-cpu/gpu switch, tensors, autograd and mixed precison with loss scaler
+-puzzle like modules building, everything plug and play ready, with minimal train loop code (if even needed)
+-module or sequential models
+-dataloaders with datasets (array, generator, image, synthetic, augmented, e.t.c) returning batches of data
+-ready to use popular dataset (mnist, cifar, e.t.c)
+-diffrent layers (dense, conv2d, batchnorm, relu, e.t.c)
+-diffrent initialization and activation functions for those layers
+-many optimizers (adanorm, adam, sgd_momentum, lion, ranger21, shampoo, e.t.c)
+-diffrent schedulers for optimizers
+-diffrent losses (bce, cce, mae, e.t.c)
+-diffrent regularizers (maxnorm, elasticnet, spectralnorm, activityregularizer, e.t.c)
+-diffrent normalizers (not implemented yet but im working on it so assume its implemented in library)
+-callbacks and hooks (early stoping, gradient check, on_epoch/batch_end/start, and layer hooks)
+-those options can be set for model or just choosen layers (e.g. scheduler, optim, regularizer, normalizer, hooks per layer)
+-history and grad logger to monitor training stats (train/val loss, acc, time, lr, grad norm, grad sum, ratio, e.t.c)
+-model chackpoint and model saving/loading, traing resume
+-trainer that can handle all of it and user dont need to write any training code, just specify properties like model layers, optim, scheduler, regularizers, n of epochs, loss, datasets and batch size
+and trainer takes care of everything else
+-progress bar that shows current progress and training info (train/val loss/acc, current epoch/batch, esstimated time) 
+
+-look ahead policy
+-lookahead optim
+-lr finder
+
+
+so in summary to check if im get it now.
+
+-Every tensor caries its childs graph, and methadata like data, grad , dtype, is_leaf and its custom _backward 
+-When creating new one its inheritate creation graph (childs) and requires_grad and dtype
+-During backprop, last graph element (in this case loss) gets ones as grad, creates topo (list of tensors from the ones without
+childs in _prev to final one (loss)) and goes throw this topo in reverse, calulating derivative based on its grad and forward() operations
+derivative and then passing it to its childs as grad (setting it or adding for accumulation). At the end if is_leaf=False
+and _retain_grad=False it clears it grad to free space. Tensors like weights, that got requires_grad=True, also have is_leaf=True, so its
+grad is not deleted.
+-Optimizers collects Tensors with requires_grad=True and updates them based on grad. At the end grads are cleared.
+
+-update each reg step to use params instead of tensors
+-update optimizers to match adam
+-correct init_weights in cells
+-amp flag for some layers
+-param freezing

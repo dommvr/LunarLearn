@@ -1,0 +1,7 @@
+device: cpu
+dtype: float32
+seed: 997
+mixed_precision: true
+safe_factor: 0.8
+scaling_factor: 1024
+autograd: true
