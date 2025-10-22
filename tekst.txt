@@ -1125,4 +1125,4 @@ grad is not deleted.
 -update optimizers to match adam
 -correct init_weights in cells
 -amp flag for some layers
--param freezing
+-freeze manager

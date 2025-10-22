@@ -20,8 +20,7 @@ class Trainer:
         self.grads_logger = None
 
         self.scheduler_manager = SchedulerManager(model, optimizer)
-        self.scheduler_manager.auto_register_layers()
-        self.scheduler_manager.auto_register_optimizer()
+        self.scheduler_manager.auto_register_all()
 
         # Initialize hooks dictionary
         self.hooks = {
