@@ -1,5 +1,6 @@
 import LunarLearn.backend as backend
 from .tensor import Tensor
+from .parameter import Parameter
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -18,6 +19,8 @@ def ensure_tensor(obj, dtype=None):
     """
     if isinstance(obj, Tensor):
         return obj
+    if isinstance(obj, Parameter):
+        return obj.master
     data = xp.array(obj, dtype=DTYPE)
     return Tensor(data, dtype=dtype)
 
