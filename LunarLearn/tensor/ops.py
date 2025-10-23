@@ -11,6 +11,13 @@ DTYPE = backend.DTYPE
 # ============================================================================
 
 def _zeros_impl(shape, dtype=DTYPE) -> Tensor:
+    data = xp.zeros(shape, dtype=dtype)
+    out = Tensor(data, requires_grad=False, dtype=dtype)
+    out.is_leaf = True
+    out.grad_fn = "zeros"
+    return out
+
+def zeros(shape, dtype=DTYPE) -> Tensor:
     """
     Create a Tensor filled with zeros.
 
@@ -21,16 +28,16 @@ def _zeros_impl(shape, dtype=DTYPE) -> Tensor:
     Returns:
         Tensor: New tensor of given shape filled with zeros.
     """
-    data = xp.zeros(shape, dtype=dtype)
-    out = Tensor(data, requires_grad=False, dtype=dtype)
-    out.is_leaf = True
-    out.grad_fn = "zeros"
-    return out
-
-def zeros(shape, dtype=DTYPE) -> Tensor:
     return dispatch_amp("zeros", _zeros_impl, shape, dtype=dtype)
 
 def _ones_impl(shape, dtype=DTYPE) -> Tensor:
+    data = xp.ones(shape, dtype=dtype)
+    out = Tensor(data, requires_grad=False, dtype=dtype)
+    out.is_leaf = True
+    out.grad_fn = "ones"
+    return out
+
+def ones(shape, dtype=DTYPE) -> Tensor:
     """
     Create a Tensor filled with ones.
 
@@ -41,16 +48,16 @@ def _ones_impl(shape, dtype=DTYPE) -> Tensor:
     Returns:
         Tensor: New tensor of given shape filled with ones.
     """
-    data = xp.ones(shape, dtype=dtype)
-    out = Tensor(data, requires_grad=False, dtype=dtype)
-    out.is_leaf = True
-    out.grad_fn = "ones"
-    return out
-
-def ones(shape, dtype=DTYPE) -> Tensor:
     return dispatch_amp("ones", _ones_impl, shape, dtype=dtype)
 
 def _full_impl(shape, value, dtype=DTYPE) -> Tensor:
+    data = xp.full(shape, value, dtype=DTYPE)
+    out = Tensor(data, requires_grad=False, dtype=dtype)
+    out.is_leaf = True
+    out.grad_fn = 'full'
+    return out
+
+def full(shape, value, dtype=DTYPE) -> Tensor:
     """
     Create a Tensor filled with a specified value.
 
@@ -62,16 +69,16 @@ def _full_impl(shape, value, dtype=DTYPE) -> Tensor:
     Returns:
         Tensor: New tensor of given shape filled with `value`.
     """
-    data = xp.full(shape, value, dtype=DTYPE)
-    out = Tensor(data, requires_grad=False, dtype=dtype)
-    out.is_leaf = True
-    out.grad_fn = 'full'
-    return out
-
-def full(shape, value, dtype=DTYPE) -> Tensor:
     return dispatch_amp("full", _full_impl, shape, value, dtype=dtype)
 
 def _arange_impl(*args, dtype=DTYPE) -> Tensor:
+    data = xp.arange(*args, dtype=dtype)
+    out = Tensor(data, requires_grad=False, dtype=dtype)
+    out.is_leaf = True
+    out.grad_fn = "arange"
+    return out
+
+def arange(*args, dtype=DTYPE) -> Tensor:
     """
     Create a 1D tensor with values from a range.
 
@@ -82,16 +89,16 @@ def _arange_impl(*args, dtype=DTYPE) -> Tensor:
     Returns:
         Tensor: 1D tensor with evenly spaced values.
     """
-    data = xp.arange(*args, dtype=dtype)
-    out = Tensor(data, requires_grad=False, dtype=dtype)
-    out.is_leaf = True
-    out.grad_fn = "arange"
-    return out
-
-def arange(*args, dtype=DTYPE) -> Tensor:
     return dispatch_amp("arange", _arange_impl, *args, dtype=dtype)
 
 def _eye_impl(n, m=None, dtype=DTYPE) -> Tensor:
+    data = xp.eye(N=n, M=m if m is not None else n, dtype=dtype)
+    out = Tensor(data, requires_grad=False, dtype=dtype)
+    out.is_leaf = True
+    out.grad_fn = "eye"
+    return out
+
+def eye(n, m=None, dtype=DTYPE):
     """
     Create a 2D identity matrix (or rectangular eye matrix).
 
@@ -103,13 +110,6 @@ def _eye_impl(n, m=None, dtype=DTYPE) -> Tensor:
     Returns:
         Tensor: Identity (or eye) tensor.
     """
-    data = xp.eye(N=n, M=m if m is not None else n, dtype=dtype)
-    out = Tensor(data, requires_grad=False, dtype=dtype)
-    out.is_leaf = True
-    out.grad_fn = "eye"
-    return out
-
-def eye(n, m=None, dtype=DTYPE):
     return dispatch_amp("eye", _eye_impl, n, m, dtype=dtype)
 
 # ============================================================================
@@ -140,6 +140,11 @@ def unary_op(a: Tensor, op, grad_fn, name):
                  dtype=dtype)
     out.is_leaf = False
     out.grad_fn = name
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
     
     def _backward():
         if out.grad is None:
@@ -165,6 +170,14 @@ def unary_op(a: Tensor, op, grad_fn, name):
     return out
 
 def _exp_impl(a: Tensor) -> Tensor:
+    return unary_op(
+        a,
+        op=xp.exp,
+        grad_fn=lambda grad_out, a_data: grad_out * xp.exp(a_data),
+        name="exp",
+    )
+
+def exp(a: Tensor) -> Tensor:
     """
     Elementwise exponential.
 
@@ -174,17 +187,17 @@ def _exp_impl(a: Tensor) -> Tensor:
     Returns:
         Tensor: exp(a).
     """
-    return unary_op(
-        a,
-        op=xp.exp,
-        grad_fn=lambda grad_out, a_data: grad_out * xp.exp(a_data),
-        name="exp",
-    )
-
-def exp(a: Tensor) -> Tensor:
     return dispatch_amp("exp", _exp_impl, a)
 
 def _log_impl(a: Tensor) -> Tensor:
+    return unary_op(
+        a,
+        op=xp.log,
+        grad_fn=lambda grad_out, a_data: grad_out / a_data,
+        name="log",
+    )
+
+def log(a: Tensor) -> Tensor:
     """
     Elementwise natural logarithm.
 
@@ -194,17 +207,17 @@ def _log_impl(a: Tensor) -> Tensor:
     Returns:
         Tensor: log(a).
     """
-    return unary_op(
-        a,
-        op=xp.log,
-        grad_fn=lambda grad_out, a_data: grad_out / a_data,
-        name="log",
-    )
-
-def log(a: Tensor) -> Tensor:
     return dispatch_amp("log", _log_impl, a)
 
 def _sqrt_impl(a: Tensor) -> Tensor:
+    return unary_op(
+        a,
+        op=xp.sqrt,
+        grad_fn=lambda grad_out, a_data: grad_out / (2 * xp.sqrt(a_data)),
+        name="sqrt",
+    )
+
+def sqrt(a: Tensor) -> Tensor:
     """
     Elementwise square root.
 
@@ -214,17 +227,17 @@ def _sqrt_impl(a: Tensor) -> Tensor:
     Returns:
         Tensor: sqrt(a).
     """
-    return unary_op(
-        a,
-        op=xp.sqrt,
-        grad_fn=lambda grad_out, a_data: grad_out / (2 * xp.sqrt(a_data)),
-        name="sqrt",
-    )
-
-def sqrt(a: Tensor) -> Tensor:
     return dispatch_amp("sqrt", _sqrt_impl, a)
 
 def _abs_impl(a: Tensor) -> Tensor:
+    return unary_op(
+        a,
+        op=xp.abs,
+        grad_fn=lambda grad_out, a_data: (grad_out * xp.sign(a_data),),
+        name="abs"
+    )
+
+def abs(a: Tensor) -> Tensor:
     """
     Elementwise absolute value.
 
@@ -234,17 +247,17 @@ def _abs_impl(a: Tensor) -> Tensor:
     Returns:
         Tensor: Absolute value of `a`.
     """
-    return unary_op(
-        a,
-        op=xp.abs,
-        grad_fn=lambda grad_out, a_data: (grad_out * xp.sign(a_data),),
-        name="abs"
-    )
-
-def abs(a: Tensor) -> Tensor:
     return dispatch_amp("abs", _abs_impl, a)
 
 def _neg_impl(a: Tensor) -> Tensor:
+    return unary_op(
+        a,
+        op=lambda x: -x,
+        grad_fn=lambda grad_out, a_data: (-grad_out,),
+        name="neg"
+    )
+
+def neg(a: Tensor) -> Tensor:
     """
     Elementwise negation.
 
@@ -254,30 +267,9 @@ def _neg_impl(a: Tensor) -> Tensor:
     Returns:
         Tensor: Negated tensor (-a).
     """
-    return unary_op(
-        a,
-        op=lambda x: -x,
-        grad_fn=lambda grad_out, a_data: (-grad_out,),
-        name="neg"
-    )
-
-def neg(a: Tensor) -> Tensor:
     return dispatch_amp("neg", _neg_impl, a)
 
 def _norm_impl(a: Tensor, ord=2, axis=None, keepdims=False, eps=1e-8) -> Tensor:
-    """
-    Compute the L2 norm of a tensor along specified axes.
-
-    Args:
-        a (Tensor): Input tensor.
-        ord (int or float, optional): Order of the norm. Default is 2.
-        axis (int or tuple, optional): Axis or axes along which to compute the norm.
-        keepdims (bool, optional): Whether to keep reduced dimensions. Default is False.
-        eps (float, optional): Small value to avoid division by zero. Default is 1e-8.
-
-    Returns:
-        Tensor: Tensor containing the computed norm.
-    """
     a = ensure_tensor(a)
     squared = (a * a).sum(axis=axis, keepdims=keepdims)
     data = xp.sqrt(squared + eps)
@@ -287,6 +279,11 @@ def _norm_impl(a: Tensor, ord=2, axis=None, keepdims=False, eps=1e-8) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "norm"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -310,20 +307,22 @@ def _norm_impl(a: Tensor, ord=2, axis=None, keepdims=False, eps=1e-8) -> Tensor:
     return out
 
 def norm(a: Tensor, ord=2, axis=None, keepdims=False, eps=1e-8) -> Tensor:
-    return dispatch_amp("norm", _norm_impl, a, ord=ord, axis=axis, keepdims=keepdims, eps=eps)
-
-def _clip_impl(a: Tensor, a_min, a_max) -> Tensor:
     """
-    Clip values of a tensor to a specified range.
+    Compute the L2 norm of a tensor along specified axes.
 
     Args:
         a (Tensor): Input tensor.
-        a_min (scalar): Minimum allowed value.
-        a_max (scalar): Maximum allowed value.
+        ord (int or float, optional): Order of the norm. Default is 2.
+        axis (int or tuple, optional): Axis or axes along which to compute the norm.
+        keepdims (bool, optional): Whether to keep reduced dimensions. Default is False.
+        eps (float, optional): Small value to avoid division by zero. Default is 1e-8.
 
     Returns:
-        Tensor: Tensor with values clipped between a_min and a_max.
+        Tensor: Tensor containing the computed norm.
     """
+    return dispatch_amp("norm", _norm_impl, a, ord=ord, axis=axis, keepdims=keepdims, eps=eps)
+
+def _clip_impl(a: Tensor, a_min, a_max) -> Tensor:
     a = ensure_tensor(a)
     data = xp.clip(a.data, a_min, a_max)
     requires_grad = a.requires_grad
@@ -332,6 +331,11 @@ def _clip_impl(a: Tensor, a_min, a_max) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "clip"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -355,21 +359,20 @@ def _clip_impl(a: Tensor, a_min, a_max) -> Tensor:
     return out
 
 def clip(a: Tensor, a_min, a_max) -> Tensor:
-    return dispatch_amp("clip", _clip_impl, a, a_min=a_min, a_max=a_max)
-
-def _erf_impl(a: Tensor) -> Tensor:
     """
-    Elementwise Gauss error function.
-
-    Computes:
-        erf(a) = 2/sqrt(pi) * ∫_0^a exp(-t^2) dt
+    Clip values of a tensor to a specified range.
 
     Args:
         a (Tensor): Input tensor.
+        a_min (scalar): Minimum allowed value.
+        a_max (scalar): Maximum allowed value.
 
     Returns:
-        Tensor: erf(a).
+        Tensor: Tensor with values clipped between a_min and a_max.
     """
+    return dispatch_amp("clip", _clip_impl, a, a_min=a_min, a_max=a_max)
+
+def _erf_impl(a: Tensor) -> Tensor:
     a = ensure_tensor(a)
     data = xp.erf(a.data)
     requires_grad = a.requires_grad
@@ -378,6 +381,11 @@ def _erf_impl(a: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "erf"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -402,18 +410,21 @@ def _erf_impl(a: Tensor) -> Tensor:
     return out
 
 def erf(a: Tensor) -> Tensor:
-    return dispatch_amp("erf", _erf_impl, a)
-
-def _erfc_impl(a: Tensor) -> Tensor:
     """
-    Elementwise complementary error function.
+    Elementwise Gauss error function.
+
+    Computes:
+        erf(a) = 2/sqrt(pi) * ∫_0^a exp(-t^2) dt
 
     Args:
         a (Tensor): Input tensor.
 
     Returns:
-        Tensor: erfc(a) = 1 - erf(a).
+        Tensor: erf(a).
     """
+    return dispatch_amp("erf", _erf_impl, a)
+
+def _erfc_impl(a: Tensor) -> Tensor:
     a = ensure_tensor(a)
     data = xp.erfc(a.data)
     requires_grad = a.requires_grad
@@ -422,6 +433,11 @@ def _erfc_impl(a: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "erfc"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -446,6 +462,15 @@ def _erfc_impl(a: Tensor) -> Tensor:
     return out
 
 def erfc(a: Tensor) -> Tensor:
+    """
+    Elementwise complementary error function.
+
+    Args:
+        a (Tensor): Input tensor.
+
+    Returns:
+        Tensor: erfc(a) = 1 - erf(a).
+    """
     return dispatch_amp("erfc", _erfc_impl, a)
 
 # ============================================================
@@ -477,6 +502,12 @@ def elementwise_op(a: Tensor, b: Tensor, op, grad_fn, name):
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = name
+
+    for t in (a, b):
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if out.grad is None:
@@ -517,6 +548,15 @@ def elementwise_op(a: Tensor, b: Tensor, op, grad_fn, name):
     return out
 
 def _add_impl(a: Tensor, b: Tensor) -> Tensor:
+    return elementwise_op(
+        a, b,
+        op=xp.add,
+        grad_fn=lambda grad_out, a_data, b_data: (grad_out, 
+                                                  grad_out),
+                                                  name="add"
+    )
+
+def add(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise addition: out = a + b
 
@@ -527,18 +567,18 @@ def _add_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Result of a + b, with autograd support.
     """
-    return elementwise_op(
-        a, b,
-        op=xp.add,
-        grad_fn=lambda grad_out, a_data, b_data: (grad_out, 
-                                                  grad_out),
-                                                  name="add"
-    )
-
-def add(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("add", _add_impl, a, b)
 
 def _subtract_impl(a: Tensor, b: Tensor) -> Tensor:
+    return elementwise_op(
+        a, b,
+        op=xp.subtract,
+        grad_fn=lambda grad_out, a_data, b_data: (grad_out, 
+                                                  -grad_out),
+                                                  name="subtract"
+    )
+
+def subtract(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise subtraction: out = a - b
 
@@ -549,18 +589,18 @@ def _subtract_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Result of a - b, with autograd support.
     """
-    return elementwise_op(
-        a, b,
-        op=xp.subtract,
-        grad_fn=lambda grad_out, a_data, b_data: (grad_out, 
-                                                  -grad_out),
-                                                  name="subtract"
-    )
-
-def subtract(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("subtract", _subtract_impl, a, b)
 
 def _multiply_impl(a: Tensor, b: Tensor) -> Tensor:
+    return elementwise_op(
+        a, b,
+        op=xp.multiply,
+        grad_fn=lambda grad_out, a_data, b_data: (grad_out * b_data, 
+                                                  grad_out * a_data),
+                                                  name="multiply"
+    )
+
+def multiply(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise multiplication: out = a * b
 
@@ -571,18 +611,18 @@ def _multiply_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Result of a * b, with autograd support.
     """
-    return elementwise_op(
-        a, b,
-        op=xp.multiply,
-        grad_fn=lambda grad_out, a_data, b_data: (grad_out * b_data, 
-                                                  grad_out * a_data),
-                                                  name="multiply"
-    )
-
-def multiply(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("multiply", _multiply_impl, a, b)
 
 def _divide_impl(a: Tensor, b: Tensor) -> Tensor:
+    return elementwise_op(
+        a, b,
+        op=xp.divide,
+        grad_fn=lambda grad_out, a_data, b_data: (grad_out / b_data, 
+                                                  -grad_out * a_data / (b_data**2)),
+                                                  name="divide"
+    )
+
+def divide(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise division: out = a / b
 
@@ -593,18 +633,18 @@ def _divide_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Result of a / b, with autograd support.
     """
-    return elementwise_op(
-        a, b,
-        op=xp.divide,
-        grad_fn=lambda grad_out, a_data, b_data: (grad_out / b_data, 
-                                                  -grad_out * a_data / (b_data**2)),
-                                                  name="divide"
-    )
-
-def divide(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("divide", _divide_impl, a, b)
 
 def _power_impl(a: Tensor, b: Tensor) -> Tensor:
+    return elementwise_op(
+        a, b,
+        op=xp.power,
+        grad_fn=lambda grad_out, a_data, b_data: (grad_out * b_data * a_data ** (b_data-1), 
+                                                  grad_out * (a_data ** b_data) * xp.log(a_data)),
+                                                  name="power"
+    )
+
+def power(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise power: out = a ** b
 
@@ -615,18 +655,20 @@ def _power_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Result of a ** b, with autograd support.
     """
-    return elementwise_op(
-        a, b,
-        op=xp.power,
-        grad_fn=lambda grad_out, a_data, b_data: (grad_out * b_data * a_data ** (b_data-1), 
-                                                  grad_out * (a_data ** b_data) * xp.log(a_data)),
-                                                  name="power"
-    )
-
-def power(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("power", _power_impl, a, b)
 
 def _maximum_impl(a: Tensor, b: Tensor) -> Tensor:
+    return elementwise_op(
+        a, b,
+        op=xp.maximum,
+        grad_fn=lambda grad_out, a_data, b_data: (
+            grad_out * (a_data >= b_data),
+            grad_out * (b_data > a_data),
+        ),
+        name="maximum"
+    )
+
+def maximum(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise maximum between two tensors.
 
@@ -641,20 +683,20 @@ def _maximum_impl(a: Tensor, b: Tensor) -> Tensor:
         - Gradient w.r.t. `a` is passed only where a >= b.
         - Gradient w.r.t. `b` is passed only where b > a.
     """
-    return elementwise_op(
-        a, b,
-        op=xp.maximum,
-        grad_fn=lambda grad_out, a_data, b_data: (
-            grad_out * (a_data >= b_data),
-            grad_out * (b_data > a_data),
-        ),
-        name="maximum"
-    )
-
-def maximum(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("maximum", _maximum_impl, a, b)
 
 def _minimum_impl(a: Tensor, b: Tensor) -> Tensor:
+    return elementwise_op(
+        a, b,
+        op=xp.minimum,
+        grad_fn=lambda grad_out, a_data, b_data: (
+            grad_out * (a_data <= b_data),
+            grad_out * (b_data < a_data),
+        ),
+        name="minimum"
+    )
+
+def minimum(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise minimum between two tensors.
 
@@ -669,31 +711,9 @@ def _minimum_impl(a: Tensor, b: Tensor) -> Tensor:
         - Gradient w.r.t. `a` is passed only where a <= b.
         - Gradient w.r.t. `b` is passed only where b < a.
     """
-    return elementwise_op(
-        a, b,
-        op=xp.minimum,
-        grad_fn=lambda grad_out, a_data, b_data: (
-            grad_out * (a_data <= b_data),
-            grad_out * (b_data < a_data),
-        ),
-        name="minimum"
-    )
-
-def minimum(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("minimum", _minimum_impl, a, b)
 
 def _where_impl(condition: Tensor, a: Tensor, b: Tensor) -> Tensor:
-    """
-    Select elements from `a` or `b` depending on a boolean condition.
-
-    Args:
-        condition (Tensor): Boolean tensor where True selects from `a` and False from `b`.
-        a (Tensor): Tensor to select from when condition is True.
-        b (Tensor): Tensor to select from when condition is False.
-
-    Returns:
-        Tensor: Tensor formed by choosing elements from `a` or `b`.
-    """
     a = ensure_tensor(a)
     b = ensure_tensor(b)
     dtype = promote_dtype(a.dtype, b.dtype)
@@ -704,6 +724,12 @@ def _where_impl(condition: Tensor, a: Tensor, b: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "where"
+
+    for t in (a, b):
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if out.grad is None:
@@ -742,6 +768,17 @@ def _where_impl(condition: Tensor, a: Tensor, b: Tensor) -> Tensor:
     return out
 
 def where(condition: Tensor, a: Tensor, b: Tensor) -> Tensor:
+    """
+    Select elements from `a` or `b` depending on a boolean condition.
+
+    Args:
+        condition (Tensor): Boolean tensor where True selects from `a` and False from `b`.
+        a (Tensor): Tensor to select from when condition is True.
+        b (Tensor): Tensor to select from when condition is False.
+
+    Returns:
+        Tensor: Tensor formed by choosing elements from `a` or `b`.
+    """
     return dispatch_amp("where", _where_impl, condition, a, b)
 
 # ============================================================
@@ -749,6 +786,11 @@ def where(condition: Tensor, a: Tensor, b: Tensor) -> Tensor:
 # ============================================================
 
 def _eq_impl(a: Tensor, b: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    return Tensor(a.data == b.data, requires_grad=False)
+
+def eq(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise equality: out = (a == b)
 
@@ -759,14 +801,14 @@ def _eq_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Boolean mask (cast to int for autograd graph).
     """
-    a = ensure_tensor(a)
-    b = ensure_tensor(b)
-    return Tensor(a.data == b.data, requires_grad=False)
-
-def eq(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("eq", _eq_impl, a, b)
 
 def _ne_impl(a: Tensor, b: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    return Tensor(a.data != b.data, requires_grad=False)
+
+def ne(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise inequality: out = (a != b)
 
@@ -777,14 +819,14 @@ def _ne_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Boolean mask (cast to int for autograd graph).
     """
-    a = ensure_tensor(a)
-    b = ensure_tensor(b)
-    return Tensor(a.data != b.data, requires_grad=False)
-
-def ne(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("ne", _ne_impl, a, b)
 
 def _lt_impl(a: Tensor, b: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    return Tensor(a.data < b.data, requires_grad=False)
+
+def lt(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise less-than: out = (a < b)
 
@@ -795,14 +837,14 @@ def _lt_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Boolean mask (cast to int for autograd graph).
     """
-    a = ensure_tensor(a)
-    b = ensure_tensor(b)
-    return Tensor(a.data < b.data, requires_grad=False)
-
-def lt(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("lt", _lt_impl, a, b)
 
 def _le_impl(a: Tensor, b: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    return Tensor(a.data <= b.data, requires_grad=False)
+
+def le(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise less-equal: out = (a <= b)
 
@@ -813,14 +855,14 @@ def _le_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Boolean mask (cast to int for autograd graph).
     """
-    a = ensure_tensor(a)
-    b = ensure_tensor(b)
-    return Tensor(a.data <= b.data, requires_grad=False)
-
-def le(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("le", _le_impl, a, b)
 
 def _gt_impl(a: Tensor, b: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    return Tensor(a.data > b.data, requires_grad=False)
+
+def gt(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise greater-than: out = (a > b)
 
@@ -831,14 +873,14 @@ def _gt_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Boolean mask (cast to int for autograd graph).
     """
-    a = ensure_tensor(a)
-    b = ensure_tensor(b)
-    return Tensor(a.data > b.data, requires_grad=False)
-
-def gt(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("gt", _gt_impl, a, b)
 
 def _ge_impl(a: Tensor, b: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    return Tensor(a.data >= b.data, requires_grad=False)
+
+def ge(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise greater-equal: out = (a >= b)
 
@@ -849,11 +891,6 @@ def _ge_impl(a: Tensor, b: Tensor) -> Tensor:
     Returns:
         Tensor: Boolean mask (cast to int for autograd graph).
     """
-    a = ensure_tensor(a)
-    b = ensure_tensor(b)
-    return Tensor(a.data >= b.data, requires_grad=False)
-
-def ge(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("ge", _ge_impl, a, b)
 
 # ============================================================
@@ -861,6 +898,11 @@ def ge(a: Tensor, b: Tensor) -> Tensor:
 # ============================================================
 
 def _logical_and_impl(a: Tensor, b: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    return Tensor(xp.logical_and(a.data, b.data), requires_grad=False)
+
+def logical_and(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise logical AND.
 
@@ -874,14 +916,14 @@ def _logical_and_impl(a: Tensor, b: Tensor) -> Tensor:
     Notes:
         - No gradients are propagated (non-differentiable).
     """
-    a = ensure_tensor(a)
-    b = ensure_tensor(b)
-    return Tensor(xp.logical_and(a.data, b.data), requires_grad=False)
-
-def logical_and(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("logical_and", _logical_and_impl, a, b)
 
 def _logical_or_impl(a: Tensor, b: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    return Tensor(xp.logical_or(a.data, b.data), requires_grad=False)
+
+def logical_or(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise logical OR.
 
@@ -895,14 +937,14 @@ def _logical_or_impl(a: Tensor, b: Tensor) -> Tensor:
     Notes:
         - No gradients are propagated (non-differentiable).
     """
-    a = ensure_tensor(a)
-    b = ensure_tensor(b)
-    return Tensor(xp.logical_or(a.data, b.data), requires_grad=False)
-
-def logical_or(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("logical_or", _logical_or_impl, a, b)
 
 def _logical_xor_impl(a: Tensor, b: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    return Tensor(xp.logical_xor(a.data, b.data), requires_grad=False)
+
+def logical_xor(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise logical XOR (exclusive OR).
 
@@ -916,14 +958,13 @@ def _logical_xor_impl(a: Tensor, b: Tensor) -> Tensor:
     Notes:
         - No gradients are propagated (non-differentiable).
     """
-    a = ensure_tensor(a)
-    b = ensure_tensor(b)
-    return Tensor(xp.logical_xor(a.data, b.data), requires_grad=False)
-
-def logical_xor(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("logical_xor", _logical_xor_impl, a, b)
 
 def _logical_not_impl(a: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    return Tensor(xp.logical_not(a.data), requires_grad=False)
+
+def logical_not(a: Tensor, b: Tensor) -> Tensor:
     """
     Elementwise logical NOT.
 
@@ -936,10 +977,6 @@ def _logical_not_impl(a: Tensor) -> Tensor:
     Notes:
         - No gradients are propagated (non-differentiable).
     """
-    a = ensure_tensor(a)
-    return Tensor(xp.logical_not(a.data), requires_grad=False)
-
-def logical_not(a: Tensor, b: Tensor) -> Tensor:
     return dispatch_amp("logical_not", _logical_not_impl, a, b)
 
 # ============================================================
@@ -947,17 +984,6 @@ def logical_not(a: Tensor, b: Tensor) -> Tensor:
 # ============================================================
 
 def _sum_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
-    """
-    Reduction sum: out = sum(a)
-
-    Args:
-        a (Tensor): Input tensor.
-        axis (int or tuple, optional): Axis/axes to reduce.
-        keepdims (bool): Whether to retain reduced dims.
-
-    Returns:
-        Tensor: Summed tensor.
-    """
     a = ensure_tensor(a)
     data = xp.sum(a.data, axis=axis, keepdims=keepdims)
     requires_grad = a.requires_grad
@@ -966,6 +992,11 @@ def _sum_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "sum"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -993,11 +1024,8 @@ def _sum_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     return out
 
 def sum(a: Tensor, axis=None, keepdims=False) -> Tensor:
-    return dispatch_amp("sum", _sum_impl, a, axis=axis, keepdims=keepdims)
-
-def _mean_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     """
-    Reduction mean: out = mean(a)
+    Reduction sum: out = sum(a)
 
     Args:
         a (Tensor): Input tensor.
@@ -1005,8 +1033,11 @@ def _mean_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
         keepdims (bool): Whether to retain reduced dims.
 
     Returns:
-        Tensor: Mean tensor.
+        Tensor: Summed tensor.
     """
+    return dispatch_amp("sum", _sum_impl, a, axis=axis, keepdims=keepdims)
+
+def _mean_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     a = ensure_tensor(a)
     data = xp.mean(a.data, axis=axis, keepdims=keepdims)
     requires_grad = a.requires_grad
@@ -1015,6 +1046,11 @@ def _mean_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "mean"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1042,11 +1078,8 @@ def _mean_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     return out
 
 def mean(a: Tensor, axis=None, keepdims=False) -> Tensor:
-    return dispatch_amp("mean", _mean_impl, a, axis=axis, keepdims=keepdims)
-
-def _max_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     """
-    Reduction max: out = max(a)
+    Reduction mean: out = mean(a)
 
     Args:
         a (Tensor): Input tensor.
@@ -1054,8 +1087,11 @@ def _max_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
         keepdims (bool): Whether to retain reduced dims.
 
     Returns:
-        Tensor: Maximum values.
+        Tensor: Mean tensor.
     """
+    return dispatch_amp("mean", _mean_impl, a, axis=axis, keepdims=keepdims)
+
+def _max_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     a = ensure_tensor(a)
     data = xp.max(a.data, axis=axis, keepdims=keepdims)
     requires_grad = a.requires_grad
@@ -1064,6 +1100,11 @@ def _max_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "max"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1091,11 +1132,8 @@ def _max_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     return out
 
 def max(a: Tensor, axis=None, keepdims=False):
-    return dispatch_amp("max", _max_impl, a, axis=axis, keepdims=keepdims)
-
-def _min_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     """
-    Reduction min: out = min(a)
+    Reduction max: out = max(a)
 
     Args:
         a (Tensor): Input tensor.
@@ -1103,8 +1141,11 @@ def _min_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
         keepdims (bool): Whether to retain reduced dims.
 
     Returns:
-        Tensor: Minimum values.
+        Tensor: Maximum values.
     """
+    return dispatch_amp("max", _max_impl, a, axis=axis, keepdims=keepdims)
+
+def _min_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     a = ensure_tensor(a)
     data = xp.min(a.data, axis=axis, keepdims=keepdims)
     requires_grad = a.requires_grad
@@ -1113,6 +1154,11 @@ def _min_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "min"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1140,9 +1186,34 @@ def _min_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     return out
 
 def min(a: Tensor, axis=None, keepdims=False):
+    """
+    Reduction min: out = min(a)
+
+    Args:
+        a (Tensor): Input tensor.
+        axis (int or tuple, optional): Axis/axes to reduce.
+        keepdims (bool): Whether to retain reduced dims.
+
+    Returns:
+        Tensor: Minimum values.
+    """
     return dispatch_amp("min", _min_impl, a, axis=axis, keepdims=keepdims)
 
 def _argmax_impl(a: Tensor, axis=None) -> Tensor:
+    a = ensure_tensor(a)
+    data = xp.argmax(a.data, axis=axis)
+    out = Tensor(data, requires_grad=False, dtype=a.dtype)  # non-diff
+    out.is_leaf = False
+    out.grad_fn = "argmax"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
+    return out
+
+def argmax(a: Tensor, axis=None) -> Tensor:
     """
     Returns the indices of the maximum values along an axis.
 
@@ -1158,17 +1229,25 @@ def _argmax_impl(a: Tensor, axis=None) -> Tensor:
         - This operation does not support gradients.
         - `requires_grad=False` is always enforced.
     """
-    a = ensure_tensor(a)
-    data = xp.argmax(a.data, axis=axis)
-    out = Tensor(data, requires_grad=False, dtype=a.dtype)  # non-diff
-    out.is_leaf = False
-    out.grad_fn = "argmax"
-    return out
-
-def argmax(a: Tensor, axis=None) -> Tensor:
     return dispatch_amp("argmax", _argmax_impl, a, axis=axis)
 
 def _var_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
+    a = ensure_tensor(a)
+    mean_a = mean(a, axis=axis, keepdims=True)   # use autograd mean
+    diff = a - mean_a
+    sq = diff * diff
+    out = mean(sq, axis=axis, keepdims=keepdims)
+    out.is_leaf = False
+    out.grad_fn = "var"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
+    return out
+
+def var(a: Tensor, axis=None, keepdims=False) -> Tensor:
     """
     Variance: out = var(a)
 
@@ -1181,19 +1260,23 @@ def _var_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     Returns:
         Tensor: Variance along given axes.
     """
-    a = ensure_tensor(a)
-    mean_a = mean(a, axis=axis, keepdims=True)   # use autograd mean
-    diff = a - mean_a
-    sq = diff * diff
-    out = mean(sq, axis=axis, keepdims=keepdims)
-    out.is_leaf = False
-    out.grad_fn = "var"
-    return out
-
-def var(a: Tensor, axis=None, keepdims=False) -> Tensor:
     return dispatch_amp("var", _var_impl, a, axis=axis, keepdims=keepdims)
 
 def _std_impl(a: Tensor, axis=None, keepdims=False, eps=1e-8) -> Tensor:
+    a = ensure_tensor(a)
+    v = var(a, axis=axis, keepdims=keepdims)
+    out = (v + eps) ** 0.5
+    out.is_leaf = False
+    out.grad_fn = "std"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
+    return out
+
+def std(a: Tensor, axis=None, keepdims=False, eps=1e-8) -> Tensor:
     """
     Standard deviation: out = std(a)
 
@@ -1206,28 +1289,9 @@ def _std_impl(a: Tensor, axis=None, keepdims=False, eps=1e-8) -> Tensor:
     Returns:
         Tensor: Standard deviation along given axes.
     """
-    a = ensure_tensor(a)
-    v = var(a, axis=axis, keepdims=keepdims)
-    out = (v + eps) ** 0.5
-    out.is_leaf = False
-    out.grad_fn = "std"
-    return out
-
-def std(a: Tensor, axis=None, keepdims=False, eps=1e-8) -> Tensor:
     return dispatch_amp("std", _std_impl, a, axis=axis, keepdims=keepdims, eps=eps)
 
 def _logsumexp_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
-    """
-    Log-Sum-Exp trick: log(sum(exp(a)))
-
-    Args:
-        a (Tensor): Input tensor.
-        axis (int or tuple, optional): Axes to reduce.
-        keepdims (bool): Whether to retain reduced dims.
-
-    Returns:
-        Tensor: log-sum-exp values.
-    """
     a = ensure_tensor(a)
     max_a = max(a, axis=axis, keepdims=True)
     shifted = a - max_a
@@ -1244,9 +1308,26 @@ def _logsumexp_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     
     out.is_leaf = False
     out.grad_fn = "logsumexp"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
     return out
 
 def logsumexp(a: Tensor, axis=None, keepdims=False) -> Tensor:
+    """
+    Log-Sum-Exp trick: log(sum(exp(a)))
+
+    Args:
+        a (Tensor): Input tensor.
+        axis (int or tuple, optional): Axes to reduce.
+        keepdims (bool): Whether to retain reduced dims.
+
+    Returns:
+        Tensor: log-sum-exp values.
+    """
     return dispatch_amp("logsumexp", _logsumexp_impl, a, axis=axis, keepdims=keepdims)
 
 # ============================================================
@@ -1254,21 +1335,6 @@ def logsumexp(a: Tensor, axis=None, keepdims=False) -> Tensor:
 # ============================================================
 
 def _matmul_impl(a: Tensor, b: Tensor) -> Tensor:
-    """
-    Matrix multiplication of two tensors.
-
-    Args:
-        a (Tensor): Left-hand side tensor.
-        b (Tensor): Right-hand side tensor.
-
-    Returns:
-        Tensor: Result of matrix multiplication.
-
-    Notes:
-        - Supports autograd.
-        - Gradient w.r.t. `a`: grad_out @ b^T
-        - Gradient w.r.t. `b`: a^T @ grad_out
-    """
     a = ensure_tensor(a)
     b = ensure_tensor(b)
     dtype = promote_dtype(a.dtype, b.dtype)
@@ -1279,6 +1345,12 @@ def _matmul_impl(a: Tensor, b: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "matmul"
+
+    for t in (a, b):
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1316,23 +1388,24 @@ def _matmul_impl(a: Tensor, b: Tensor) -> Tensor:
     return out
 
 def matmul(a: Tensor, b: Tensor) -> Tensor:
+    """
+    Matrix multiplication of two tensors.
+
+    Args:
+        a (Tensor): Left-hand side tensor.
+        b (Tensor): Right-hand side tensor.
+
+    Returns:
+        Tensor: Result of matrix multiplication.
+
+    Notes:
+        - Supports autograd.
+        - Gradient w.r.t. `a`: grad_out @ b^T
+        - Gradient w.r.t. `b`: a^T @ grad_out
+    """
     return dispatch_amp("matmul", _matmul_impl, a, b)
 
 def _dot_impl(a: Tensor, b: Tensor) -> Tensor:
-    """
-    Dot product of two tensors.
-
-    Args:
-        a (Tensor): First input tensor.
-        b (Tensor): Second input tensor.
-
-    Returns:
-        Tensor: Scalar or tensor result of dot product.
-
-    Notes:
-        - Gradient w.r.t. `a`: grad_out * b
-        - Gradient w.r.t. `b`: grad_out * a
-    """
     a = ensure_tensor(a)
     b = ensure_tensor(b)
     dtype = promote_dtype(a.dtype, b.dtype)
@@ -1343,6 +1416,12 @@ def _dot_impl(a: Tensor, b: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "dot"
+
+    for t in (a, b):
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1381,19 +1460,23 @@ def _dot_impl(a: Tensor, b: Tensor) -> Tensor:
     return out
 
 def dot(a: Tensor, b: Tensor) -> Tensor:
+    """
+    Dot product of two tensors.
+
+    Args:
+        a (Tensor): First input tensor.
+        b (Tensor): Second input tensor.
+
+    Returns:
+        Tensor: Scalar or tensor result of dot product.
+
+    Notes:
+        - Gradient w.r.t. `a`: grad_out * b
+        - Gradient w.r.t. `b`: grad_out * a
+    """
     return dispatch_amp("dot", _dot_impl, a, b)
 
 def _transpose_impl(a: Tensor, axes=None) -> Tensor:
-    """
-    Transpose tensor (permute axes).
-
-    Args:
-        a (Tensor): Input tensor.
-        axes (tuple, optional): Axis permutation.
-
-    Returns:
-        Tensor: Transposed tensor.
-    """
     a = ensure_tensor(a)
     data = xp.transpose(a.data, axes=axes)
     requires_grad = a.requires_grad
@@ -1402,6 +1485,11 @@ def _transpose_impl(a: Tensor, axes=None) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "transpose"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1429,19 +1517,19 @@ def _transpose_impl(a: Tensor, axes=None) -> Tensor:
     return out
 
 def transpose(a: Tensor, axes=None) -> Tensor:
-    return dispatch_amp("transpose", _transpose_impl, a, axes=axes)
-
-def _reshape_impl(a: Tensor, new_shape) -> Tensor:
     """
-    Reshape tensor.
+    Transpose tensor (permute axes).
 
     Args:
         a (Tensor): Input tensor.
-        shape (tuple): New shape.
+        axes (tuple, optional): Axis permutation.
 
     Returns:
-        Tensor: Reshaped tensor.
+        Tensor: Transposed tensor.
     """
+    return dispatch_amp("transpose", _transpose_impl, a, axes=axes)
+
+def _reshape_impl(a: Tensor, new_shape) -> Tensor:
     a = ensure_tensor(a)
     data = a.data.reshape(new_shape)
     requires_grad = a.requires_grad
@@ -1450,6 +1538,11 @@ def _reshape_impl(a: Tensor, new_shape) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "reshape"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1473,24 +1566,19 @@ def _reshape_impl(a: Tensor, new_shape) -> Tensor:
     return out
 
 def reshape(a: Tensor, new_shape) -> Tensor:
-    return dispatch_amp("reshape", _reshape_impl, a, new_shape)
-
-def _pad_impl(a: Tensor, pad_width, mode='constant', constant_values=0) -> Tensor:
     """
-    Pads a tensor.
+    Reshape tensor.
 
     Args:
         a (Tensor): Input tensor.
-        pad_width (tuple): Number of values padded to edges of each axis.
-        mode (str): Padding mode (e.g., 'constant', 'reflect', etc.).
-        constant_values (scalar): Constant value if mode='constant'.
+        shape (tuple): New shape.
 
     Returns:
-        Tensor: Padded tensor.
-
-    Notes:
-        - Gradient is propagated by slicing the padded result back to the original shape.
+        Tensor: Reshaped tensor.
     """
+    return dispatch_amp("reshape", _reshape_impl, a, new_shape)
+
+def _pad_impl(a: Tensor, pad_width, mode='constant', constant_values=0) -> Tensor:
     a = ensure_tensor(a)
     data = xp.pad(a.data, pad_width, mode=mode, constant_values=constant_values)
     requires_grad = a.requires_grad
@@ -1499,6 +1587,11 @@ def _pad_impl(a: Tensor, pad_width, mode='constant', constant_values=0) -> Tenso
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "pad"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1524,23 +1617,24 @@ def _pad_impl(a: Tensor, pad_width, mode='constant', constant_values=0) -> Tenso
     return out
 
 def pad(a: Tensor, pad_width, mode="constant", constant_values=0) -> Tensor:
+    """
+    Pads a tensor.
+
+    Args:
+        a (Tensor): Input tensor.
+        pad_width (tuple): Number of values padded to edges of each axis.
+        mode (str): Padding mode (e.g., 'constant', 'reflect', etc.).
+        constant_values (scalar): Constant value if mode='constant'.
+
+    Returns:
+        Tensor: Padded tensor.
+
+    Notes:
+        - Gradient is propagated by slicing the padded result back to the original shape.
+    """
     return dispatch_amp("pad", _pad_impl, a, pad_width, mode=mode, constant_values=constant_values)
 
 def _concatenate_impl(tensors: list[Tensor], axis=0) -> Tensor:
-    """
-    Concatenates a sequence of tensors along a given axis.
-
-    Args:
-        tensors (list[Tensor]): List of tensors to concatenate.
-        axis (int): Axis along which to concatenate.
-
-    Returns:
-        Tensor: Concatenated tensor.
-
-    Notes:
-        - Gradient is propagated by splitting the upstream gradient 
-          back into chunks matching each input tensor.
-    """
     tensors = [ensure_tensor(t) for t in tensors]
     dtype = promote_dtype(*tensors)
     datas = [t.data.astype(dtype, copy=False) for t in tensors]
@@ -1551,6 +1645,12 @@ def _concatenate_impl(tensors: list[Tensor], axis=0) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=dtype)
     out.is_leaf = False
     out.grad_fn = "concatenate"
+
+    for t in tensors:
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1577,19 +1677,23 @@ def _concatenate_impl(tensors: list[Tensor], axis=0) -> Tensor:
     return out
 
 def concatenate(tensors: list[Tensor], axis=0) -> Tensor:
+    """
+    Concatenates a sequence of tensors along a given axis.
+
+    Args:
+        tensors (list[Tensor]): List of tensors to concatenate.
+        axis (int): Axis along which to concatenate.
+
+    Returns:
+        Tensor: Concatenated tensor.
+
+    Notes:
+        - Gradient is propagated by splitting the upstream gradient 
+          back into chunks matching each input tensor.
+    """
     return dispatch_amp("concatenate", _concatenate_impl, tensors, axis=axis)
 
 def _stack_impl(tensors: list[Tensor], axis=0) -> Tensor:
-    """
-    Stack a sequence of tensors along a new axis.
-
-    Args:
-        tensors (List[Tensor]): Sequence of Tensor objects with identical shapes.
-        axis (int): Axis to insert the new dimension along.
-
-    Returns:
-        Tensor: Stacked output tensor with autograd support.
-    """
     if not tensors:
         raise ValueError("ops.stack() requires a non-empty list of tensors.")
 
@@ -1604,6 +1708,12 @@ def _stack_impl(tensors: list[Tensor], axis=0) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=tensors[0].dtype)
     out.is_leaf = False
     out.grad_fn = "stack"
+
+    for t in tensors:
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1635,21 +1745,19 @@ def _stack_impl(tensors: list[Tensor], axis=0) -> Tensor:
     return out
 
 def stack(tensors: list[Tensor], axis=0) -> Tensor:
+    """
+    Stack a sequence of tensors along a new axis.
+
+    Args:
+        tensors (List[Tensor]): Sequence of Tensor objects with identical shapes.
+        axis (int): Axis to insert the new dimension along.
+
+    Returns:
+        Tensor: Stacked output tensor with autograd support.
+    """
     return dispatch_amp("stack", _stack_impl, tensors, axis=axis)
 
 def _split_impl(a: Tensor, sections, axis=0):
-    """
-    Split a tensor into multiple sub-tensors along a given axis.
-
-    Args:
-        a (Tensor): Input tensor to split.
-        sections (int or sequence): If int, number of equal splits.
-                                    If sequence, explicit split indices.
-        axis (int): Axis to split along.
-
-    Returns:
-        List[Tensor]: A list of views (sub-tensors) along the specified axis.
-    """
     a = ensure_tensor(a)
     data_splits = xp.array_split(a.data, sections, axis=axis)
     requires_grad = a.requires_grad
@@ -1660,6 +1768,11 @@ def _split_impl(a: Tensor, sections, axis=0):
     for t in outs:
         t.is_leaf = False
         t.grad_fn = "split"
+
+        for hook in getattr(a, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if not a.requires_grad:
@@ -1684,21 +1797,21 @@ def _split_impl(a: Tensor, sections, axis=0):
     return outs
 
 def split(a: Tensor, sections, axis=0):
+    """
+    Split a tensor into multiple sub-tensors along a given axis.
+
+    Args:
+        a (Tensor): Input tensor to split.
+        sections (int or sequence): If int, number of equal splits.
+                                    If sequence, explicit split indices.
+        axis (int): Axis to split along.
+
+    Returns:
+        List[Tensor]: A list of views (sub-tensors) along the specified axis.
+    """
     return dispatch_amp("split", _split_impl, a, sections, axis=axis)
 
 def _squeeze_impl(a: Tensor, axis=None) -> Tensor:
-    """
-    Remove single-dimensional entries from the shape of a tensor.
-
-    Args:
-        a (Tensor): Input tensor.
-        axis (int or tuple of ints, optional): 
-            Selects a subset of dimensions to squeeze. 
-            If None, all dimensions of size 1 will be removed.
-
-    Returns:
-        Tensor: Squeezed tensor.
-    """
     a = ensure_tensor(a)
     data = xp.squeeze(a.data, axis=axis)
     requires_grad = a.requires_grad
@@ -1707,6 +1820,11 @@ def _squeeze_impl(a: Tensor, axis=None) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "squeeze"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1741,19 +1859,21 @@ def _squeeze_impl(a: Tensor, axis=None) -> Tensor:
     return out
 
 def squeeze(a: Tensor, axis=None) -> Tensor:
-    return dispatch_amp("squeeze", _squeeze_impl, a, axis=axis)
-
-def _unsqueeze_impl(a: Tensor, axis: int) -> Tensor:
     """
-    Insert a new axis of length one at the specified position.
+    Remove single-dimensional entries from the shape of a tensor.
 
     Args:
         a (Tensor): Input tensor.
-        axis (int): Position where a new axis will be inserted.
+        axis (int or tuple of ints, optional): 
+            Selects a subset of dimensions to squeeze. 
+            If None, all dimensions of size 1 will be removed.
 
     Returns:
-        Tensor: Tensor with an added dimension of size 1.
+        Tensor: Squeezed tensor.
     """
+    return dispatch_amp("squeeze", _squeeze_impl, a, axis=axis)
+
+def _unsqueeze_impl(a: Tensor, axis: int) -> Tensor:
     a = ensure_tensor(a)
     data = xp.expand_dims(a.data, axis=axis)
     requires_grad = a.requires_grad
@@ -1762,6 +1882,11 @@ def _unsqueeze_impl(a: Tensor, axis: int) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "unsqueeze"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1787,19 +1912,19 @@ def _unsqueeze_impl(a: Tensor, axis: int) -> Tensor:
     return out
 
 def unsqueeze(a: Tensor, axis: int) -> Tensor:
-    return dispatch_amp("unsqueeze", _unsqueeze_impl, a, axis)
-
-def _slice_impl(a: Tensor, slices) -> Tensor:
     """
-    Slice a tensor to extract a subset of elements.
+    Insert a new axis of length one at the specified position.
 
     Args:
         a (Tensor): Input tensor.
-        slices (slice or tuple of slices): Indexing specification.
+        axis (int): Position where a new axis will be inserted.
 
     Returns:
-        Tensor: Tensor containing the selected elements.
+        Tensor: Tensor with an added dimension of size 1.
     """
+    return dispatch_amp("unsqueeze", _unsqueeze_impl, a, axis)
+
+def _slice_impl(a: Tensor, slices) -> Tensor:
     a = ensure_tensor(a)
     data = a.data[slices]  # forward
     requires_grad = a.requires_grad
@@ -1808,6 +1933,11 @@ def _slice_impl(a: Tensor, slices) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "slice"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1832,19 +1962,19 @@ def _slice_impl(a: Tensor, slices) -> Tensor:
     return out
 
 def slice(a: Tensor, slices) -> Tensor:
-    return dispatch_amp("slice", _slice_impl, a, slices)
-
-def _flip_impl(a: Tensor, axis=None) -> Tensor:
     """
-    Reverse the order of elements along specified axes.
+    Slice a tensor to extract a subset of elements.
 
     Args:
         a (Tensor): Input tensor.
-        axes (Union[int, Tuple[int, ...]]): Axis or axes to flip. Default is all axes.
+        slices (slice or tuple of slices): Indexing specification.
 
     Returns:
-        Tensor: Tensor with elements reversed along the specified axes.
+        Tensor: Tensor containing the selected elements.
     """
+    return dispatch_amp("slice", _slice_impl, a, slices)
+
+def _flip_impl(a: Tensor, axis=None) -> Tensor:
     a = ensure_tensor(a)
     data = xp.flip(a.data, axis=axis)
     requires_grad = a.requires_grad 
@@ -1853,6 +1983,11 @@ def _flip_impl(a: Tensor, axis=None) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "flip"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1876,20 +2011,19 @@ def _flip_impl(a: Tensor, axis=None) -> Tensor:
     return out
 
 def flip(a: Tensor, axis=None) -> Tensor:
-    return dispatch_amp("flip", _flip_impl, a, axis=axis)
-
-def _roll_impl(a: Tensor, shift, axis=None) -> Tensor:
     """
-    Roll (circularly shift) tensor elements along specified axes.
+    Reverse the order of elements along specified axes.
 
     Args:
         a (Tensor): Input tensor.
-        shift (int or tuple of ints): Number of positions to shift. Positive values shift right.
-        axis (int or tuple of ints): Axis or axes along which to roll. Default: flattened tensor.
+        axes (Union[int, Tuple[int, ...]]): Axis or axes to flip. Default is all axes.
 
     Returns:
-        Tensor: Tensor with the same shape as `a`, with elements rolled along the specified axes.
+        Tensor: Tensor with elements reversed along the specified axes.
     """
+    return dispatch_amp("flip", _flip_impl, a, axis=axis)
+
+def _roll_impl(a: Tensor, shift, axis=None) -> Tensor:
     a = ensure_tensor(a)
     data = xp.roll(a.data, shift, axis=axis)
     requires_grad = a.requires_grad
@@ -1898,6 +2032,11 @@ def _roll_impl(a: Tensor, shift, axis=None) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "roll"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1921,18 +2060,20 @@ def _roll_impl(a: Tensor, shift, axis=None) -> Tensor:
     return out
 
 def roll(a: Tensor, shift, axis=None) -> Tensor:
+    """
+    Roll (circularly shift) tensor elements along specified axes.
+
+    Args:
+        a (Tensor): Input tensor.
+        shift (int or tuple of ints): Number of positions to shift. Positive values shift right.
+        axis (int or tuple of ints): Axis or axes along which to roll. Default: flattened tensor.
+
+    Returns:
+        Tensor: Tensor with the same shape as `a`, with elements rolled along the specified axes.
+    """
     return dispatch_amp("roll", _roll_impl, a, shift, axis=axis)
 
 def _inv_impl(a: Tensor) -> Tensor:
-    """
-    Compute the inverse of a square matrix tensor.
-
-    Args:
-        a (Tensor): Square input tensor.
-
-    Returns:
-        Tensor: Inverse of the input tensor.
-    """
     a = ensure_tensor(a)
     data = xp.linalg.inv(a.data)
     requires_grad = a.requires_grad
@@ -1941,6 +2082,11 @@ def _inv_impl(a: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "inv"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -1965,18 +2111,18 @@ def _inv_impl(a: Tensor) -> Tensor:
     return out
 
 def inv(a: Tensor) -> Tensor:
-    return dispatch_amp("inv", _inv_impl, a)
-
-def _det_impl(a: Tensor) -> Tensor:
     """
-    Compute the determinant of a square matrix tensor.
+    Compute the inverse of a square matrix tensor.
 
     Args:
         a (Tensor): Square input tensor.
 
     Returns:
-        Tensor: Scalar tensor containing the determinant.
+        Tensor: Inverse of the input tensor.
     """
+    return dispatch_amp("inv", _inv_impl, a)
+
+def _det_impl(a: Tensor) -> Tensor:
     a = ensure_tensor(a)
     data = xp.linalg.det(a.data)
     requires_grad = a.requires_grad
@@ -1985,6 +2131,11 @@ def _det_impl(a: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "det"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2010,18 +2161,18 @@ def _det_impl(a: Tensor) -> Tensor:
     return out
 
 def det(a: Tensor) -> Tensor:
-    return dispatch_amp("det", _det_impl, a)
-
-def _trace_impl(a: Tensor) -> Tensor:
     """
-    Compute the trace (sum of diagonal elements) of a square matrix tensor.
+    Compute the determinant of a square matrix tensor.
 
     Args:
         a (Tensor): Square input tensor.
 
     Returns:
-        Tensor: Scalar tensor containing the trace.
+        Tensor: Scalar tensor containing the determinant.
     """
+    return dispatch_amp("det", _det_impl, a)
+
+def _trace_impl(a: Tensor) -> Tensor:
     a = ensure_tensor(a)
     data = xp.trace(a.data)
     requires_grad = a.requires_grad
@@ -2030,6 +2181,11 @@ def _trace_impl(a: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "trace"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2053,19 +2209,18 @@ def _trace_impl(a: Tensor) -> Tensor:
     return out
 
 def trace(a: Tensor) -> Tensor:
+    """
+    Compute the trace (sum of diagonal elements) of a square matrix tensor.
+
+    Args:
+        a (Tensor): Square input tensor.
+
+    Returns:
+        Tensor: Scalar tensor containing the trace.
+    """
     return dispatch_amp("trace", _trace_impl, a)
 
 def _einsum_impl(subscripts: str, *operands: Tensor) -> Tensor:
-    """
-    Compute a generalized Einstein summation on the provided tensors.
-
-    Args:
-        subscripts (str): Subscript string specifying summation, e.g., 'ij,jk->ik'.
-        *operands (Tensor): One or more tensors to participate in the summation.
-
-    Returns:
-        Tensor: Result of the Einstein summation.
-    """
     operands = [ensure_tensor(t) for t in operands]
     dtype = promote_dtype(*operands)
     datas = [t.data.astype(dtype, copy=False) for t in operands]
@@ -2076,6 +2231,12 @@ def _einsum_impl(subscripts: str, *operands: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=dtype)
     out.is_leaf = False
     out.grad_fn = "einsum"
+
+    for t in operands:
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2102,20 +2263,19 @@ def _einsum_impl(subscripts: str, *operands: Tensor) -> Tensor:
     return out
 
 def einsum(subscripts: str, *operands: Tensor) -> Tensor:
+    """
+    Compute a generalized Einstein summation on the provided tensors.
+
+    Args:
+        subscripts (str): Subscript string specifying summation, e.g., 'ij,jk->ik'.
+        *operands (Tensor): One or more tensors to participate in the summation.
+
+    Returns:
+        Tensor: Result of the Einstein summation.
+    """
     return dispatch_amp("einsum", _einsum_impl, subscripts, *operands)
 
 def _svd_impl(a: Tensor, full_matrices=False) -> Tensor:
-    """
-    Singular Value Decomposition (SVD).
-    Decomposes a tensor into U, S, Vh such that: a = U @ diag(S) @ Vh
-
-    Args:
-        a (Tensor): Input tensor.
-        full_matrices (bool): Whether to compute full-sized U, Vh (default: False).
-
-    Returns:
-        Tuple[Tensor, Tensor, Tensor]: (U, S, Vh)
-    """
     a = ensure_tensor(a)
     U, S, Vh = xp.linalg.svd(a.data, full_matrices=full_matrices)
     requires_grad = a.requires_grad 
@@ -2130,6 +2290,11 @@ def _svd_impl(a: Tensor, full_matrices=False) -> Tensor:
         t.is_leaf = False
         t.grad_fn = "svd"
         t._prev = {a}
+
+        for hook in getattr(a, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         # SVD backward is non-trivial; here we use a simple pseudo-gradient approximation.
@@ -2160,6 +2325,17 @@ def _svd_impl(a: Tensor, full_matrices=False) -> Tensor:
     return U, S, Vh
 
 def svd(a: Tensor, full_matrices=False) -> Tensor:
+    """
+    Singular Value Decomposition (SVD).
+    Decomposes a tensor into U, S, Vh such that: a = U @ diag(S) @ Vh
+
+    Args:
+        a (Tensor): Input tensor.
+        full_matrices (bool): Whether to compute full-sized U, Vh (default: False).
+
+    Returns:
+        Tuple[Tensor, Tensor, Tensor]: (U, S, Vh)
+    """
     return dispatch_amp("svd", _svd_impl, a, full_matrices=full_matrices)
 
 # ============================================================
@@ -2167,17 +2343,6 @@ def svd(a: Tensor, full_matrices=False) -> Tensor:
 # ============================================================
 
 def _repeat_impl(a: Tensor, repeats, axis=None) -> Tensor:
-    """
-    Repeat elements of a tensor along a specified axis.
-
-    Args:
-        a (Tensor): Input tensor.
-        repeats (int): Number of repetitions for each element.
-        axis (int, optional): Axis along which to repeat values. If None, tensor is flattened.
-
-    Returns:
-        Tensor: Tensor with repeated elements.
-    """
     a = ensure_tensor(a)
     data = xp.repeat(a.data, repeats, axis=axis)
     requires_grad = a.requires_grad
@@ -2186,6 +2351,11 @@ def _repeat_impl(a: Tensor, repeats, axis=None) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "repeat"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2214,19 +2384,20 @@ def _repeat_impl(a: Tensor, repeats, axis=None) -> Tensor:
     return out
 
 def repeat(a: Tensor, repeats, axis=None) -> Tensor:
-    return dispatch_amp("repeat", _repeat_impl, a, repeats, axis=axis)
-
-def _tile_impl(a: Tensor, reps: tuple) -> Tensor:
     """
-    Repeat a tensor along each axis according to `reps`.
+    Repeat elements of a tensor along a specified axis.
 
     Args:
         a (Tensor): Input tensor.
-        reps (tuple of int): Number of repetitions along each axis.
+        repeats (int): Number of repetitions for each element.
+        axis (int, optional): Axis along which to repeat values. If None, tensor is flattened.
 
     Returns:
         Tensor: Tensor with repeated elements.
     """
+    return dispatch_amp("repeat", _repeat_impl, a, repeats, axis=axis)
+
+def _tile_impl(a: Tensor, reps: tuple) -> Tensor:
     a = ensure_tensor(a)
     data = xp.tile(a.data, reps)
     requires_grad = a.requires_grad
@@ -2235,6 +2406,11 @@ def _tile_impl(a: Tensor, reps: tuple) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "tile"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2259,19 +2435,19 @@ def _tile_impl(a: Tensor, reps: tuple) -> Tensor:
     return out
 
 def tile(a: Tensor, reps: tuple) -> Tensor:
-    return dispatch_amp("tile", _tile_impl, a, reps)
-
-def _expand_impl(a: Tensor, shape: tuple) -> Tensor:
     """
-    Broadcast a tensor to a new shape.
+    Repeat a tensor along each axis according to `reps`.
 
     Args:
         a (Tensor): Input tensor.
-        shape (tuple of int): Target shape to broadcast to.
+        reps (tuple of int): Number of repetitions along each axis.
 
     Returns:
-        Tensor: Broadcasted tensor.
+        Tensor: Tensor with repeated elements.
     """
+    return dispatch_amp("tile", _tile_impl, a, reps)
+
+def _expand_impl(a: Tensor, shape: tuple) -> Tensor:
     a = ensure_tensor(a)
     data = xp.broadcast_to(a.data, shape)
     requires_grad = a.requires_grad
@@ -2280,6 +2456,11 @@ def _expand_impl(a: Tensor, shape: tuple) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "expand"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2304,22 +2485,19 @@ def _expand_impl(a: Tensor, shape: tuple) -> Tensor:
     return out
 
 def expand(a: Tensor, shape: tuple) -> Tensor:
-    return dispatch_amp("expand", _expand_impl, a, shape)
-
-def _normalize_impl(a: Tensor, axis=None, epsilon=1e-8) -> Tensor:
     """
-    Normalize tensor along specified axis.
-
-    Equivalent to: a / (sqrt(sum(a^2, axis)) + epsilon)
+    Broadcast a tensor to a new shape.
 
     Args:
         a (Tensor): Input tensor.
-        axis (int or tuple, optional): Axis or axes to normalize across.
-        epsilon (float, optional): Small constant for numerical stability.
+        shape (tuple of int): Target shape to broadcast to.
 
     Returns:
-        Tensor: Normalized tensor.
+        Tensor: Broadcasted tensor.
     """
+    return dispatch_amp("expand", _expand_impl, a, shape)
+
+def _normalize_impl(a: Tensor, axis=None, epsilon=1e-8) -> Tensor:
     a = ensure_tensor(a)
     requires_grad = a.requires_grad and backend.is_grad_enabled()
 
@@ -2329,6 +2507,11 @@ def _normalize_impl(a: Tensor, axis=None, epsilon=1e-8) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "normalize"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2356,22 +2539,22 @@ def _normalize_impl(a: Tensor, axis=None, epsilon=1e-8) -> Tensor:
     return out
 
 def normalize(a: Tensor, axis=None, epsilon=1e-8):
-    return dispatch_amp("normalize", _normalize_impl, a, axis=axis, epsilon=epsilon)
-
-def _renorm_impl(a: Tensor, p=2.0, dim=0, maxnorm=1.0) -> Tensor:
     """
-    Renormalize sub-tensors along a given dimension so their p-norm <= maxnorm.
-    Commonly used for gradient clipping and max-norm regularization.
+    Normalize tensor along specified axis.
+
+    Equivalent to: a / (sqrt(sum(a^2, axis)) + epsilon)
 
     Args:
         a (Tensor): Input tensor.
-        p (float, optional): The p-norm type (default: 2.0).
-        dim (int, optional): The dimension along which to compute norms.
-        maxnorm (float, optional): Maximum allowed norm value.
+        axis (int or tuple, optional): Axis or axes to normalize across.
+        epsilon (float, optional): Small constant for numerical stability.
 
     Returns:
-        Tensor: Renormalized tensor with the same shape as input.
+        Tensor: Normalized tensor.
     """
+    return dispatch_amp("normalize", _normalize_impl, a, axis=axis, epsilon=epsilon)
+
+def _renorm_impl(a: Tensor, p=2.0, dim=0, maxnorm=1.0) -> Tensor:
     a = ensure_tensor(a)
     requires_grad = a.requires_grad and backend.is_grad_enabled()
 
@@ -2388,6 +2571,11 @@ def _renorm_impl(a: Tensor, p=2.0, dim=0, maxnorm=1.0) -> Tensor:
     out = Tensor(scaled, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "renorm"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2414,20 +2602,22 @@ def _renorm_impl(a: Tensor, p=2.0, dim=0, maxnorm=1.0) -> Tensor:
     return out
 
 def renorm(a: Tensor, p=2.0, dim=0, maxnorm=1.0) -> Tensor:
+    """
+    Renormalize sub-tensors along a given dimension so their p-norm <= maxnorm.
+    Commonly used for gradient clipping and max-norm regularization.
+
+    Args:
+        a (Tensor): Input tensor.
+        p (float, optional): The p-norm type (default: 2.0).
+        dim (int, optional): The dimension along which to compute norms.
+        maxnorm (float, optional): Maximum allowed norm value.
+
+    Returns:
+        Tensor: Renormalized tensor with the same shape as input.
+    """
     return dispatch_amp("renorm", _renorm_impl, a, p=p, dim=dim, maxnorm=maxnorm)
 
 def _im2col_impl(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
-    """
-    Transform a 4D input tensor into column form for convolutions.
-
-    Args:
-        X (Tensor): Input tensor of shape (N, C, H, W).
-        f (int): Filter size.
-        s (int): Stride for the convolution.
-
-    Returns:
-        Tensor: Column-form tensor.
-    """
     from LunarLearn.tensor.utils import im2col, col2im
     X = ensure_tensor(X)
     data = im2col(X.data, kernel_size, s)
@@ -2437,6 +2627,11 @@ def _im2col_impl(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=X.dtype)
     out.is_leaf = False
     out.grad_fn = "im2col"
+
+    for hook in getattr(X, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2461,21 +2656,20 @@ def _im2col_impl(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
     return out
 
 def im2col(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
+    """
+    Transform a 4D input tensor into column form for convolutions.
+
+    Args:
+        X (Tensor): Input tensor of shape (N, C, H, W).
+        f (int): Filter size.
+        s (int): Stride for the convolution.
+
+    Returns:
+        Tensor: Column-form tensor.
+    """
     return dispatch_amp("im2col", _im2col_impl, X, kernel_size, s)
 
 def _col2im_impl(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
-    """
-    Transform a column-form tensor back to its original 4D image shape.
-
-    Args:
-        cols (Tensor): Column-form tensor.
-        X_shape (tuple): Shape of the target output tensor (N, C, H, W).
-        f (int): Filter size used in im2col.
-        s (int): Stride used in im2col.
-
-    Returns:
-        Tensor: Reconstructed 4D tensor.
-    """
     from LunarLearn.tensor.utils import im2col, col2im
     cols = ensure_tensor(cols)
     data = col2im(cols.data, X_shape, kernel_size, s)
@@ -2485,6 +2679,11 @@ def _col2im_impl(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=cols.dtype)
     out.is_leaf = False
     out.grad_fn = "col2im"
+
+    for hook in getattr(cols, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2509,21 +2708,21 @@ def _col2im_impl(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
     return out
 
 def col2im(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
+    """
+    Transform a column-form tensor back to its original 4D image shape.
+
+    Args:
+        cols (Tensor): Column-form tensor.
+        X_shape (tuple): Shape of the target output tensor (N, C, H, W).
+        f (int): Filter size used in im2col.
+        s (int): Stride used in im2col.
+
+    Returns:
+        Tensor: Reconstructed 4D tensor.
+    """
     return dispatch_amp("col2im", _col2im_impl, cols, X_shape, kernel_size, s)
 
 def _im2col_transpose_impl(X: Tensor, kernel_size: tuple, s: int, output_shape: tuple) -> Tensor:
-    """
-    Transform a 4D input tensor into column form for transposed convolutions.
-
-    Args:
-        X (Tensor): Input tensor of shape (N, C, H, W).
-        f (int): Filter size.
-        s (int): Stride for the transposed convolution.
-        output_shape (tuple): Shape of the expected output tensor (N, C, H_out, W_out).
-
-    Returns:
-        Tensor: Column-form tensor.
-    """
     from LunarLearn.tensor.utils import im2col_transpose, col2im_transpose
     X = ensure_tensor(X)
     data = im2col_transpose(X.data, kernel_size, s, output_shape)
@@ -2533,6 +2732,11 @@ def _im2col_transpose_impl(X: Tensor, kernel_size: tuple, s: int, output_shape: 
     out = Tensor(data, requires_grad=requires_grad, dtype=X.dtype)
     out.is_leaf = False
     out.grad_fn = "im2col_transpose"
+
+    for hook in getattr(X, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2557,22 +2761,21 @@ def _im2col_transpose_impl(X: Tensor, kernel_size: tuple, s: int, output_shape: 
     return out
 
 def im2col_transpose(X: Tensor, kernel_size: tuple, s: int, output_shape: tuple) -> Tensor:
+    """
+    Transform a 4D input tensor into column form for transposed convolutions.
+
+    Args:
+        X (Tensor): Input tensor of shape (N, C, H, W).
+        f (int): Filter size.
+        s (int): Stride for the transposed convolution.
+        output_shape (tuple): Shape of the expected output tensor (N, C, H_out, W_out).
+
+    Returns:
+        Tensor: Column-form tensor.
+    """
     return dispatch_amp("im2col_transpose", _im2col_transpose_impl, X, kernel_size, s, output_shape)
 
 def _col2im_transpose_impl(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: int, output_shape: tuple) -> Tensor:
-    """
-    Transform a column-form tensor back into a 4D image tensor for transposed convolutions.
-
-    Args:
-        cols (Tensor): Column-form tensor.
-        X_shape (tuple): Input tensor shape (N, C, H, W) before transposed convolution.
-        f (int): Filter size used in im2col_transposed.
-        s (int): Stride used in im2col_transposed.
-        output_shape (tuple): Shape of the target output tensor (N, C, H_out, W_out).
-
-    Returns:
-        Tensor: Reconstructed 4D tensor after transposed convolution.
-    """
     from LunarLearn.tensor.utils import im2col_transpose, col2im_transpose
     cols = ensure_tensor(cols)
     data = col2im_transpose(cols.data, X_shape, kernel_size, s, output_shape)
@@ -2582,6 +2785,11 @@ def _col2im_transpose_impl(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: 
     out = Tensor(data, requires_grad=requires_grad, dtype=cols.dtype)
     out.is_leaf = False
     out.grad_fn = "col2im_transpose"
+
+    for hook in getattr(cols, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2606,22 +2814,22 @@ def _col2im_transpose_impl(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: 
     return out
 
 def col2im_transpose(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: int, output_shape: tuple) -> Tensor:
+    """
+    Transform a column-form tensor back into a 4D image tensor for transposed convolutions.
+
+    Args:
+        cols (Tensor): Column-form tensor.
+        X_shape (tuple): Input tensor shape (N, C, H, W) before transposed convolution.
+        f (int): Filter size used in im2col_transposed.
+        s (int): Stride used in im2col_transposed.
+        output_shape (tuple): Shape of the target output tensor (N, C, H_out, W_out).
+
+    Returns:
+        Tensor: Reconstructed 4D tensor after transposed convolution.
+    """
     return dispatch_amp("col2im_transpose", _col2im_transpose_impl, cols, X_shape, kernel_size, s, output_shape)
 
 def _im2col_grouped_impl(X: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
-    """
-    Transform a 4D input tensor into column form for grouped convolutions.
-
-    Args:
-        X (Tensor): Input tensor of shape (N, C, H, W).
-        f (int): Filter size.
-        s (int): Convolution stride.
-        groups (int): Number of groups to split the input channels into.
-                      Must evenly divide C.
-
-    Returns:
-        Tensor: Column-form tensor suitable for grouped convolution.
-    """
     from LunarLearn.tensor.utils import im2col_grouped, col2im_grouped
     X = ensure_tensor(X)
     data = im2col_grouped(X.data, kernel_size, s, groups)
@@ -2631,6 +2839,11 @@ def _im2col_grouped_impl(X: Tensor, kernel_size: tuple, s: int, groups: int) -> 
     out = Tensor(data, requires_grad=requires_grad, dtype=X.dtype)
     out.is_leaf = False
     out.grad_fn = "im2col_grouped"
+
+    for hook in getattr(X, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2654,21 +2867,22 @@ def _im2col_grouped_impl(X: Tensor, kernel_size: tuple, s: int, groups: int) -> 
     return out
 
 def im2col_grouped(X: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
+    """
+    Transform a 4D input tensor into column form for grouped convolutions.
+
+    Args:
+        X (Tensor): Input tensor of shape (N, C, H, W).
+        f (int): Filter size.
+        s (int): Convolution stride.
+        groups (int): Number of groups to split the input channels into.
+                      Must evenly divide C.
+
+    Returns:
+        Tensor: Column-form tensor suitable for grouped convolution.
+    """
     return dispatch_amp("im2col_grouped", _im2col_grouped_impl, X, kernel_size, s, groups)
 
 def _col2im_grouped_impl(cols: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
-    """
-    Transform a column-form tensor back into a 4D image tensor for grouped convolutions.
-
-    Args:
-        cols (Tensor): Column-form tensor from grouped convolution.
-        f (int): Filter size.
-        s (int): Convolution stride.
-        groups (int): Number of groups that were used in the forward pass.
-
-    Returns:
-        Tensor: Reconstructed 4D tensor of shape (N, C, H, W).
-    """
     from LunarLearn.tensor.utils import im2col_grouped, col2im_grouped
     cols = ensure_tensor(cols)
     data = col2im_grouped(cols.data, kernel_size, s, groups)
@@ -2678,6 +2892,11 @@ def _col2im_grouped_impl(cols: Tensor, kernel_size: tuple, s: int, groups: int) 
     out = Tensor(data, requires_grad=requires_grad, dtype=cols.dtype)
     out.is_leaf = False
     out.grad_fn = "col2im_grouped"
+
+    for hook in getattr(cols, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2701,28 +2920,21 @@ def _col2im_grouped_impl(cols: Tensor, kernel_size: tuple, s: int, groups: int) 
     return out
 
 def col2im_grouped(cols: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
+    """
+    Transform a column-form tensor back into a 4D image tensor for grouped convolutions.
+
+    Args:
+        cols (Tensor): Column-form tensor from grouped convolution.
+        f (int): Filter size.
+        s (int): Convolution stride.
+        groups (int): Number of groups that were used in the forward pass.
+
+    Returns:
+        Tensor: Reconstructed 4D tensor of shape (N, C, H, W).
+    """
     return dispatch_amp("col2im_grouped", _col2im_grouped_impl, cols, kernel_size, s, groups)
 
 def _im2col_transpose_grouped_impl(X: Tensor, kernel_size: tuple, s: int, output_shape: tuple, groups: int) -> Tensor:
-    """
-    Transform a 4D input tensor into column form for grouped transposed convolutions.
-
-    This is the grouped version of `im2col_transpose`. It splits the input
-    tensor into channel groups, applies the im2col operation for transposed
-    convolution separately on each group, and concatenates the results. 
-    Useful for implementing grouped transposed convolution (e.g. in ResNeXt-style
-    deconvolution layers).
-
-    Args:
-        X (Tensor): Input tensor of shape (N, C_in, H_in, W_in).
-        kernel_size (tuple): Filter size as (f_h, f_w).
-        s (int): Stride used for the transposed convolution.
-        output_shape (tuple): Target output shape (N, C_out, H_out, W_out).
-        groups (int): Number of channel groups. `C_in` must be divisible by this value.
-
-    Returns:
-        Tensor: Column-form tensor for grouped transposed convolution.
-    """
     from LunarLearn.tensor.utils import im2col_transpose_grouped, col2im_transpose_grouped
     X = ensure_tensor(X)
     data = im2col_transpose_grouped(X.data, kernel_size, s, output_shape, groups)
@@ -2732,6 +2944,11 @@ def _im2col_transpose_grouped_impl(X: Tensor, kernel_size: tuple, s: int, output
     out = Tensor(data, requires_grad=requires_grad, dtype=X.dtype)
     out.is_leaf = False
     out.grad_fn = "im2col_transpose_grouped"
+
+    for hook in getattr(X, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2755,29 +2972,28 @@ def _im2col_transpose_grouped_impl(X: Tensor, kernel_size: tuple, s: int, output
     return out
 
 def im2col_transpose_grouped(X: Tensor, kernel_size: tuple, s: int, output_shape: tuple, groups: int) -> Tensor:
-    return dispatch_amp("im2col_transpose_grouped", _im2col_transpose_grouped_impl, X, kernel_size, s, output_shape, groups)
-
-def _col2im_transpose_grouped_impl(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: int, output_shape: tuple, groups: int) -> Tensor:
     """
-    Reconstruct a 4D tensor from column form for grouped transposed convolutions.
+    Transform a 4D input tensor into column form for grouped transposed convolutions.
 
-    This is the grouped counterpart to `col2im_transpose`. It splits the column
-    tensor into channel groups, applies the inverse col2im transpose operation
-    to each group separately, and combines them into the final output tensor.
-    This function is typically used in the backward pass of grouped transposed
-    convolutions.
+    This is the grouped version of `im2col_transpose`. It splits the input
+    tensor into channel groups, applies the im2col operation for transposed
+    convolution separately on each group, and concatenates the results. 
+    Useful for implementing grouped transposed convolution (e.g. in ResNeXt-style
+    deconvolution layers).
 
     Args:
-        cols (Tensor): Column-form tensor from grouped transposed convolution.
-        X_shape (tuple): Original input shape (N, C_in, H_in, W_in).
+        X (Tensor): Input tensor of shape (N, C_in, H_in, W_in).
         kernel_size (tuple): Filter size as (f_h, f_w).
         s (int): Stride used for the transposed convolution.
         output_shape (tuple): Target output shape (N, C_out, H_out, W_out).
         groups (int): Number of channel groups. `C_in` must be divisible by this value.
 
     Returns:
-        Tensor: Reconstructed 4D tensor of shape (N, C_out, H_out, W_out).
+        Tensor: Column-form tensor for grouped transposed convolution.
     """
+    return dispatch_amp("im2col_transpose_grouped", _im2col_transpose_grouped_impl, X, kernel_size, s, output_shape, groups)
+
+def _col2im_transpose_grouped_impl(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: int, output_shape: tuple, groups: int) -> Tensor:
     from LunarLearn.tensor.utils import im2col_transpose_grouped, col2im_transpose_grouped
     cols = ensure_tensor(cols)
     data = col2im_transpose_grouped(cols, X_shape, kernel_size, s, output_shape, groups)
@@ -2787,6 +3003,11 @@ def _col2im_transpose_grouped_impl(cols: Tensor, X_shape: tuple, kernel_size: tu
     out = Tensor(data, requires_grad=requires_grad, dtype=cols.dtype)
     out.is_leaf = False
     out.grad_fn = "col2im_transpose_grouped"
+
+    for hook in getattr(cols, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2810,6 +3031,26 @@ def _col2im_transpose_grouped_impl(cols: Tensor, X_shape: tuple, kernel_size: tu
     return out
 
 def col2im_transpose_grouped(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: int, output_shape: tuple, groups: int) -> Tensor:
+    """
+    Reconstruct a 4D tensor from column form for grouped transposed convolutions.
+
+    This is the grouped counterpart to `col2im_transpose`. It splits the column
+    tensor into channel groups, applies the inverse col2im transpose operation
+    to each group separately, and combines them into the final output tensor.
+    This function is typically used in the backward pass of grouped transposed
+    convolutions.
+
+    Args:
+        cols (Tensor): Column-form tensor from grouped transposed convolution.
+        X_shape (tuple): Original input shape (N, C_in, H_in, W_in).
+        kernel_size (tuple): Filter size as (f_h, f_w).
+        s (int): Stride used for the transposed convolution.
+        output_shape (tuple): Target output shape (N, C_out, H_out, W_out).
+        groups (int): Number of channel groups. `C_in` must be divisible by this value.
+
+    Returns:
+        Tensor: Reconstructed 4D tensor of shape (N, C_out, H_out, W_out).
+    """
     return dispatch_amp("col2im_transpose_grouped", _col2im_transpose_grouped_impl, cols, X_shape, kernel_size, s, output_shape, groups)
 
 # ============================================================
@@ -2817,20 +3058,6 @@ def col2im_transpose_grouped(cols: Tensor, X_shape: tuple, kernel_size: tuple, s
 # ============================================================
 
 def _gather_impl(a: Tensor, dim: int, index: Tensor) -> Tensor:
-    """
-    Gather elements from a tensor along an axis using index tensor.
-
-    This operation is the inverse of `scatter` and is commonly used in loss calculations
-    or attention mechanisms.
-
-    Args:
-        a (Tensor): Source tensor.
-        axis (int): Axis along which to gather.
-        index (Tensor): Indices of elements to gather. Must have the same shape as the output.
-
-    Returns:
-        Tensor: Gathered tensor with the same shape as `index`.
-    """
     a = ensure_tensor(a)
     index = ensure_tensor(index)
     data = xp.take_along_axis(a.data, index.data, axis=dim)
@@ -2840,6 +3067,12 @@ def _gather_impl(a: Tensor, dim: int, index: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "gather"
+
+    for t in (a, index):
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if xp.__name__ == 'cupy':
@@ -2873,24 +3106,23 @@ def _gather_impl(a: Tensor, dim: int, index: Tensor) -> Tensor:
     return out
 
 def gather(a: Tensor, dim: int, index: Tensor) -> Tensor:
+    """
+    Gather elements from a tensor along an axis using index tensor.
+
+    This operation is the inverse of `scatter` and is commonly used in loss calculations
+    or attention mechanisms.
+
+    Args:
+        a (Tensor): Source tensor.
+        axis (int): Axis along which to gather.
+        index (Tensor): Indices of elements to gather. Must have the same shape as the output.
+
+    Returns:
+        Tensor: Gathered tensor with the same shape as `index`.
+    """
     return dispatch_amp("gather", _gather_impl, a, dim, index)
 
 def _scatter_impl(a: Tensor, dim: int, index: Tensor, src: Tensor) -> Tensor:
-    """
-    Scatter elements from a source tensor into a new tensor according to indices.
-
-    This is the inverse of `gather` and is commonly used in gradient propagation
-    or constructing one-hot encodings.
-
-    Args:
-        a (Tensor): Base tensor to scatter into.
-        axis (int): Axis along which to scatter.
-        index (Tensor): Indices at which to place elements from `src`.
-        src (Tensor): Values to scatter. Must be broadcastable to `index` shape.
-
-    Returns:
-        Tensor: Tensor with elements from `src` scattered into `a` according to `index`.
-    """
     a = ensure_tensor(a)
     index = ensure_tensor(index)
     src = ensure_tensor(src)
@@ -2902,6 +3134,12 @@ def _scatter_impl(a: Tensor, dim: int, index: Tensor, src: Tensor) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "scatter"
+
+    for t in (a, index, src):
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
 
     def _backward():
         if out.grad is None:
@@ -2937,6 +3175,21 @@ def _scatter_impl(a: Tensor, dim: int, index: Tensor, src: Tensor) -> Tensor:
     return out
 
 def scatter(a: Tensor, dim: int, index: Tensor, src: Tensor) -> Tensor:
+    """
+    Scatter elements from a source tensor into a new tensor according to indices.
+
+    This is the inverse of `gather` and is commonly used in gradient propagation
+    or constructing one-hot encodings.
+
+    Args:
+        a (Tensor): Base tensor to scatter into.
+        axis (int): Axis along which to scatter.
+        index (Tensor): Indices at which to place elements from `src`.
+        src (Tensor): Values to scatter. Must be broadcastable to `index` shape.
+
+    Returns:
+        Tensor: Tensor with elements from `src` scattered into `a` according to `index`.
+    """
     return dispatch_amp("scatter", _scatter_impl, a, dim, index, src)
 
 # ============================================================================
@@ -2944,6 +3197,14 @@ def scatter(a: Tensor, dim: int, index: Tensor, src: Tensor) -> Tensor:
 # ============================================================================
 
 def _tanh_impl(a: Tensor) -> Tensor:
+    return unary_op(
+        a,
+        op=xp.tanh,
+        grad_fn=lambda grad_out, a_data: grad_out * (1 - xp.tanh(a_data) ** 2),
+        name="tanh",
+    )
+
+def tanh(a: Tensor) -> Tensor:
     """
     Elementwise hyperbolic tangent.
 
@@ -2953,17 +3214,14 @@ def _tanh_impl(a: Tensor) -> Tensor:
     Returns:
         Tensor: tanh(a).
     """
-    return unary_op(
-        a,
-        op=xp.tanh,
-        grad_fn=lambda grad_out, a_data: grad_out * (1 - xp.tanh(a_data) ** 2),
-        name="tanh",
-    )
-
-def tanh(a: Tensor) -> Tensor:
     return dispatch_amp("tanh", _tanh_impl, a)
 
 def _relu_impl(a: Tensor) -> Tensor:
+    out = maximum(0, a)
+    out.grad_fn = "relu"
+    return out
+
+def relu(a: Tensor) -> Tensor:
     """
     Rectified Linear Unit (ReLU) activation function.
     Applies the element-wise function: ReLU(x) = max(0, x)
@@ -2974,24 +3232,9 @@ def _relu_impl(a: Tensor) -> Tensor:
     Returns:
         Tensor: Output tensor with the same shape as `x`, where all negative values are replaced with 0.
     """
-    out = maximum(0, a)
-    out.grad_fn = "relu"
-    return out
-
-def relu(a: Tensor) -> Tensor:
     return dispatch_amp("relu", _relu_impl, a)
 
 def _sigmoid_impl(a: Tensor) -> Tensor:
-    """
-    Sigmoid activation function.
-    Applies the element-wise function: sigmoid(x) = 1 / (1 + exp(-x))
-
-    Args:
-        x (Tensor): Input tensor.
-
-    Returns:
-        Tensor: Output tensor with values in the range (0, 1).
-    """
     a = ensure_tensor(a)
     sig = 1 / (1 + xp.exp(-a.data))
     requires_grad = a.requires_grad
@@ -3000,6 +3243,11 @@ def _sigmoid_impl(a: Tensor) -> Tensor:
     out = Tensor(sig, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "sigmoid"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -3036,19 +3284,6 @@ def sigmoid(a: Tensor) -> Tensor:
     return dispatch_amp("sigmoid", _sigmoid_impl, a)
 
 def _softmax_impl(a: Tensor, axis=-1) -> Tensor:
-    """
-    Softmax activation function.
-    Applies the function along a specified axis to convert logits into probabilities:
-
-        softmax(x_i) = exp(x_i) / sum_j exp(x_j)
-
-    Args:
-        x (Tensor): Input tensor (logits).
-        axis (int): Axis along which to apply softmax (default: -1).
-
-    Returns:
-        Tensor: Probability tensor of the same shape as `x`, where values along `axis` sum to 1.
-    """
     a = ensure_tensor(a)
     shifted = a.data - xp.max(a.data, axis=axis, keepdims=True)
     exp_x = xp.exp(shifted)
@@ -3059,6 +3294,11 @@ def _softmax_impl(a: Tensor, axis=-1) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "softmax"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -3083,22 +3323,22 @@ def _softmax_impl(a: Tensor, axis=-1) -> Tensor:
     return out
 
 def softmax(a: Tensor) -> Tensor:
-    return dispatch_amp("softmax", _softmax_impl, a)
-
-def _log_softmax_impl(a: Tensor, axis=-1) -> Tensor:
     """
-    Log-Softmax activation function.
-    Applies the log of softmax along a specified axis:
+    Softmax activation function.
+    Applies the function along a specified axis to convert logits into probabilities:
 
-        log_softmax(x_i) = log(softmax(x_i))
+        softmax(x_i) = exp(x_i) / sum_j exp(x_j)
 
     Args:
         x (Tensor): Input tensor (logits).
-        axis (int): Axis along which to apply log-softmax (default: -1).
+        axis (int): Axis along which to apply softmax (default: -1).
 
     Returns:
-        Tensor: Log-probabilities of the same shape as `x`.
+        Tensor: Probability tensor of the same shape as `x`, where values along `axis` sum to 1.
     """
+    return dispatch_amp("softmax", _softmax_impl, a)
+
+def _log_softmax_impl(a: Tensor, axis=-1) -> Tensor:
     a = ensure_tensor(a)
     shifted = a.data - xp.max(a.data, axis=axis, keepdims=True)
     log_sum_exp = xp.log(xp.sum(xp.exp(shifted), axis=axis, keepdims=True))
@@ -3109,6 +3349,11 @@ def _log_softmax_impl(a: Tensor, axis=-1) -> Tensor:
     out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
     out.is_leaf = False
     out.grad_fn = "log_softmax"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -3132,22 +3377,22 @@ def _log_softmax_impl(a: Tensor, axis=-1) -> Tensor:
     return out
 
 def log_softmax(a: Tensor) -> Tensor:
+    """
+    Log-Softmax activation function.
+    Applies the log of softmax along a specified axis:
+
+        log_softmax(x_i) = log(softmax(x_i))
+
+    Args:
+        x (Tensor): Input tensor (logits).
+        axis (int): Axis along which to apply log-softmax (default: -1).
+
+    Returns:
+        Tensor: Log-probabilities of the same shape as `x`.
+    """
     return dispatch_amp("log_softmax", _log_softmax_impl, a)
 
 def _nll_loss_impl(log_probs: Tensor, target: Tensor) -> Tensor:
-    """
-    Negative Log-Likelihood (NLL) loss.
-    Computes the loss between log-probabilities and target class indices:
-
-        loss = -log_probs[range(N), target]
-
-    Args:
-        log_probs (Tensor): Log-probabilities from a log-softmax layer of shape (N, C, ...).
-        target (Tensor): Ground-truth class indices of shape (N, ...).
-
-    Returns:
-        Tensor: Scalar tensor representing the mean negative log-likelihood loss.
-    """
     log_probs = ensure_tensor(log_probs)
     target = ensure_tensor(target)
     data = -log_probs.data[xp.arange(target.shape[0]), target.data]
@@ -3157,6 +3402,11 @@ def _nll_loss_impl(log_probs: Tensor, target: Tensor) -> Tensor:
     out = Tensor(data.mean(), requires_grad=requires_grad, dtype=log_probs.dtype)
     out.is_leaf = False
     out.grad_fn = "nll_loss"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
 
     def _backward():
         if out.grad is None:
@@ -3181,9 +3431,25 @@ def _nll_loss_impl(log_probs: Tensor, target: Tensor) -> Tensor:
     return out
 
 def nll_loss(log_probs: Tensor, target: Tensor) -> Tensor:
+    """
+    Negative Log-Likelihood (NLL) loss.
+    Computes the loss between log-probabilities and target class indices:
+
+        loss = -log_probs[range(N), target]
+
+    Args:
+        log_probs (Tensor): Log-probabilities from a log-softmax layer of shape (N, C, ...).
+        target (Tensor): Ground-truth class indices of shape (N, ...).
+
+    Returns:
+        Tensor: Scalar tensor representing the mean negative log-likelihood loss.
+    """
     return dispatch_amp("nll_loss", _nll_loss_impl, log_probs, target)
 
 def _cross_entropy_impl(a: Tensor, target: Tensor) -> Tensor:
+    return nll_loss(log_softmax(a), target)
+
+def cross_entropy(a: Tensor, target: Tensor) -> Tensor:
     """
     Cross-Entropy loss.
     Combines `log_softmax` and `nll_loss` in one step:
@@ -3197,7 +3463,4 @@ def _cross_entropy_impl(a: Tensor, target: Tensor) -> Tensor:
     Returns:
         Tensor: Scalar tensor representing the mean cross-entropy loss.
     """
-    return nll_loss(log_softmax(a), target)
-
-def cross_entropy(a: Tensor, target: Tensor) -> Tensor:
     return dispatch_amp("cross_entropy", _cross_entropy_impl, a, target)

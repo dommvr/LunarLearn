@@ -58,7 +58,8 @@ class Tensor:
         self.dtype = self.data.dtype
         self.grad = None
         self.grad_fn = None
-        self._grad_hooks = None
+        self._activation_hooks = []
+        self._grad_hooks = []
         self._retain_grad = False
         self.is_leaf = True
         self._backward = lambda: None
@@ -297,8 +298,20 @@ class Tensor:
         out.grad_fn = "astype"
         out._prev = {self}
         return out
+    
+    def register_activation_hook(self, hook_fn):
+        """
+        Register a activation hook to be called when this tensor computes a data.
 
-    def register_hook(self, hook_fn):
+        Args:
+            hook_fn (Callable): A function that takes a gradient Tensor and returns a (possibly modified) Tensor.
+        Returns:
+            The hook function (so it can be removed later if desired).
+        """
+        self._activation_hooks.append(hook_fn)
+        return hook_fn
+
+    def register_grad_hook(self, hook_fn):
         """
         Register a gradient hook to be called when this tensor receives a gradient.
 

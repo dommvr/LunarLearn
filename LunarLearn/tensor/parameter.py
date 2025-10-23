@@ -26,8 +26,6 @@ class Parameter:
 
         self.frozen = False
         
-        self.compute.register_hook(self._sync_grad)
-
     @property
     def data(self):
         """Access the master weight data."""
@@ -43,6 +41,8 @@ class Parameter:
             self.compute = self.master.astype(backend.C_DTYPE, copy=False)
         else:
             self.compute = self.master.clone()
+
+        self.compute.register_grad_hook(self._sync_grad)
         return self.compute
 
     def _sync_grad(self, grad):
