@@ -1121,8 +1121,6 @@ and _retain_grad=False it clears it grad to free space. Tensors like weights, th
 grad is not deleted.
 -Optimizers collects Tensors with requires_grad=True and updates them based on grad. At the end grads are cleared.
 
--update each reg step to use params instead of tensors
 -update optimizers to match adam
 -correct init_weights in cells
 -amp flag for some layers
--freeze manager

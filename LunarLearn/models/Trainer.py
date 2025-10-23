@@ -72,7 +72,7 @@ class Trainer:
         """Attach a global normalizer"""
         self.normalizer = norm
 
-    def train(self, train_loader, val_loader=None, epochs=1, eval_amp=True):
+    def train(self, train_loader, val_loader=None, epochs=1, train_amp=True, eval_amp=True):
         from LunarLearn.loggers import History
         from LunarLearn.bar import bar
         from LunarLearn.engine import accuracy
@@ -100,7 +100,7 @@ class Trainer:
                 self.scheduler_manager.step(batch=i)
 
                 # Forward
-                with amp.autocast():
+                with amp.autocast(enabled=train_amp):
                     preds, activations = self.model(X, return_activations=True, activations_mode='dict')
                     main_loss = self.loss_fn(preds, y)
 
@@ -119,8 +119,7 @@ class Trainer:
                 if self.regularizer is not None:
                     loss += self.regularizer(self.model)
 
-                if amp.is_enabled():
-                    loss = self.scaler.scale_loss(loss)
+                loss = amp.scale_loss(loss)
 
                 loss.backward()
 
@@ -129,11 +128,7 @@ class Trainer:
                 # Gradient accumulation
                 if grads_ok and self.grad_processor.step_ready():
                     # Optimizer step
-                    if amp.is_enabled():
-                        if self.scaler.unscale_grads():
-                            self.optimizer.step(self.model.parameters(with_layer=True))
-                    else:
-                        self.optimizer.step(self.model.parameters(with_layer=True))
+                    amp.step_if_ready(self.optimizer, self.model)
 
                     # Reset gradients
                     self.optimizer.zero_grad(self.model.parameters(with_layer=True))

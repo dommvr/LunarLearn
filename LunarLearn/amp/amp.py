@@ -4,14 +4,20 @@ from typing import Any, Callable, Iterable
 
 from LunarLearn import backend
 from LunarLearn.tensor import Tensor
+from LunarLearn.amp import DynamicLossScaler
 
 xp = backend.xp
 
 class _AmpState:
+    @property
+    def available(self) -> bool:
+        return backend.MIXED_PRECISION and backend.gpu_available()
+    
     enabled: bool = False
+    active: bool = False
     compute_dtype = backend.C_DTYPE  # fp16
     promote_dtype = backend.DTYPE    # fp32
-    stack: list[bool] = []
+    scaler = DynamicLossScaler(init_scale=backend.SCALING_FACTOR)
 
     # Default op policy
     FP16_SAFE = {
@@ -43,22 +49,28 @@ class _AmpState:
 
 STATE = _AmpState()
 
-def is_enabled() -> bool:
-    return STATE.enabled
+def is_available() -> bool:
+    return STATE.available
 
 @contextmanager
 def autocast(enabled: bool = True, dtype: Any | None = None):
     """Enable/disable AMP inside a `with` block."""
-    STATE.stack.append(STATE.enabled)
-    STATE.enabled = bool(enabled)
+    STATE.enabled = bool(enabled) if STATE.available else False
+    STATE.active = bool(enabled) if STATE.available else False
     old_dtype = STATE.compute_dtype
     if dtype is not None:
         STATE.compute_dtype = dtype
     try:
         yield
     finally:
-        STATE.enabled = STATE.stack.pop()
+        STATE.enabled = False
         STATE.compute_dtype = old_dtype
+
+def _promote_dtype(args):
+    for arg in args:
+        if hasattr(arg, "dtype") and arg.dtype == backend.DTYPE:
+            return backend.DTYPE
+    return backend.C_DTYPE
 
 def _cast_arg_to(a: Any, dtype) -> Any:
     if isinstance(a, Tensor) and a.data.dtype != dtype:
@@ -69,8 +81,6 @@ def _cast_arg_to(a: Any, dtype) -> Any:
 def _walk_and_cast(args, dtype):
     if isinstance(args, (list, tuple)):
         return type(args)(_walk_and_cast(x, dtype) for x in args)
-    if isinstance(args, dict):
-        return {k: _walk_and_cast(v, dtype) for k, v in args.items()}
     return _cast_arg_to(args, dtype)
 
 def _want_fp32(opname: str) -> bool:
@@ -90,7 +100,7 @@ def _maybe_promote_output(opname: str, out: Tensor, in_dtype=None) -> Tensor:
     """
     if opname in STATE.REDUCE_FP32 and isinstance(out, Tensor):
         # If AMP is enabled and original input was fp16, cast back
-        if backend.MIXED_PRECISION and in_dtype == backend.C_DTYPE:
+        if in_dtype == backend.C_DTYPE:
             return out.astype(backend.C_DTYPE, copy=False)
         # Otherwise, stay in fp32
         return out.astype(backend.DTYPE, copy=False)
@@ -103,8 +113,10 @@ def dispatch_amp(opname: str, fn: Callable, *args, **kwargs):
     - If FP32 op: cast float tensors to fp32.
     - If FP16-safe op: cast float tensors to fp16 (compute_dtype).
     """
-    if not STATE.enabled or not backend.gpu_available():
+    if not STATE.enabled or not STATE.available:
         return fn(*args, **kwargs)
+
+    in_dtype = _promote_dtype(args)
 
     # Decide compute dtype
     if _want_fp32(opname):
@@ -117,11 +129,24 @@ def dispatch_amp(opname: str, fn: Callable, *args, **kwargs):
 
     # Cast inputs
     cargs = _walk_and_cast(args, compute_dtype)
-    ckwargs = _walk_and_cast(kwargs, compute_dtype)
 
     # Compute
-    out = fn(*cargs, **ckwargs)
+    out = fn(*cargs, **kwargs)
 
     # Post-process output for reduce ops (keep in fp32)
-    out = _maybe_promote_output(opname, out)
+    out = _maybe_promote_output(opname, out, in_dtype)
     return out
+
+def scale_loss(loss):
+    if not STATE.active:
+        return loss
+    return STATE.scaler.scale_loss(loss)
+
+def unscale_grads(model):
+    if not STATE.active:
+        return True
+    return STATE.scaler.unscale_grads(model)
+
+def step_if_ready(optimizer, model):
+    if unscale_grads(model):
+        optimizer.step(model.parameters(with_layer=True))
