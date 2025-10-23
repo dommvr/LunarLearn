@@ -1,8 +1,7 @@
 from LunarLearn.layers.BaseLayer import BaseLayer
+from LunarLearn.layers.BatchNorm import BatchNorm
 
-from LunarLearn.layers.Input import Input
 from LunarLearn.layers.Dense import Dense
-from LunarLearn.layers.InputConv2D import InputConv2D
 from LunarLearn.layers.Conv2D import Conv2D
 from LunarLearn.layers.Conv2DTranspose import Conv2DTranspose
 from LunarLearn.layers.MaxPool2D import MaxPool2D
