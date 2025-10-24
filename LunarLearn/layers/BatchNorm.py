@@ -115,6 +115,9 @@ class BatchNorm(BaseLayer):
         - Mixed precision: if MIXED_PRECISION is True, input is temporarily cast to float32
         for numerical stability during normalization.
         """
+        if self.W is None or self.b is None:
+            self.initialize(Z.shape[1:])
+            
         W = self.W.to_compute()
         b = self.b.to_compute()
 
