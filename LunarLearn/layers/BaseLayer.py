@@ -100,7 +100,15 @@ class BaseLayer:
             if param is None:
                 continue
             for k, v in settings.items():
-                setattr(param, k, v)
+                if k == "normalization" and v is not None:
+                    if isinstance(v, tuple):
+                        cls, kwargs = v
+                        v = cls(param, **kwargs)
+                    elif isinstance(v, type):
+                        v = v(param)
+                    setattr(param, k, v)
+                else:
+                    setattr(param, k, v)
     
     def train(self):
         """
@@ -135,20 +143,23 @@ class BaseLayer:
     # -------------------------------
     # Parameter collection
     # -------------------------------
-    def parameters(self, with_layer: bool = False):
+    def parameters(self, with_layer: bool = False): #layer
         return [p for _, p in self.named_parameters(with_layer=with_layer)]
 
-    def named_parameters(self, prefix: str = "", with_layer: bool = False):
+    def named_parameters(self, prefix: str = "", with_layer: bool = False): #layer
         params = []
         for name, v in self.__dict__.items():
             if isinstance(v, Parameter):
                 pname = f"{prefix}{name}"
-                params.append((pname, {"param": v, "layer": self} if with_layer else v))
+                for n, p in v.named_parameters(pname):
+                    params.append((n, {"param": p, "layer": self} if with_layer else v))
+                        
             elif isinstance(v, (list, tuple)):
                 for i, item in enumerate(v):
                     if isinstance(item, Parameter):
                         pname = f"{prefix}{name}{i}"
-                        params.append((pname, {"param": item, "layer": self} if with_layer else item))
+                        for n, p in item.named_parameters(pname):
+                            params.append((n, {"param": p, "layer": self} if with_layer else item))
         return params
 
     # -------------------------------

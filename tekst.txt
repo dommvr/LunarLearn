@@ -1106,9 +1106,10 @@ and trainer takes care of everything else
 -lookahead optim
 -lr finder
 
+-crop2d, concat, cnnlstm1/2/3d
 -update optimizers to match adam
 -correct init_weights in cells
 -amp flag for some layers
 -add freezemanager to trainer
 -input level normalization to dataloaders (per chanell mean/std)
--weight norm, spectralnorm
+-skip_grad for tensors

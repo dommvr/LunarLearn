@@ -14,6 +14,7 @@ class Parameter:
         self.compute = self.master.astype(backend.C_DTYPE, copy=False)
         self.requires_grad = requires_grad
 
+        self.normalization = None
         self.regularizer = None
         self.weight_decay = None
         self.weight_decay_scale = 1.0
@@ -34,6 +35,21 @@ class Parameter:
     @property
     def grad(self):
         return self.master.grad
+    
+    def parameters(self):
+        return [p for _, p in self.named_parameters()]
+    
+    def named_parameters(self, prefix: str = ""):
+        params = []
+        # Add this parameter itself
+        params.append((prefix, self))
+
+        # If normalization exists, recurse into it
+        norm = getattr(self, "normalization", None)
+        if norm is not None and hasattr(norm, "named_parameters"):
+            for n, p in norm.named_parameters(prefix=f"{prefix}.norm"):
+                params.append((n, p))
+        return params
 
     def to_compute(self):
         """Return a compute copy for forward pass (FP16 if AMP enabled)."""
@@ -41,6 +57,9 @@ class Parameter:
             self.compute = self.master.astype(backend.C_DTYPE, copy=False)
         else:
             self.compute = self.master.clone()
+
+        if self.normalization is not None:
+            self.compute = self.normalization(self.compute)
 
         self.compute.register_grad_hook(self._sync_grad)
         return self.compute
