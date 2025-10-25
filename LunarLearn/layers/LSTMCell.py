@@ -83,6 +83,8 @@ class LSTMCell(BaseLayer):
             arr = getattr(self, name)
             setattr(self, name, Parameter(arr, requires_grad=True))
 
+        self._apply_param_settings()
+
         self.output_shape = (self.hidden_size,)
 
     def forward(self, x_t, h_prev_c_prev):

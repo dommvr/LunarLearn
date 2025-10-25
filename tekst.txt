@@ -1079,9 +1079,6 @@ x = self.relu(self.conv2(x))
 Crop2D, Concat
 transfer learning, fine tuning, multi tasking, federated learning
 
-upload to github
-
-finish last project for week 2
 
 as you can see, right now im building my own dl library. Rate it, its my main portfolio projects, that has is suposed to help me secure job as ml/dl engineer. Currently ive got implemented:
 -user api to create nn with:
@@ -1109,18 +1106,9 @@ and trainer takes care of everything else
 -lookahead optim
 -lr finder
 
-
-so in summary to check if im get it now.
-
--Every tensor caries its childs graph, and methadata like data, grad , dtype, is_leaf and its custom _backward 
--When creating new one its inheritate creation graph (childs) and requires_grad and dtype
--During backprop, last graph element (in this case loss) gets ones as grad, creates topo (list of tensors from the ones without
-childs in _prev to final one (loss)) and goes throw this topo in reverse, calulating derivative based on its grad and forward() operations
-derivative and then passing it to its childs as grad (setting it or adding for accumulation). At the end if is_leaf=False
-and _retain_grad=False it clears it grad to free space. Tensors like weights, that got requires_grad=True, also have is_leaf=True, so its
-grad is not deleted.
--Optimizers collects Tensors with requires_grad=True and updates them based on grad. At the end grads are cleared.
-
 -update optimizers to match adam
 -correct init_weights in cells
 -amp flag for some layers
+-add freezemanager to trainer
+-input level normalization to dataloaders (per chanell mean/std)
+-weight norm, spectralnorm

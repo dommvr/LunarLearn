@@ -117,6 +117,9 @@ class Dense(BaseLayer):
 
         self.W = Parameter(W, requires_grad=True)
         self.b = Parameter(b, requires_grad=True)
+
+        self._apply_param_settings()
+
         self.output_shape = (self.nodes,)
 
     def forward(self, A_prev: Tensor) -> Tensor:

@@ -140,6 +140,8 @@ class Conv2DTranspose(BaseLayer):
         self.W = Parameter(W, requires_grad=True)
         self.b = Parameter(b, requires_grad=True)
 
+        self._apply_param_settings()
+
         if self.padding == 'same':
             self.padding = f_h // 2
         self.n_H = int((n_H_prev - 1) * self.strides - 2 * self.padding + f_h)

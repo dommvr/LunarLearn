@@ -148,6 +148,8 @@ class Conv2D(BaseLayer):
         self.W = Parameter(W, requires_grad=True)
         self.b = Parameter(b, requires_grad=True)
 
+        self._apply_param_settings()
+
         if self.padding == 'same':
             self.padding_h = ((self.strides-1) * n_H_prev + f_h - self.strides) // 2
             self.padding_w = ((self.strides-1) * n_W_prev + f_w - self.strides) // 2

@@ -37,6 +37,8 @@ class BaseLayer:
 
         self.frozen = False
 
+        self.param_settings = {}
+
         # Hook system
         self.hooks = {}
         self.custom_hook_metrics = []
@@ -86,6 +88,19 @@ class BaseLayer:
             if param is not None and hasattr(param, "data"):
                 total += param.data.size
         return total
+
+    def set_param(self, name, **kwargs):
+        """Register settings for a parameter that might not exist yet."""
+        self.param_settings.setdefault(name, {}).update(kwargs)
+        return self  # allow chaining
+
+    def _apply_param_settings(self):
+        for name, settings in self.param_settings.items():
+            param = getattr(self, name, None)
+            if param is None:
+                continue
+            for k, v in settings.items():
+                setattr(param, k, v)
     
     def train(self):
         """

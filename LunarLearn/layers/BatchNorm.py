@@ -83,6 +83,8 @@ class BatchNorm(BaseLayer):
         self.W = Parameter(W, requires_grad=True)
         self.b = Parameter(b, requires_grad=True)
 
+        self._apply_param_settings()
+
         self.running_mean = xp.zeros(shape, dtype=DTYPE)
         self.running_var = xp.ones(shape, dtype=DTYPE)
 

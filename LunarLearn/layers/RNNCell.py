@@ -64,6 +64,8 @@ class RNNCell(BaseLayer):
         self.Whh = Parameter(Whh, requires_grad=True)
         self.bh = Parameter(bh, requires_grad=True)
 
+        self._apply_param_settings()
+
         self.output_shape = (self.hidden_size,)
 
     def forward(self, x_t: Tensor, h_prev: Tensor) -> Tensor:

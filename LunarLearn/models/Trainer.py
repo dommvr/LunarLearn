@@ -6,14 +6,11 @@ SCALING_FACTOR = backend.SCALING_FACTOR
 class Trainer:
     def __init__(self, model, optimizer, loss_fn):
         from LunarLearn.schedulers import SchedulerManager
-        from LunarLearn.LossScaler import DynamicLossScaler
         from LunarLearn.GradientProcessor import GradientProcessor
         self.model = model
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.deep_supervision = None
-        self.scaler = DynamicLossScaler(init_scale=SCALING_FACTOR)
-        self.scaler.model = self.model
         self.regularizer = None
         self.normalizer = None
         self.history = None
