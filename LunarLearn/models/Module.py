@@ -75,6 +75,8 @@ class Module:
         """
         params = []
         for name, attr in self.__dict__.items():
+            if isinstance(attr, BaseLayer) and not attr.trainable:
+                continue
             if isinstance(attr, BaseLayer):
                 params += attr.named_parameters(prefix=f"{prefix}{name}.", with_layer=with_layer)
             elif isinstance(attr, Module):
