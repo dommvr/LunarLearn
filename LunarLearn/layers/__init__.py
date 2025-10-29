@@ -12,3 +12,5 @@ from LunarLearn.layers.BatchNorm2D import BatchNorm2D
 from LunarLearn.layers.Activation import Activation
 from LunarLearn.layers.ReLU import ReLU
 from LunarLearn.layers.Dropout import Dropout
+
+from LunarLearn.layers.LayerNorm import LayerNorm

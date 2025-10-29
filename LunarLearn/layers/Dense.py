@@ -55,7 +55,7 @@ class Dense(BaseLayer):
         and applies dropout during training if keep_prob < 1.
     """
     def __init__(self, nodes, activation='linear',
-                 w_init='auto', uniform=False, gain=1, keep_prob=1):
+                 w_init='auto', uniform=False, gain=1, keep_prob=1, transpose_weight=False):
         from LunarLearn.activations import activations
         from LunarLearn.initializations import initializations
 
@@ -96,6 +96,7 @@ class Dense(BaseLayer):
         self.uniform = uniform
         self.gain = gain
         self.keep_prob = keep_prob
+        self.transpose_weight = transpose_weight
 
     def initialize(self, input_shape):
         from LunarLearn.initializations import initialize_weights
@@ -148,7 +149,10 @@ class Dense(BaseLayer):
         W = self.W.to_compute()
         b = self.b.to_compute()
 
-        Z = ops.matmul(A_prev, W) + b
+        if self.transpose_weight:
+            Z = ops.matmul(A_prev, W.T) + b
+        else:
+            Z = ops.matmul(A_prev, W) + b
 
         # Activation
         activation = get_activation(self.activation)

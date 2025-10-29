@@ -1112,39 +1112,8 @@ and trainer takes care of everything else
 -add freezemanager to trainer
 -input level normalization to dataloaders (per chanell mean/std)
 -skip_grad for tensors
+-compute hooks
+-rename models to engine, move engine somewhere else
 
 if a.skip_grad:
     a.grad = out.grad
-
-
-its time for adding last big thing to my library before final polishing. I want to add transorfers. Dont show me code yet, just tell
-me step by step what i need to implement. From my undersanding:
--input goes throw input embedding (tell me more about it, is it tokenizer?)
--then positional embedding is added (also tell me more, what is this positional encoding)
--then it goes to encoder block:
-    -it goes throw multi head attention (so i need to implement attention mechanic, multi head is same but done n times),
-    (takes x, x, x as q, k, v)
-    -then skip connection is used and layernorm is applied
-    -then it goes throw dense network (2? layers)
-    -one more time skip connection is used and layernorm is applied
-    -and this block is run n times
-    -(i know that dropout layers are also used but im not sure where, i think there are two and one is after dense network with layer norm)
--and there is secend part of transformers, takes output (is it expected output i.e. y?)
--goes throw output embedding (same is it tokenizer?)
--then positional embedding is added
--then there is decoder block:
-    -it goes throw masked multi head attention (i need to implement that to, i know its for cases when output is shorter/longer then 
-    expected n of tokens)
-    -skip connection is used and layernorm is applied
-    -it goes into multi head attention (where encoder output is q, k and layernorm output is v)
-    -skip connection and layer norm are used
-    -then dense network with skip conenction and layer norm
-    -this block is run n times
-    -(i know that dropout layers are used in this block but im not sure where, i think it is applied on dense network with layernorm)
--output is pased throw dense layer with softmax
--final output is produced
-
-I know its most basic transformers architecture and there are newer ones. Tell me what changes in theme? is it just using diffrent
-regularization, activations and things like this or is it new architecture based on orginal one that uses like diffrent number of
-diffrent layer or even new ones? Also tell me more about attention (in cpntext of multihead attention), i know it takes q, k, v and 
-for each xi qi @ k[1...n], then softmax and @ v. Also there is mask, and scale applied (tell me more about it)

@@ -36,6 +36,18 @@ class Parameter:
     def grad(self):
         return self.master.grad
     
+    def register_activation_hook(self, hook_fn):
+        self.master.register_activation_hook(hook_fn)
+        if getattr(self, "compute", None) is not None:
+            self.compute.register_activation_hook(hook_fn)
+        return hook_fn
+
+    def register_grad_hook(self, hook_fn):
+        self.master.register_grad_hook(hook_fn)
+        if getattr(self, "compute", None) is not None:
+            self.compute.register_grad_hook(hook_fn)
+        return hook_fn
+    
     def parameters(self):
         return [p for _, p in self.named_parameters()]
     

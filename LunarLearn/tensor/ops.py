@@ -2447,6 +2447,68 @@ def tile(a: Tensor, reps: tuple) -> Tensor:
     """
     return dispatch_amp("tile", _tile_impl, a, reps)
 
+def _tril_impl(a: Tensor, k: int = 0) -> Tensor:
+    """
+    Lower-triangular part of a matrix.
+
+    Args:
+        a (Tensor): Input tensor (2D or batched 2D).
+        k (int): Diagonal offset. 0 is main diagonal, 
+                 k > 0 keeps k-th upper diagonals,
+                 k < 0 keeps k-th lower diagonals.
+    """
+    a = ensure_tensor(a)
+    data = xp.tril(a.data, k=k)
+    requires_grad = a.requires_grad
+    if not backend.is_grad_enabled():
+        requires_grad = False
+
+    out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
+    out.is_leaf = False
+    out.grad_fn = "tril"
+
+    # Activation hooks
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
+    def _backward():
+        if out.grad is None or not a.requires_grad:
+            return
+
+        # Gradients only pass through the kept elements
+        grad_mask = xp.tril(xp.ones_like(a.data), k=k)
+        grad_in = out.grad * grad_mask
+
+        if a.grad is None:
+            a.grad = grad_in
+        else:
+            a.grad += grad_in
+
+        # Grad hooks
+        for hook in getattr(a, "_grad_hooks", []):
+            new_grad = hook(a.grad)
+            if new_grad is not None:
+                a.grad = new_grad
+
+    out._backward = _backward
+    out._prev = {a}
+    return out
+
+def tril(a: Tensor, k: int = 0) -> Tensor:
+    """
+    Extract the lower-triangular part of a matrix (zeroing others).
+
+    Args:
+        a (Tensor): Input tensor (2D or batched 2D).
+        k (int, optional): Diagonal offset. Defaults to 0.
+
+    Returns:
+        Tensor: Lower-triangular view of the input.
+    """
+    return dispatch_amp("tril", _tril_impl, a, k=k)
+
 def _expand_impl(a: Tensor, shape: tuple) -> Tensor:
     a = ensure_tensor(a)
     data = xp.broadcast_to(a.data, shape)
@@ -3322,7 +3384,7 @@ def _softmax_impl(a: Tensor, axis=-1) -> Tensor:
     out._prev = {a}
     return out
 
-def softmax(a: Tensor) -> Tensor:
+def softmax(a: Tensor, axis=-1) -> Tensor:
     """
     Softmax activation function.
     Applies the function along a specified axis to convert logits into probabilities:
@@ -3336,7 +3398,7 @@ def softmax(a: Tensor) -> Tensor:
     Returns:
         Tensor: Probability tensor of the same shape as `x`, where values along `axis` sum to 1.
     """
-    return dispatch_amp("softmax", _softmax_impl, a)
+    return dispatch_amp("softmax", _softmax_impl, a, axis=axis)
 
 def _log_softmax_impl(a: Tensor, axis=-1) -> Tensor:
     a = ensure_tensor(a)
