@@ -13,7 +13,7 @@ class PositionalEncoding(BaseLayer):
         self.max_len = max_len
         self.mode = mode
 
-        modes = ["sinusoidal", "learnable"]
+        modes = ["sinusoidal", "learnable", "rotary", "alibi", "relative", "none"]
 
     def initialize(self, input_shape):
         if self.mode == "learnable":
@@ -39,10 +39,13 @@ class PositionalEncoding(BaseLayer):
             angle_rads[:, 0::2] = xp.sin(angle_rads[:, 0::2])
             angle_rads[:, 1::2] = xp.cos(angle_rads[:, 1::2])
             pos_encoding = angle_rads[xp.newaxis, :seq_len, :]
-        else:
+        elif self.mode == "learnable":
             P = self.P.to_compute()
             pos_encoding = P[:seq_len][xp.newaxis, :, :]
+        else:
+            pos_encoding = None
 
-        out = x + pos_encoding
+        if pos_encoding is not None:
+            x += pos_encoding
         
-        return out
+        return x

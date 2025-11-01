@@ -1,6 +1,7 @@
 import LunarLearn.backend as backend
 from LunarLearn.layers.BaseLayer import BaseLayer
 from LunarLearn.transformer.attention import ScaledDotProductAttention
+from LunarLearn.transformer.utils.positional_encoding import apply_rope, get_alibi_bias
 from LunarLearn.tensor import Tensor
 from LunarLearn.tensor import Parameter
 from LunarLearn.tensor import ops
@@ -8,7 +9,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 
 class MultiHeadAttention(BaseLayer):
-    def __init__(self, d_model, num_heads, attention=ScaledDotProductAttention, keep_prob=1.0):
+    def __init__(self, d_model, num_heads, attention=ScaledDotProductAttention, pos_mode="sinusoidal", keep_prob=1.0):
         super().__init__(trainable=True)
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
 
@@ -24,6 +25,7 @@ class MultiHeadAttention(BaseLayer):
         self.Wo = None
 
         self.attention = attention(keep_prob=keep_prob)
+        self.pos_mode = pos_mode
 
     def initialize(self, input_shape):
         scale = 1 / xp.sqrt(self.d_model)
@@ -77,7 +79,7 @@ class MultiHeadAttention(BaseLayer):
         V = self._split_heads(V)
 
         # Attention per head
-        attn_out, _ = self.attention(Q, K, V, mask=mask)
+        attn_out, attn = self.attention(Q, K, V, mask=mask, pos_mode=self.pos_mode)
 
         # Combine heads
         concat = self._combine_heads(attn_out)
@@ -88,4 +90,4 @@ class MultiHeadAttention(BaseLayer):
         # Optional dropout
         out = dropout(out, self.keep_prob, self.training)
 
-        return out
+        return out, attn

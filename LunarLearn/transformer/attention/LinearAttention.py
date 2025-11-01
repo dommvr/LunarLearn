@@ -2,6 +2,7 @@ import LunarLearn.backend as backend
 from LunarLearn.layers.BaseLayer import BaseLayer
 from LunarLearn.tensor import Tensor
 from LunarLearn.tensor import ops
+from LunarLearn.transformer.utils.positional_encoding import apply_rope
 
 xp = backend.xp
 
@@ -19,20 +20,25 @@ class LinearAttention(BaseLayer):
         else:
             return x  # identity fallback
 
-    def forward(self, Q: Tensor, K: Tensor, V: Tensor, mask=None) -> Tensor:
+    def forward(self, Q: Tensor, K: Tensor, V: Tensor, mask=None, pos_mode=None) -> Tensor:
         from LunarLearn.regularizers import dropout
+
+        if pos_mode == "rotary":
+            Q, K = apply_rope(Q, K)
 
         Qf = self._phi(Q)
         Kf = self._phi(K)
 
+        # Apply mask (1 for keep, 0 for pad)
         if mask is not None:
-            Kf = Kf * (1.0 - mask)
+            Kf = Kf * mask[:, None, :, None]
+            V = V * mask[:, None, :, None]
 
         # Compute key-value summary once
         KV = ops.matmul(ops.transpose(Kf, (0, 1, 3, 2)), V)  # (B,H,D,D)
-        denom = ops.matmul(Qf, ops.sum(Kf, axis=2, keepdims=True)) + 1e-6
+        inv_denom = 1.0 / (ops.matmul(Qf, ops.sum(Kf, axis=2, keepdims=True)) + 1e-6)
         numer = ops.matmul(Qf, KV)
-        out = numer / denom
+        out = numer * inv_denom
 
         out = dropout(out, self.keep_prob, self.training)
         return out, None

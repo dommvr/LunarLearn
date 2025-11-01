@@ -1,4 +1,4 @@
-from .FlashAttention import FlashAttention
+from .FlashAttentionLike import FlashAttentionLike
 from .LinearAttention import LinearAttention
 from .LocalAttention import LocalAttention
 from .ScaledDotProductAttention import ScaledDotProductAttention

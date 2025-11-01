@@ -2,6 +2,8 @@ import LunarLearn.backend as backend
 from LunarLearn.layers.BaseLayer import BaseLayer
 from LunarLearn.tensor import Tensor
 from LunarLearn.tensor import ops
+from LunarLearn.tensor import Parameter
+from LunarLearn.transformer.utils.positional_encoding import apply_rope, get_alibi_bias
 
 xp = backend.xp
 
@@ -10,12 +12,24 @@ class LocalAttention(BaseLayer):
         super().__init__(trainable=False)
         self.window_size = window_size
         self.keep_prob = keep_prob
+        self.rel_bias = None
 
-    def forward(self, Q: Tensor, K: Tensor, V: Tensor, mask=None) -> Tensor:
+    def initialize(self, n_heads, max_len):
+        self.rel_bias = Parameter(xp.zeros((n_heads, max_len, max_len)), requires_grad=True)
+
+    def forward(self, Q: Tensor, K: Tensor, V: Tensor, mask=None, pos_mode=None) -> Tensor:
         from LunarLearn.regularizers import dropout
 
         B, H, L, D = Q.shape
+
+        # Lazy init for relative bias
+        if pos_mode == "relative" and self.rel_bias is None:
+            self.initialize(H, L)
+
         scale = 1.0 / xp.sqrt(D)
+
+        if pos_mode == "rotary":
+            Q, K = apply_rope(Q, K)
 
         output = []
         for i in range(L):
@@ -28,8 +42,16 @@ class LocalAttention(BaseLayer):
             Vi = V[:, :, start:end, :]         # (B,H,W,D)
 
             scores = ops.matmul(Qi, ops.transpose(Ki, (0, 1, 3, 2))) * scale  # (B,H,1,W)
+
+            # Add position-based bias
+            if pos_mode == "alibi":
+                alibi_bias = get_alibi_bias(Q, K)
+                scores += alibi_bias[:, i:i+1, start:end]
+            elif pos_mode == "relative":
+                scores += self.rel_bias[:, i:i+1, start:end]
+
             if mask is not None:
-                scores += mask[:, :, i:i+1, start:end] * -1e9
+                scores += (1.0 - mask[:, :, i:i+1, start:end]) * -1e9
 
             attn = ops.softmax(scores, axis=-1)
             attn = dropout(attn, self.keep_prob, self.training)
