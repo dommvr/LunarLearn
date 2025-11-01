@@ -14,3 +14,4 @@ from LunarLearn.layers.ReLU import ReLU
 from LunarLearn.layers.Dropout import Dropout
 
 from LunarLearn.layers.LayerNorm import LayerNorm
+from LunarLearn.layers.LambdaLayer import LambdaLayer

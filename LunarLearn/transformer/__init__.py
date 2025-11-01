@@ -1,7 +1,6 @@
 from LunarLearn.transformer.Embedding import Embedding
 from LunarLearn.transformer.PositionalEncoding import PositionalEncoding
 from LunarLearn.transformer.EncoderBlock import EncoderBlock
-from LunarLearn.transformer.ScaledDotProductAttention import ScaledDotProductAttention
 from LunarLearn.transformer.MultiHeadAttention import MultiHeadAttention
 from LunarLearn.transformer.FeedForward import FeedForward
 from LunarLearn.transformer.EncoderBlock import EncoderBlock

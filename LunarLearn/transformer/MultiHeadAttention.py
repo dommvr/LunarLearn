@@ -1,6 +1,6 @@
 import LunarLearn.backend as backend
 from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.transformer import ScaledDotProductAttention
+from LunarLearn.transformer.attention import ScaledDotProductAttention
 from LunarLearn.tensor import Tensor
 from LunarLearn.tensor import Parameter
 from LunarLearn.tensor import ops
@@ -8,7 +8,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 
 class MultiHeadAttention(BaseLayer):
-    def __init__(self, d_model, num_heads, keep_prob=1.0):
+    def __init__(self, d_model, num_heads, attention=ScaledDotProductAttention, keep_prob=1.0):
         super().__init__(trainable=True)
         assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
 
@@ -23,7 +23,7 @@ class MultiHeadAttention(BaseLayer):
         self.Wv = None
         self.Wo = None
 
-        self.attention = ScaledDotProductAttention(keep_prob=keep_prob)
+        self.attention = attention(keep_prob=keep_prob)
 
     def initialize(self, input_shape):
         scale = 1 / xp.sqrt(self.d_model)
