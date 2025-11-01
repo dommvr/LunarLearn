@@ -2,7 +2,7 @@ import LunarLearn.backend as backend
 from LunarLearn.layers.BaseLayer import BaseLayer
 from LunarLearn.tensor import Tensor
 from LunarLearn.tensor import ops
-from LunarLearn.models import ModuleList, Sequential
+from LunarLearn.models import ModuleList, SharedBlock, Sequential
 from LunarLearn.transformer import Embedding, PositionalEncoding, EncoderBlock, DecoderBlock
 from LunarLearn.layers import LayerNorm, Dense
 from LunarLearn.transformer.attention import ScaledDotProductAttention
@@ -29,6 +29,7 @@ class Transformer(BaseLayer):
                  norm_position="post",
                  enc_share_weights=False,
                  use_output_head=False,
+                 encoder_only=False,
                  decoder_only=False,
                  res_scale=1.0
                  ):
@@ -50,7 +51,7 @@ class Transformer(BaseLayer):
                                         norm,
                                         norm_position,
                                         res_scale)
-            self.encoderblock = [lambda x, mask=None, return_attn=False: shared_encoder(x, mask, return_attn)] * n_enc_layers
+            self.encoderblock = ModuleList([SharedBlock(shared_encoder) for _ in range(n_enc_layers)])
         elif not enc_share_weights and not decoder_only:
             self.encoderblock = ModuleList([EncoderBlock(d_model,
                                         n_heads,
@@ -64,26 +65,28 @@ class Transformer(BaseLayer):
                                         norm,
                                         norm_position,
                                         res_scale) for _ in range(n_enc_layers)])
-        self.decoderblock = ModuleList([DecoderBlock(d_model,
-                                    n_heads,
-                                    pos_mode,
-                                    keep_prob,
-                                    keep_prob,
-                                    ff_dim,
-                                    d_model,
-                                    ff_activation,
-                                    keep_prob,
-                                    attention,
-                                    norm,
-                                    norm_position,
-                                    res_scale,
-                                    cross_attn=not(decoder_only)) for _ in range(n_dec_layers)])
+        if not encoder_only:
+            self.decoderblock = ModuleList([DecoderBlock(d_model,
+                                        n_heads,
+                                        pos_mode,
+                                        keep_prob,
+                                        keep_prob,
+                                        ff_dim,
+                                        d_model,
+                                        ff_activation,
+                                        keep_prob,
+                                        attention,
+                                        norm,
+                                        norm_position,
+                                        res_scale,
+                                        cross_attn=not(decoder_only)) for _ in range(n_dec_layers)])
         self.linear = Dense(vocab_size, transpose_weight=True)
         self.linear.W = self.enc_embedding.W
 
         if use_output_head:
             self.out_head = Sequential(norm(), Dense(d_model, activation=ff_activation, keep_prob=keep_prob))
 
+        self.encoder_only = encoder_only
         self.decoder_only = decoder_only
 
     def encoder(self, src: Tensor, mask=None, return_attn=False) -> Tensor:
@@ -109,13 +112,27 @@ class Transformer(BaseLayer):
         return x, attn_list if return_attn else x
 
     def forward(self, src: Tensor, tgt: Tensor, pad_idx=None, return_attn=False) -> Tensor:
+        if self.encoder_only and self.decoder_only:
+            raise ValueError("Cannot enable both encoder_only and decoder_only at once.")
+    
         pad_mask = make_pad_mask(src, pad_idx)
-        causal_mask = make_causal_mask(tgt.shape[1])
-        mask = merge_masks(pad_mask, causal_mask)
+        if self.encoder_only:
+            mask = pad_mask
+        else:
+            causal_mask = make_causal_mask(tgt.shape[1])
+            mask = merge_masks(pad_mask, causal_mask)
+
+        enc_attn = dec_attn = None
 
         if not self.decoder_only:
             enc_out, enc_attn = self.encoder(src, return_attn=return_attn)
-        out, dec_attn = self.decoder(tgt, mask=mask, context=enc_out if not self.decoder_only else None, return_attn=return_attn)
+        else:
+            enc_out = None
+
+        if not self.encoder_only:
+            out, dec_attn = self.decoder(tgt, mask=mask, context=enc_out if not self.decoder_only else None, return_attn=return_attn)
+        else:
+            out = enc_out
 
         if self.out_head is not None:
             out = self.out_head(out)

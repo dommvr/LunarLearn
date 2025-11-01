@@ -48,8 +48,8 @@ class BaseLayer:
         self.weight_decay_scale = 1.0
         self.decay_exempt = False
 
-    def __call__(self, x: Tensor) -> Tensor:
-        return self.forward(x)
+    def __call__(self, x: Tensor, *args, **kwargs) -> Tensor:
+        return self.forward(x, *args, **kwargs)
     
     def __repr__(self):
         class_name = self.__class__.__name__
