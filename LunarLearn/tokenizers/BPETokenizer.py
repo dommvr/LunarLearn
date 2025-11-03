@@ -86,7 +86,7 @@ class BPETokenizer:
             self.merges[(p0, p1)] = new_id
             self.next_id += 1
 
-    def _train_heapq(self, corpus: str):
+    def _train_heap(self, corpus: str):
         tokens = self._normalize_text(corpus)
         self._init_alphabet(tokens)
         ids = self._tokens_to_ids(tokens)
@@ -154,10 +154,10 @@ class BPETokenizer:
     def train(self, corpus: str, mode="naive"):
         if mode == "naive":
             self._train_naive(corpus)
-        elif mode == "heapq":
-            self._train_heapq(corpus)
+        elif mode == "heap":
+            self._train_heap(corpus)
         else:
-            raise ValueError("mode must be 'naive' or 'heapq'")
+            raise ValueError("mode must be 'naive' or 'heap'")
 
     def encode(self, text: str, add_bos=False, add_eos=False):
         tokens = self._normalize_text(text)
