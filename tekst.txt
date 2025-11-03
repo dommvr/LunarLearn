@@ -1118,3 +1118,22 @@ and trainer takes care of everything else
 if a.skip_grad:
     a.grad = out.grad
 
+_merge():
+    -Store pair frequencies in a heap (priority queue).
+    -Update only affected pairs after each merge.
+    That drops training from minutes to seconds.
+
+Batch encode/decode for lists of texts
+
+so going one by one
+1. Normlaization same as in bpe, lowercase + regex split.
+    And how iniitial vocab should be build? should it count how many times consecutive chain of n tokens (range(2, N)) occures in text (when in bpe it does only one pass counting
+    consecutive chain of 2 tokens) and create vocab taking vocab_size mostly occuring chains, droping those that are below freq_treshold.
+2. Then assign init propabilities (each go 1/vocab_size), so we gona have 3 dict, id2sym, sym2id and prob. 
+    How to compute initial corup log likelihood?
+3. Explain and show code of this forward/backward pass
+4. same for e step and m step
+5. then we drop subwords (tokens) with lowest contribution (% of lowest ones?) are one that are below fixed percentage
+6. Repeat until vocab_size rechead or when log-likelihood stay the same
+7. explain this encoding via viterbi segmentation
+    decoding is just maping symbols from ids and then concatinating theme
