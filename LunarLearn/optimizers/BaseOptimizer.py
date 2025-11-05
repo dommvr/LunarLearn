@@ -111,7 +111,7 @@ class BaseOptimizer:
                 continue
 
             # Priority: per-param optimizer > per-layer optimizer > global optimizer
-            custom_optim = param.optimizer or (layer._optimizer if layer else None)
+            custom_optim = param.optimizer or (layer.optimizer if layer else None)
 
             yield param, layer, custom_optim
     

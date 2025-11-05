@@ -128,7 +128,7 @@ class Trainer:
                     amp.step_if_ready(self.optimizer, self.model)
 
                     # Reset gradients
-                    self.optimizer.zero_grad(self.model.parameters(with_layer=True))
+                    self.optimizer.zero_grad(self.model.parameters())
 
                 epoch_loss += batch_loss
 
