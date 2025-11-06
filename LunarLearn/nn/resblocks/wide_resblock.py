@@ -1,6 +1,6 @@
-from LunarLearn.ResBlocks.BaseResBlock import BaseResBlock
-from LunarLearn.layers import Conv2D, BatchNorm2D
-from LunarLearn.tensor import Tensor
+from LunarLearn.nn.resblocks import BaseResBlock
+from LunarLearn.nn.layers import Conv2D, BatchNorm2D
+from LunarLearn.core import Tensor
 
 class WideResBlock(BaseResBlock):
     """
@@ -28,7 +28,7 @@ class WideResBlock(BaseResBlock):
         self.norm2 = norm_layer() if norm_layer else None
 
     def _forward_main(self, x: Tensor) -> Tensor:
-        from LunarLearn.activations import get_activation
+        from LunarLearn.nn.activations import get_activation
         activation = get_activation(self.activation)
 
         out = self.conv1(x)

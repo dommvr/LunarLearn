@@ -1,4 +1,4 @@
-import LunarLearn.backend as backend
+import LunarLearn.core.backend.backend as backend
 
 xp = backend.xp
 DTYPE = backend.DTYPE

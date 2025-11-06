@@ -1,5 +1,4 @@
-from LunarLearn.regularizers.BaseRegularizer import BaseRegularizer
-from LunarLearn.regularizers import L1, L2
+from LunarLearn.nn.regularizers import BaseRegularizer, L1, L2
 
 class ElasticNet(BaseRegularizer):
     """

@@ -1,6 +1,5 @@
-import LunarLearn.backend as backend
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import Parameter
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.core import Parameter
 
 xp = backend.xp
 DTYPE = backend.DTYPE

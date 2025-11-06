@@ -1,10 +1,7 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.transformer.attention import ScaledDotProductAttention
-from LunarLearn.transformer.utils.positional_encoding import apply_rope, get_alibi_bias
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import Parameter
-from LunarLearn.tensor import ops
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.nn.transformer.attention import ScaledDotProductAttention
+from LunarLearn.core import Tensor, Parameter, ops
 
 xp = backend.xp
 
@@ -60,7 +57,6 @@ class MultiHeadAttention(BaseLayer):
             mask: optional attention mask
             context: optional encoder output for cross-attention (default: self-attn)
         """
-        from LunarLearn.regularizers import dropout
         if self.Wq is None:
             self.initialize(x.shape[1:])
 
@@ -88,6 +84,6 @@ class MultiHeadAttention(BaseLayer):
         out = ops.matmul(concat, self.Wo.to_compute())
 
         # Optional dropout
-        out = dropout(out, self.keep_prob, self.training)
+        out = ops.dropout(out, self.keep_prob, self.training)
 
         return out, attn

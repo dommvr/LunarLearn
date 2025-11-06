@@ -1,5 +1,5 @@
-from LunarLearn.layers.RecurrentBase import RecurrentBase
-from LunarLearn.layers.LSTMCell import LSTMCell
+from LunarLearn.nn.layers import RecurrentBase
+from LunarLearn.nn.layers import LSTMCell
 
 class LSTM(RecurrentBase):
     """

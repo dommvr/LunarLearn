@@ -1,5 +1,5 @@
-from LunarLearn.layers.RecurrentBase import RecurrentBase
-from LunarLearn.layers.GRUCell import GRUCell
+from LunarLearn.nn.layers import RecurrentBase
+from LunarLearn.nn.layers import GRUCell
 
 class GRU(RecurrentBase):
     """

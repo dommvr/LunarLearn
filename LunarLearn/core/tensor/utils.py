@@ -1,9 +1,12 @@
-import LunarLearn.backend as backend
+import LunarLearn.core.backend.backend as backend
 from .tensor import Tensor
 from .parameter import Parameter
+import ops
 
 xp = backend.xp
 DTYPE = backend.DTYPE
+C_DTYPE = backend.C_DTYPE
+MIXED_PRECISION = backend.MIXED_PRECISION
 SAFE_FACTOR = backend.SAFE_FACTOR
 
 if xp.__name__ == 'cupy':
@@ -172,7 +175,7 @@ def checkpoint(fn, *args, **kwargs):
     out_cp._prev = {a for a in args if isinstance(a, Tensor)}
     return out_cp
 
-def safe_batch_size(X_shape, kernel_size, s, safety_factor=SAFE_FACTOR):
+def _safe_batch_size(X_shape, kernel_size, s, safety_factor=SAFE_FACTOR):
     """
     Estimate safe batch size based on GPU free memory.
     X_shape expected NCHW: (m, C, H, W)
@@ -196,7 +199,7 @@ def safe_batch_size(X_shape, kernel_size, s, safety_factor=SAFE_FACTOR):
     batch_size = max(1, min(m, avail // max(1, bytes_per_image)))
     return batch_size
 
-def im2col_vectorized(X, kernel_size, s):
+def _im2col_vectorized(X, kernel_size, s):
     m, n_C, n_H, n_W = X.shape
     f_h, f_w = kernel_size
     n_H_out = (n_H - f_h) // s + 1
@@ -221,14 +224,14 @@ def im2col_vectorized(X, kernel_size, s):
     cols = cols.transpose(1, 2, 0).reshape(f_h * f_w * n_C, -1)
     return cols
 
-def im2col_safe_batch(X, kernel_size, s):
+def _im2col_safe_batch(X, kernel_size, s):
     m = X.shape[0]
-    batch = safe_batch_size(X.shape, kernel_size, s)
+    batch = _safe_batch_size(X.shape, kernel_size, s)
     out_list = []
     for start in range(0, m, batch):
         end = min(start + batch, m)
         Xb = X[start:end]
-        out_list.append(im2col_vectorized(Xb, kernel_size, s))
+        out_list.append(_im2col_vectorized(Xb, kernel_size, s))
     return xp.concatenate(out_list, axis=1).astype(DTYPE)
 
 def im2col(X, kernel_size, s):
@@ -236,13 +239,13 @@ def im2col(X, kernel_size, s):
         kernel_size = (kernel_size, kernel_size)
     # try to do full vectorized; caller may catch OOM and call safe batch
     try:
-        return im2col_vectorized(X, kernel_size, s)
+        return _im2col_vectorized(X, kernel_size, s)
     except Exception as ex:
         # On CuPy an OOM is raised as cupy.cuda.memory.OutOfMemoryError,
         # but catching general exceptions ensures fallback.
-        return im2col_safe_batch(X, kernel_size, s)
+        return _im2col_safe_batch(X, kernel_size, s)
 
-def col2im_vectorized(cols, X_shape, kernel_size, s):
+def _col2im_vectorized(cols, X_shape, kernel_size, s):
     """
     Channel-first col2im: X_shape = (m, C, H, W)
     cols shape (C*f*f, H_out*W_out*m)
@@ -292,10 +295,10 @@ def col2im_vectorized(cols, X_shape, kernel_size, s):
 
     return X_flat.reshape(X_shape)
 
-def col2im_safe_batch(cols, X_shape, kernel_size, s):
+def _col2im_safe_batch(cols, X_shape, kernel_size, s):
     m, C, H, W = X_shape
     f_h, f_w = kernel_size
-    batch = safe_batch_size(X_shape, kernel_size, s)
+    batch = _safe_batch_size(X_shape, kernel_size, s)
     H_out = (H - f_h) // s + 1
     W_out = (W - f_w) // s + 1
     patches = H_out * W_out
@@ -304,7 +307,7 @@ def col2im_safe_batch(cols, X_shape, kernel_size, s):
     for start in range(0, m, batch):
         end = min(start + batch, m)
         cols_batch = cols[:, start * patches:end * patches]
-        X_batch = col2im_vectorized(cols_batch, (end - start, C, H, W), kernel_size, s)
+        X_batch = _col2im_vectorized(cols_batch, (end - start, C, H, W), kernel_size, s)
         X[start:end] = X_batch
     return X
 
@@ -312,11 +315,11 @@ def col2im(cols, X_shape, kernel_size, s):
     if isinstance(kernel_size, int):
         kernel_size = (kernel_size, kernel_size)
     try:
-        return col2im_vectorized(cols, X_shape, kernel_size, s)
+        return _col2im_vectorized(cols, X_shape, kernel_size, s)
     except Exception:
-        return col2im_safe_batch(cols, X_shape, kernel_size, s)
+        return _col2im_safe_batch(cols, X_shape, kernel_size, s)
     
-def im2col_transpose_vectorized(X, kernel_size, s, output_shape):
+def _im2col_transpose_vectorized(X, kernel_size, s, output_shape):
     """
     Transposed im2col (for Conv2DTranspose).
     NCHW convention: (m, C, H, W)
@@ -367,25 +370,25 @@ def im2col_transpose_vectorized(X, kernel_size, s, output_shape):
     cols = cols.transpose(1, 2, 0).reshape(f_h * f_w * n_C, -1)
     return cols
 
-def im2col_transpose_safe_batch(X, kernel_size, s, output_shape):
+def _im2col_transpose_safe_batch(X, kernel_size, s, output_shape):
     m = X.shape[0]
-    batch = safe_batch_size(X.shape, kernel_size, s)
+    batch = _safe_batch_size(X.shape, kernel_size, s)
     out_list = []
     for start in range(0, m, batch):
         end = min(start + batch, m)
         Xb = X[start:end]
-        out_list.append(im2col_transpose_vectorized(Xb, kernel_size, s, output_shape))
+        out_list.append(_im2col_transpose_vectorized(Xb, kernel_size, s, output_shape))
     return xp.concatenate(out_list, axis=1).astype(DTYPE)
 
 def im2col_transpose(X, kernel_size, s, output_shape):
     if isinstance(kernel_size, int):
         kernel_size = (kernel_size, kernel_size)
     try:
-        return im2col_transpose_vectorized(X, kernel_size, s, output_shape)
+        return _im2col_transpose_vectorized(X, kernel_size, s, output_shape)
     except Exception:
-        return im2col_transpose_safe_batch(X, kernel_size, s, output_shape)
+        return _im2col_transpose_safe_batch(X, kernel_size, s, output_shape)
     
-def col2im_transpose_vectorized(cols, X_shape, kernel_size, s, output_shape):
+def _col2im_transpose_vectorized(cols, X_shape, kernel_size, s, output_shape):
     """
     Channel-first col2im for Conv2DTranspose.
     X_shape = (m, C, H, W)  -- input to the deconv
@@ -440,17 +443,17 @@ def col2im_transpose_vectorized(cols, X_shape, kernel_size, s, output_shape):
     W_start = (X_up.shape[3] - W_out) // 2
     return X_up[:, :, H_start:H_start + H_out, W_start:W_start + W_out]
 
-def col2im_transpose_safe_batch(cols, X_shape, kernel_size, s, output_shape):
+def _col2im_transpose_safe_batch(cols, X_shape, kernel_size, s, output_shape):
     m, C, H, W = X_shape
     _, _, H_out, W_out = output_shape
-    batch = safe_batch_size(X_shape, kernel_size, s)
+    batch = _safe_batch_size(X_shape, kernel_size, s)
     patches = H_out * W_out
 
     X = xp.zeros(output_shape, dtype=cols.dtype)
     for start in range(0, m, batch):
         end = min(start + batch, m)
         cols_batch = cols[:, start * patches:end * patches]
-        X_batch = col2im_transpose_vectorized(
+        X_batch = _col2im_transpose_vectorized(
             cols_batch, (end - start, C, H, W), kernel_size, s, (end - start, C, H_out, W_out)
         )
         X[start:end] = X_batch
@@ -460,9 +463,9 @@ def col2im_transpose(cols, X_shape, kernel_size, s, output_shape):
     if isinstance(kernel_size, int):
         kernel_size = (kernel_size, kernel_size)
     try:
-        return col2im_transpose_vectorized(cols, X_shape, kernel_size, s, output_shape)
+        return _col2im_transpose_vectorized(cols, X_shape, kernel_size, s, output_shape)
     except Exception:
-        return col2im_transpose_safe_batch(cols, X_shape, kernel_size, s, output_shape)
+        return _col2im_transpose_safe_batch(cols, X_shape, kernel_size, s, output_shape)
     
 def im2col_grouped(X, kernel_size, s, groups):
     """
@@ -564,7 +567,7 @@ def im2col_transpose_grouped(X, kernel_size, s, output_shape, groups):
             output_shape[2], output_shape[3]
         )
 
-        cols_group = im2col_transpose_vectorized(X_group, kernel_size, s, out_group_shape)
+        cols_group = _im2col_transpose_vectorized(X_group, kernel_size, s, out_group_shape)
         cols_list.append(cols_group)
 
     cols = xp.concatenate(cols_list, axis=0)
@@ -606,7 +609,7 @@ def col2im_transpose_grouped(cols, X_shape, kernel_size, s, output_shape, groups
             output_shape[2], output_shape[3]
         )
 
-        X_reconstructed[:, start_ch:end_ch, :, :] += col2im_transpose_vectorized(
+        X_reconstructed[:, start_ch:end_ch, :, :] += _col2im_transpose_vectorized(
             cols_group,
             (m, group_channels, H, W),
             kernel_size,
@@ -614,4 +617,43 @@ def col2im_transpose_grouped(cols, X_shape, kernel_size, s, output_shape, groups
             group_output_shape
         )
 
-    return X_reconstructed  
+    return X_reconstructed
+
+
+class RecurrentDropout:
+    """
+    Recurrent dropout with fixed mask across timesteps.
+
+    During training, generates a single mask of shape (1, batch_size, *feature_dims)
+    and reuses it for every timestep. During evaluation, acts as identity.
+
+    Usage:
+        dropout = RecurrentDropout((batch_size, hidden_size), keep_prob, training=True)
+        for t in range(T):
+            h = dropout(h)  # same mask every step
+    """
+    def __init__(self, mask_shape: tuple[int, ...], keep_prob: float, training: bool = True):
+        self.training = training
+        dtype = C_DTYPE if MIXED_PRECISION else DTYPE
+
+        if self.training and 0 < keep_prob < 1.0:
+            mask = (xp.random.rand(*mask_shape) < keep_prob).astype(dtype)
+            mask = Tensor(mask, requires_grad=False, dtype=dtype)
+
+            # Scaling factor
+            scale = Tensor(1.0 / keep_prob, requires_grad=False, dtype=dtype)
+        elif self.training and keep_prob < 0:
+            mask = ops.zeros(mask_shape, dtype=dtype)
+            scale = ops.zeros((), dtype=dtype)
+        else:
+            mask = None
+            scale = None
+
+        self.mask = mask
+        self.scale = scale
+
+    def __call__(self, a: Tensor):
+        if self.mask is not None:
+            return a * self.mask * self.scale
+        else:
+            return a

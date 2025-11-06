@@ -1,5 +1,5 @@
-from LunarLearn.tensor import Tensor
-import LunarLearn.backend as backend
+from .tensor import Tensor
+import LunarLearn.core.backend.backend as backend
 
 class Parameter:
     """

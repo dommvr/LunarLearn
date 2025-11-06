@@ -1,5 +1,6 @@
 from .tensor.tensor import Tensor
 from .tensor.parameter import Parameter
+from .tensor import ops
 
 from .backend.backend import gpu_available
 from .backend.backend import is_gpu
@@ -22,6 +23,7 @@ from .backend.backend import is_grad_enabled
 __all__ = [
     "Tensor",
     "Parameter",
+    "ops",
     "gpu_available",
     "is_gpu",
     "device_name",
@@ -38,5 +40,5 @@ __all__ = [
     "set_mixed_precision",
     "set_scaling_factor",
     "set_safety_factor",
-    "is_grad_enable"
+    "is_grad_enabled"
 ]

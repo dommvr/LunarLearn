@@ -1,7 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.regularizers import dropout
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor, ops
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -55,4 +54,4 @@ class Dropout(BaseLayer):
         self.output_shape = input_shape
 
     def forward(self, A_prev: Tensor) -> Tensor:
-        return dropout(A_prev, self.keep_prob, training=self.training)
+        return ops.dropout(A_prev, self.keep_prob, training=self.training)

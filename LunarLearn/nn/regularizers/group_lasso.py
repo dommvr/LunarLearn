@@ -1,4 +1,4 @@
-from LunarLearn.regularizers.BaseRegularizer import BaseRegularizer
+from LunarLearn.nn.regularizers import BaseRegularizer
 
 class GroupLasso(BaseRegularizer):
     """

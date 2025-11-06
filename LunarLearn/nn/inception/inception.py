@@ -1,7 +1,6 @@
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.inception import InceptionBranch
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import ops
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.nn.inception import InceptionBranch
+from LunarLearn.core import Tensor, ops
 
 class Inception(BaseLayer):
     def __init__(self, *branches, axis=1):
@@ -23,7 +22,7 @@ class Inception(BaseLayer):
         return out
     
     def _make_conv_layers(self, layers):
-        from LunarLearn.layers import Activation
+        from LunarLearn.nn.layers import Activation
         seq = []
         for layer in layers:
             seq.append(layer)

@@ -1,5 +1,5 @@
-import LunarLearn.backend as backend
-from LunarLearn.models import Sequential
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn import Sequential
 
 xp = backend.xp
 DTYPE = backend.DTYPE

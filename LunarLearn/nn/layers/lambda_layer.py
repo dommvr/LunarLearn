@@ -1,6 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor
 
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE

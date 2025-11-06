@@ -1,6 +1,5 @@
-import LunarLearn.backend as backend
-from LunarLearn.optimizers.BaseOptimizer import BaseOptimizer
-from LunarLearn.tensor import Tensor
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.optim.optimizers import BaseOptimizer
 
 xp = backend.xp
 DTYPE = backend.DTYPE

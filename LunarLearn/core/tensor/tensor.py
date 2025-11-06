@@ -1,4 +1,4 @@
-import LunarLearn.backend as backend
+import LunarLearn.core.backend.backend as backend
 from ops import (
     # slicing
     slice, 

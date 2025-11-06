@@ -1,5 +1,5 @@
-import LunarLearn.backend as backend
-from LunarLearn.schedulers.BaseScheduler import BaseScheduler
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.optim.schedulers import BaseScheduler
 
 xp = backend.xp
 DTYPE = backend.DTYPE

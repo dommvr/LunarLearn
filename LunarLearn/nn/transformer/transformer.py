@@ -1,12 +1,10 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import ops
-from LunarLearn.models import ModuleList, SharedBlock, Sequential
-from LunarLearn.transformer import Embedding, PositionalEncoding, EncoderBlock, DecoderBlock
-from LunarLearn.layers import LayerNorm, Dense
-from LunarLearn.transformer.attention import ScaledDotProductAttention
-from LunarLearn.transformer.utils.masks import make_pad_mask, make_causal_mask, merge_masks
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer, LayerNorm, Dense, Embedding, PositionalEncoding
+from LunarLearn.nn import ModuleList, SharedBlock, Sequential
+from LunarLearn.nn.transformer import EncoderBlock, DecoderBlock
+from LunarLearn.nn.transformer.attention import ScaledDotProductAttention
+from LunarLearn.nn.transformer.utils.masks import make_pad_mask, make_causal_mask, merge_masks
+from LunarLearn.core import Tensor, ops
 
 xp = backend.xp
 DTYPE = backend.DTYPE

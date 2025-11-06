@@ -1,6 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor
 
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE
@@ -19,7 +19,7 @@ class BaseResBlock(BaseLayer):
         self.use_shortcut = use_shortcut
 
     def _make_shortcut(self, input_shape):
-        from LunarLearn.layers import Conv2D
+        from LunarLearn.nn.layers import Conv2D
 
         in_channels = input_shape[1]
         out_channels = self.filters
@@ -34,7 +34,7 @@ class BaseResBlock(BaseLayer):
 
 
     def forward(self, x: Tensor) -> Tensor:
-        from LunarLearn.activations import get_activation
+        from LunarLearn.nn.activations import get_activation
 
         # Create shortcut path if not built yet
         if self.shortcut is None:

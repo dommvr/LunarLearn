@@ -1,7 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.models import Trainer
-from LunarLearn.tensor import Tensor
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -139,7 +138,6 @@ class Module:
                 - "memory_MB": float
         """
         import numpy as np
-        from LunarLearn.tensor import Tensor
 
         total_params = 0
         trainable_params = 0

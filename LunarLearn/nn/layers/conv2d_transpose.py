@@ -1,8 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import Parameter
-from LunarLearn.tensor import ops
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor, Parameter, ops
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -64,7 +62,9 @@ class Conv2DTranspose(BaseLayer):
                 Tensor: Activated output tensor of shape 
                 (batch, filters, H_out, W_out).
     """
-    def __init__(self, filters, kernel_size, strides=1, padding=0, activation='linear', w_init='auto', uniform=False, gain=1, groups=1): #add default values
+    def __init__(self, filters, kernel_size, strides=1, padding=0, activation='linear', w_init='auto', uniform=False, gain=1, groups=1):
+        from LunarLearn.nn.activations import activations
+        from LunarLearn.nn.initializations import initializations
 
         # Validate number of filters
         if not isinstance(filters, int) or filters <= 0:
@@ -98,16 +98,16 @@ class Conv2DTranspose(BaseLayer):
             raise ValueError("uniform must be True or False (boolean)")
 
         # Validate activation
-        allowed_activations = ['linear', 'sigmoid', 'ReLU', 'leaky_ReLU', 'tanh', 'softmax', 'auto']
+        allowed_activations = activations.ACTIVATIONS
         if activation not in allowed_activations:
             raise ValueError(f"Unsupported activation '{activation}'. "
-                             f"Available: {allowed_activations}")
+                             f"Available: {list(allowed_activations.keys())}")
         
         # Validate w_init
-        allowed_w_init = ['He', 'Xavier', 'LeCun', 'orthogonal', 'auto']
-        if w_init not in allowed_w_init:
+        allowed_inits = initializations.ALL_INITIALIZATIONS
+        if w_init not in allowed_inits:
             raise ValueError(f"Unsupported weight initialization '{w_init}'. "
-                             f"Available: {allowed_w_init}")
+                             f"Available: {list(allowed_inits.keys())}")
         
         super().__init__(trainable=True)
         self.filters = filters
@@ -124,7 +124,7 @@ class Conv2DTranspose(BaseLayer):
         self.groups = groups
 
     def initialize(self, input_shape):
-        from LunarLearn.engine import initialize_weights
+        from LunarLearn.nn.initializations import initialize_weights
 
         if input_shape is None:
             raise ValueError("input_shape must be provided to initialize the layer")
@@ -165,7 +165,7 @@ class Conv2DTranspose(BaseLayer):
             Tensor: Output tensor of shape (N, filters, H_out, W_out) after
                 transposed convolution and activation.
         """
-        from LunarLearn.activations import get_activation
+        from LunarLearn.nn.activations import get_activation
 
         if self.W is None or self.b is None:
             _, n_C_prev, n_H_prev, n_W_prev = A_prev.shape

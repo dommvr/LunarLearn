@@ -1,8 +1,8 @@
-import LunarLearn.backend as backend
-from LunarLearn.inception.Inception import Inception
-from LunarLearn.inception import InceptionBranch
-from LunarLearn.layers import BatchNorm2D, Conv2D
-from LunarLearn.tensor import Tensor
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.inception import Inception
+from LunarLearn.nn.inception import InceptionBranch
+from LunarLearn.nn.layers import BatchNorm2D, Conv2D
+from LunarLearn.core import Tensor
 
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE

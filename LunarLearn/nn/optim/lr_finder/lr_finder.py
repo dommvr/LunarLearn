@@ -2,7 +2,7 @@ import copy
 import math
 import LunarLearn.amp as amp
 import numpy as np
-import LunarLearn.backend as backend
+import LunarLearn.core.backend.backend as backend
 
 xp = backend.xp
 

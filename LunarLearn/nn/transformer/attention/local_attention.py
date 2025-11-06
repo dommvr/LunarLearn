@@ -1,9 +1,7 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import ops
-from LunarLearn.tensor import Parameter
-from LunarLearn.transformer.utils.positional_encoding import apply_rope, get_alibi_bias
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor, Parameter, ops
+from LunarLearn.nn.transformer.utils.positional_encoding import apply_rope, get_alibi_bias
 
 xp = backend.xp
 
@@ -18,8 +16,6 @@ class LocalAttention(BaseLayer):
         self.rel_bias = Parameter(xp.zeros((n_heads, max_len, max_len)), requires_grad=True)
 
     def forward(self, Q: Tensor, K: Tensor, V: Tensor, mask=None, pos_mode=None) -> Tensor:
-        from LunarLearn.regularizers import dropout
-
         B, H, L, D = Q.shape
 
         # Lazy init for relative bias
@@ -54,7 +50,7 @@ class LocalAttention(BaseLayer):
                 scores += (1.0 - mask[:, :, i:i+1, start:end]) * -1e9
 
             attn = ops.softmax(scores, axis=-1)
-            attn = dropout(attn, self.keep_prob, self.training)
+            attn = ops.dropout(attn, self.keep_prob, self.training)
             out = ops.matmul(attn, Vi)         # (B,H,1,D)
             output.append(out)
 

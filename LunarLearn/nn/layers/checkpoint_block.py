@@ -1,7 +1,7 @@
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.models import Sequential
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor.utils import checkpoint
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.nn import Sequential
+from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import checkpoint
 
 class CheckpointBlock(BaseLayer):
     """

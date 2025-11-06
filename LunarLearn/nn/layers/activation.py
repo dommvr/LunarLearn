@@ -1,8 +1,8 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn import activations
-from LunarLearn.activations import get_activation
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor
+from LunarLearn.nn.activations import activations
+from LunarLearn.nn.activations import get_activation
 
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE

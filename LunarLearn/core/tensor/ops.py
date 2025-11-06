@@ -1,6 +1,6 @@
-import LunarLearn.backend as backend
+import LunarLearn.core.backend.backend as backend
 from .tensor import Tensor
-from .utils import *
+from .utils import ensure_tensor, unbroadcast, promote_dtype
 from LunarLearn.amp import dispatch_amp
 
 xp = backend.xp
@@ -2680,7 +2680,7 @@ def renorm(a: Tensor, p=2.0, dim=0, maxnorm=1.0) -> Tensor:
     return dispatch_amp("renorm", _renorm_impl, a, p=p, dim=dim, maxnorm=maxnorm)
 
 def _im2col_impl(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
-    from LunarLearn.tensor.utils import im2col, col2im
+    from LunarLearn.core.tensor.utils import im2col, col2im
     X = ensure_tensor(X)
     data = im2col(X.data, kernel_size, s)
     requires_grad = X.requires_grad
@@ -2732,7 +2732,7 @@ def im2col(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
     return dispatch_amp("im2col", _im2col_impl, X, kernel_size, s)
 
 def _col2im_impl(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
-    from LunarLearn.tensor.utils import im2col, col2im
+    from LunarLearn.core.tensor.utils import im2col, col2im
     cols = ensure_tensor(cols)
     data = col2im(cols.data, X_shape, kernel_size, s)
     requires_grad = cols.requires_grad
@@ -2785,7 +2785,7 @@ def col2im(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
     return dispatch_amp("col2im", _col2im_impl, cols, X_shape, kernel_size, s)
 
 def _im2col_transpose_impl(X: Tensor, kernel_size: tuple, s: int, output_shape: tuple) -> Tensor:
-    from LunarLearn.tensor.utils import im2col_transpose, col2im_transpose
+    from LunarLearn.core.tensor.utils import im2col_transpose, col2im_transpose
     X = ensure_tensor(X)
     data = im2col_transpose(X.data, kernel_size, s, output_shape)
     requires_grad = X.requires_grad
@@ -2838,7 +2838,7 @@ def im2col_transpose(X: Tensor, kernel_size: tuple, s: int, output_shape: tuple)
     return dispatch_amp("im2col_transpose", _im2col_transpose_impl, X, kernel_size, s, output_shape)
 
 def _col2im_transpose_impl(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: int, output_shape: tuple) -> Tensor:
-    from LunarLearn.tensor.utils import im2col_transpose, col2im_transpose
+    from LunarLearn.core.tensor.utils import im2col_transpose, col2im_transpose
     cols = ensure_tensor(cols)
     data = col2im_transpose(cols.data, X_shape, kernel_size, s, output_shape)
     requires_grad = cols.requires_grad
@@ -2892,7 +2892,7 @@ def col2im_transpose(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: int, o
     return dispatch_amp("col2im_transpose", _col2im_transpose_impl, cols, X_shape, kernel_size, s, output_shape)
 
 def _im2col_grouped_impl(X: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
-    from LunarLearn.tensor.utils import im2col_grouped, col2im_grouped
+    from LunarLearn.core.tensor.utils import im2col_grouped, col2im_grouped
     X = ensure_tensor(X)
     data = im2col_grouped(X.data, kernel_size, s, groups)
     requires_grad = X.requires_grad
@@ -2945,7 +2945,7 @@ def im2col_grouped(X: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor
     return dispatch_amp("im2col_grouped", _im2col_grouped_impl, X, kernel_size, s, groups)
 
 def _col2im_grouped_impl(cols: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
-    from LunarLearn.tensor.utils import im2col_grouped, col2im_grouped
+    from LunarLearn.core.tensor.utils import im2col_grouped, col2im_grouped
     cols = ensure_tensor(cols)
     data = col2im_grouped(cols.data, kernel_size, s, groups)
     requires_grad = cols.requires_grad
@@ -2997,7 +2997,7 @@ def col2im_grouped(cols: Tensor, kernel_size: tuple, s: int, groups: int) -> Ten
     return dispatch_amp("col2im_grouped", _col2im_grouped_impl, cols, kernel_size, s, groups)
 
 def _im2col_transpose_grouped_impl(X: Tensor, kernel_size: tuple, s: int, output_shape: tuple, groups: int) -> Tensor:
-    from LunarLearn.tensor.utils import im2col_transpose_grouped, col2im_transpose_grouped
+    from LunarLearn.core.tensor.utils import im2col_transpose_grouped, col2im_transpose_grouped
     X = ensure_tensor(X)
     data = im2col_transpose_grouped(X.data, kernel_size, s, output_shape, groups)
     requires_grad = X.requires_grad
@@ -3056,7 +3056,7 @@ def im2col_transpose_grouped(X: Tensor, kernel_size: tuple, s: int, output_shape
     return dispatch_amp("im2col_transpose_grouped", _im2col_transpose_grouped_impl, X, kernel_size, s, output_shape, groups)
 
 def _col2im_transpose_grouped_impl(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: int, output_shape: tuple, groups: int) -> Tensor:
-    from LunarLearn.tensor.utils import im2col_transpose_grouped, col2im_transpose_grouped
+    from LunarLearn.core.tensor.utils import im2col_transpose_grouped, col2im_transpose_grouped
     cols = ensure_tensor(cols)
     data = col2im_transpose_grouped(cols, X_shape, kernel_size, s, output_shape, groups)
     requires_grad = cols.requires_grad
@@ -3465,7 +3465,7 @@ def _nll_loss_impl(log_probs: Tensor, target: Tensor) -> Tensor:
     out.is_leaf = False
     out.grad_fn = "nll_loss"
 
-    for hook in getattr(a, "_activation_hooks", []):
+    for hook in getattr(log_probs, "_activation_hooks", []):
         new_out = hook(out)
         if new_out is not None:
             out = new_out
@@ -3526,3 +3526,36 @@ def cross_entropy(a: Tensor, target: Tensor) -> Tensor:
         Tensor: Scalar tensor representing the mean cross-entropy loss.
     """
     return dispatch_amp("cross_entropy", _cross_entropy_impl, a, target)
+
+def _dropout_impl(a: Tensor, keep_prob: float, training: bool = True):
+    a = ensure_tensor(a)
+    if not training or keep_prob >= 1.0:
+        return a
+    if keep_prob <= 0.0:
+        return zeros(a.shape)
+    
+    mask = (xp.random.rand(*a.shape) < keep_prob).astype(a.dtype)
+    scale = 1.0 / keep_prob
+    out = a * mask * scale
+    out.grad_fn = "dropout"
+    return out
+
+def dropout(a: Tensor, keep_prob: float, training: bool = True):
+    """
+    Dropout operation.
+
+    During training, randomly zeroes some elements of the input tensor with probability `1 - keep_prob`
+    using samples from a Bernoulli distribution. The elements are then scaled by `1/keep_prob`
+    to preserve expected value.
+
+    During evaluation, returns the input unchanged.
+
+    Args:
+        a (Tensor): Input tensor.
+        keep_prob (float): Probability of keeping an element. Must be in (0, 1].
+        training (bool): If True, apply dropout. If False, return input as-is.
+
+    Returns:
+        Tensor: Output tensor with dropout applied (training) or unchanged (eval).
+    """
+    return dispatch_amp("dropout", _dropout_impl, a, keep_prob=keep_prob, training=training)

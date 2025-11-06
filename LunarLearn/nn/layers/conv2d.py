@@ -1,8 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import Parameter
-from LunarLearn.tensor import ops
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor, Parameter, ops
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -62,8 +60,8 @@ class Conv2D(BaseLayer):
     """
     def __init__(self, filters, kernel_size, strides=1, padding=0, activation='linear',
                  w_init='auto', uniform=False, gain=1, groups=1):
-        from LunarLearn.activations import activations
-        from LunarLearn.initializations import initializations
+        from LunarLearn.nn.activations import activations
+        from LunarLearn.nn.initializations import initializations
         # Validate number of filters
         if not isinstance(filters, int) or filters <= 0:
             raise ValueError("filters must be a positive integer")
@@ -122,7 +120,7 @@ class Conv2D(BaseLayer):
         self.groups = groups
 
     def initialize(self, input_shape):
-        from LunarLearn.initializations import initialize_weights
+        from LunarLearn.nn.initializations import initialize_weights
 
         # Validate input_shape 
         if input_shape is None:
@@ -177,7 +175,7 @@ class Conv2D(BaseLayer):
             Tensor: Output tensor of shape (N, filters, H_out, W_out) after
                 convolution and activation.
         """
-        from LunarLearn.activations import get_activation
+        from LunarLearn.nn.activations import get_activation
 
         if self.W is None or self.b is None:
             _, n_C_prev, n_H_prev, n_W_prev = A_prev.shape

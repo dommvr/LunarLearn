@@ -1,8 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import Parameter
-from LunarLearn.tensor import ops
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor, Parameter, ops
 
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE
@@ -44,7 +42,7 @@ class RNNCell(BaseLayer):
         self.bh = None
 
     def initialize(self, input_shape):
-        from LunarLearn.initializations import initialize_weights
+        from LunarLearn.nn.initializations import initialize_weights
 
         n_in = input_shape[-1]
         Wxh, bh = initialize_weights(
@@ -69,7 +67,7 @@ class RNNCell(BaseLayer):
         self.output_shape = (self.hidden_size,)
 
     def forward(self, x_t: Tensor, h_prev: Tensor) -> Tensor:
-        from LunarLearn.activations import get_activation
+        from LunarLearn.nn.activations import get_activation
 
         Wxh = self.Wxh.to_compute()
         Whh = self.Whh.to_compute()

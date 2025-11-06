@@ -1,6 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.RecurrentBase import RecurrentBase
-from LunarLearn.layers.RNNCell import RNNCell
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import RecurrentBase
+from LunarLearn.nn.layers import RNNCell
 
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE

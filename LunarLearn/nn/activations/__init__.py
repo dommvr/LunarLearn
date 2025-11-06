@@ -1,3 +1,5 @@
+from .activations import ACTIVATIONS
+
 from .activations import get_activation
 from .activations import linear
 from .activations import sigmoid
@@ -14,6 +16,7 @@ from .activations import elu
 from .activations import selu
 
 __all__ = [
+    "ACTIVATIONS",
     "get_activation",
     "linear",
     "sigmoid",

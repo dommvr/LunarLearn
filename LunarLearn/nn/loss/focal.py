@@ -1,7 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.loss.BaseLoss import BaseLoss
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import ops
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.loss import BaseLoss
+from LunarLearn.core import Tensor, ops
 
 xp = backend.xp
 DTYPE = backend.DTYPE

@@ -1,8 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import Parameter
-from LunarLearn.tensor import ops
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Parameter, ops
 
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE
@@ -45,7 +43,7 @@ class LSTMCell(BaseLayer):
         self.gain = gain
 
     def initialize(self, input_shape):
-        from LunarLearn.initializations import initialize_weights
+        from LunarLearn.nn.initializations import initialize_weights
 
         n_in = input_shape[-1]
 

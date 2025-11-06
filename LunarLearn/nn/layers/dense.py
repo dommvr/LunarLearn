@@ -1,8 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import Parameter
-from LunarLearn.tensor import ops
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor, Parameter, ops
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -56,8 +54,8 @@ class Dense(BaseLayer):
     """
     def __init__(self, nodes, activation='linear',
                  w_init='auto', uniform=False, gain=1, keep_prob=1, transpose_weight=False):
-        from LunarLearn.activations import activations
-        from LunarLearn.initializations import initializations
+        from LunarLearn.nn.activations import activations
+        from LunarLearn.nn.initializations import initializations
 
         # Validate nodes
         if not isinstance(nodes, int) or nodes <= 0:
@@ -99,7 +97,7 @@ class Dense(BaseLayer):
         self.transpose_weight = transpose_weight
 
     def initialize(self, input_shape):
-        from LunarLearn.initializations import initialize_weights
+        from LunarLearn.nn.initializations import initialize_weights
 
         # Validate input_shape 
         if input_shape is None:
@@ -140,8 +138,8 @@ class Dense(BaseLayer):
             Tensor: Output tensor of shape (N, nodes) after linear 
                 transformation, activation, and optional dropout.
         """
-        from LunarLearn.activations import get_activation
-        from LunarLearn.regularizers import dropout
+        from LunarLearn.nn.activations import get_activation
+        from LunarLearn.nn.regularizers import dropout
 
         if self.W is None or self.b is None:
             self.initialize((A_prev.shape[1],))

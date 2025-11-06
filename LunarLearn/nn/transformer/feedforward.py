@@ -1,6 +1,5 @@
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.layers import Dense, Activation, Dropout
-from LunarLearn.tensor.tensor import Tensor
+from LunarLearn.nn.layers import BaseLayer, Dense, Activation, Dropout
+from LunarLearn.core import Tensor
 
 class FeedForward(BaseLayer):
     def __init__(self, layer1_nodes, layer2_nodes, activation="relu", keep_prob=0.9):

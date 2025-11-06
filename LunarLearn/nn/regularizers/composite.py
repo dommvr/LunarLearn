@@ -1,5 +1,5 @@
-from LunarLearn.regularizers.BaseRegularizer import BaseRegularizer
-from LunarLearn.tensor import Tensor
+from LunarLearn.nn.regularizers import BaseRegularizer
+from LunarLearn.core import Tensor
 
 
 class CompositeRegularizer(BaseRegularizer):

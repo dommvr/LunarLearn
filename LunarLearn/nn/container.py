@@ -1,3 +1,7 @@
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor
+from LunarLearn.nn import Module
+
 class ModuleList(BaseLayer):
     def __init__(self, modules=None):
         super().__init__(trainable=True)

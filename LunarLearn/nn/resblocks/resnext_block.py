@@ -1,7 +1,7 @@
-import LunarLearn.backend as backend
-from LunarLearn.ResBlocks.BaseResBlock import BaseResBlock
-from LunarLearn.tensor import Tensor
-from LunarLearn.layers import Conv2D, BatchNorm2D
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.resblocks import BaseResBlock
+from LunarLearn.core import Tensor
+from LunarLearn.nn.layers import Conv2D, BatchNorm2D
 
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE
@@ -23,7 +23,7 @@ class ResNeXtBlock(BaseResBlock):
         self.strides = strides
 
     def forward(self, x: Tensor) -> Tensor:
-        from LunarLearn.activations import get_activation
+        from LunarLearn.nn.activations import get_activation
 
         # Create shortcut path if not built yet
         if self.shortcut is None:

@@ -1,4 +1,4 @@
-from LunarLearn.layers.BatchNorm import BatchNorm
+from LunarLearn.nn.layers import BatchNorm
 
 class BatchNorm2D(BatchNorm):
     def __init__(self, momentum=0.9, epsilon=0.001):

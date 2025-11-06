@@ -1,7 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import Parameter
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor, Parameter, ops
 
 xp = backend.xp
 
@@ -24,12 +23,11 @@ class Embedding(BaseLayer):
         self.output_shape = (input_shape[1], self.emb_dim)
 
     def forward(self, x: Tensor) -> Tensor:
-        from LunarLearn.regularizers import dropout
         if self.W is None:
             self.initialize(x.shape[1:])
         W = self.W.to_compute()
         out = W[x]
-        out = dropout(out, self.keep_prob, training=self.training)
+        out = ops.dropout(out, self.keep_prob, training=self.training)
 
         return out
 

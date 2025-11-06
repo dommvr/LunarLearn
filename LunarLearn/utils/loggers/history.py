@@ -2,7 +2,7 @@ import json
 import csv
 import matplotlib.pyplot as plt
 
-import LunarLearn.backend as backend
+import LunarLearn.core.backend.backend as backend
 
 xp = backend.xp
 

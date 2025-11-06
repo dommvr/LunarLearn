@@ -2,8 +2,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Any, Callable, Iterable
 
-from LunarLearn import backend
-from LunarLearn.tensor import Tensor
+from LunarLearn.core import backend
+from LunarLearn.core import Tensor
 from LunarLearn.amp import DynamicLossScaler
 
 xp = backend.xp
@@ -31,7 +31,8 @@ class _AmpState:
         "expand", "repeat", "tile", "pad",
         "im2col", "col2im", "im2col_transpose", "col2im_transpose",
         "im2col_grouped", "col2im_grouped", 
-        "im2col_transpose_grouped", "col2im_transpose_grouped"
+        "im2col_transpose_grouped", "col2im_transpose_grouped",
+        "dropout"
     }
     FP32_FORCE = {
         "zeros", "ones", "full", "arange", "eye",

@@ -1,6 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.regularizers.BaseRegularizer import BaseRegularizer
-from LunarLearn.tensor import ops
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.regularizers import BaseRegularizer
+from LunarLearn.core import ops
 
 xp = backend.xp
 

@@ -1,7 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.tensor import Tensor
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.layers import Conv2D, Conv2DTranspose
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer, Conv2D, Conv2DTranspose
+from LunarLearn.core import Tensor
 
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE
@@ -75,7 +74,7 @@ class DepthwiseSeparableConv2DTranspose(BaseLayer):
         self.output_shape = (self.filters, None, None)  # Computed at runtime
 
     def forward(self, X: Tensor) -> Tensor:
-        from LunarLearn.activations import get_activation
+        from LunarLearn.nn.activations import get_activation
 
         # Lazy init on first pass
         if self.depthwise is None or self.pointwise is None:

@@ -1,6 +1,5 @@
-import LunarLearn.backend as backend
-from LunarLearn.tensor import ops
-from LunarLearn.tensor import Tensor
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.core import Tensor
 
 xp = backend.xp
 
@@ -84,7 +83,7 @@ class BaseRegularizer:
         return Tensor(0.0)
 
     def __add__(self, other):
-        from LunarLearn.regularizers import CompositeRegularizer
+        from LunarLearn.nn.regularizers import CompositeRegularizer
         return CompositeRegularizer([self, other])
 
     def __or__(self, other):

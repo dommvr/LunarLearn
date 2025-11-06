@@ -1,6 +1,6 @@
-from LunarLearn.inception.Inception import Inception
-from LunarLearn.inception import InceptionBranch
-from LunarLearn.layers import Conv2D, MaxPool2D, AveragePool2D, BatchNorm2D
+from LunarLearn.nn.inception import Inception
+from LunarLearn.nn.inception import InceptionBranch
+from LunarLearn.nn.layers import Conv2D, MaxPool2D, AveragePool2D, BatchNorm2D
 
 class InceptionV1Block(Inception):
     def __init__(

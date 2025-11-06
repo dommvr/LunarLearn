@@ -1,7 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.tensor import Tensor
-from LunarLearn.tensor import ops
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn.layers import BaseLayer
+from LunarLearn.core import Tensor, ops
 
 xp = backend.xp
 
@@ -86,7 +85,7 @@ class RecurrentBase(BaseLayer):
         Returns:
             Tensor: Output (batch, hidden_size) or (batch, timesteps, hidden_size)
         """
-        from LunarLearn.regularizers import RecurrentDropout
+        from LunarLearn.core.tensor import RecurrentDropout
 
         batch_size, timesteps, features = inputs.shape
 

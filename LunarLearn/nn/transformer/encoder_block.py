@@ -1,8 +1,7 @@
-from LunarLearn.layers.BaseLayer import BaseLayer
-from LunarLearn.layers import LayerNorm
-from LunarLearn.transformer import MultiHeadAttention, FeedForward
-from LunarLearn.transformer.attention import ScaledDotProductAttention
-from LunarLearn.tensor import Tensor
+from LunarLearn.nn.layers import BaseLayer, LayerNorm
+from LunarLearn.nn.transformer import MultiHeadAttention, FeedForward
+from LunarLearn.nn.transformer.attention import ScaledDotProductAttention
+from LunarLearn.core import Tensor
 
 class EncoderBlock(BaseLayer):
     def __init__(self,
