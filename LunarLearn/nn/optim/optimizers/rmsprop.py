@@ -6,28 +6,6 @@ xp = backend.xp
 DTYPE = backend.DTYPE
 
 class RMSProp(BaseOptimizer):
-    """
-    RMSProp optimizer with autograd support.
-
-    RMSProp maintains a moving average of squared gradients to adaptively
-    scale the learning rate per parameter. It helps stabilize training,
-    especially in recurrent and deep networks.
-
-    Args:
-        learning_rate (float, optional):
-            Base learning rate. Default is 0.001.
-        beta (float, optional):
-            Exponential decay rate for squared gradient average. Default is 0.9.
-        epsilon (float, optional):
-            Small constant for numerical stability. Default is 1e-8.
-        weight_decay (float, optional):
-            Decoupled weight decay coefficient. Default is 0.
-
-    Attributes:
-        state (dict):
-            Per-parameter state storing the exponential moving average
-            of squared gradients.
-    """
     def __init__(self, learning_rate=0.001, beta=0.9, epsilon=1e-8, weight_decay=0.0):
         super().__init__(learning_rate)
         self.beta = xp.array(beta, dtype=DTYPE)
@@ -36,39 +14,21 @@ class RMSProp(BaseOptimizer):
         self.state = {}
 
     def step(self, params):
-        for param_desc in params:
-            # --- Extract param & layer if available ---
-            if isinstance(param_desc, dict):
-                p = param_desc["param"]
-                layer = param_desc.get("layer", None)
-            else:
-                p = param_desc
-                layer = None
-
-            if not isinstance(p, Tensor) or not p.requires_grad:
+        for param, layer, custom_optim in self._iter_params(params):
+            # If param has its own optimizer → delegate and skip
+            if custom_optim is not None and custom_optim is not self:
+                custom_optim.step([param])
                 continue
-            if p.grad is None:
-                continue
-
-            grad = p.grad
-            lr = self._get_lr(param_desc)
-
-            # Initialize state if needed
-            if p not in self.state:
-                self.state[p] = {
-                    "v": xp.zeros_like(p.data, dtype=DTYPE),  # EMA of squared gradients
-                }
-
-            state = self.state[p]
-
-            # Update squared gradient average
+            # Otherwise, use *this* optimizer to update it
+            grad = param.grad
+            data = param.data
+            if param not in self.state:
+                self.state[param] = {"v": xp.zeros_like(data, dtype=DTYPE)}
+            state = self.state[param]
             state["v"] = self.beta * state["v"] + (1 - self.beta) * (grad * grad)
-
-            # Update rule
-            denom = xp.sqrt(state["v"]) + self.epsilon
-            update = grad / denom
-
+            lr = self._get_lr(param, layer)
+            update = grad / (xp.sqrt(state["v"]) + self.epsilon)
             if self.weight_decay > 0:
-                update += self.weight_decay * p.data
-
-            p.data -= lr * update
+                update += self.weight_decay * data
+            data -= lr * update
+            self._apply_weight_decay(param, layer, lr)

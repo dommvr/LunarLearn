@@ -8,27 +8,23 @@ DTYPE = backend.DTYPE
 class Adam(BaseOptimizer):
     """
     Adam optimizer with autograd support.
-
-    This optimizer implements the Adam algorithm, which combines momentum 
-    and adaptive learning rates for each parameter. It is widely used for 
+    This optimizer implements the Adam algorithm, which combines momentum
+    and adaptive learning rates for each parameter. It is widely used for
     training deep learning models due to its fast convergence and robustness.
-
     Args:
-        learning_rate (float, optional): 
+        learning_rate (float, optional):
             Initial learning rate. Default is 0.001.
-        beta1 (float, optional): 
+        beta1 (float, optional):
             Exponential decay rate for the first moment estimates. Default is 0.9.
-        beta2 (float, optional): 
+        beta2 (float, optional):
             Exponential decay rate for the second moment estimates. Default is 0.999.
-        epsilon (float, optional): 
-            Small constant to avoid division by zero. Default is 1e-8.
-
+        epsilon (float, optional):
+            Small constant for numerical stability. Default is 1e-8.
     Attributes:
-        state (dict): 
+        state (dict):
             Per-parameter state storing first and second moment estimates.
-        t (int): 
+        t (int):
             Global timestep, used for bias correction of moments.
-
     Methods:
         step(params: List[Union[Tensor, dict]]):
             Perform one optimization step over a list of parameters. Supports

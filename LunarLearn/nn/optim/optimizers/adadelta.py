@@ -8,70 +8,51 @@ DTYPE = backend.DTYPE
 class AdaDelta(BaseOptimizer):
     """
     AdaDelta optimizer with autograd support.
-
     AdaDelta is an adaptive learning rate method that eliminates the need to 
     manually set a learning rate. Instead, it dynamically adapts updates using 
     a moving window of squared gradients and squared updates.
-
     Args:
-        rho (float, optional): Decay rate for the moving averages of squared 
-            gradients and updates. Default is 0.95.
-        epsilon (float, optional): Small constant to prevent division by zero. 
-            Default is 1e-8.
-
+        learning_rate (float, optional):
+            Learning rate scaling factor. Default is 1.0.
+        rho (float, optional):
+            Decay rate for the moving averages of squared gradients and updates. Default is 0.95.
+        epsilon (float, optional):
+            Small constant for numerical stability. Default is 1e-8.
     Attributes:
-        rho (float): Decay rate for moving averages.
-        epsilon (float): Numerical stability constant.
-        state (dict): Per-parameter optimizer state, storing accumulated squared 
-            gradients and updates.
-
+        state (dict):
+            Per-parameter state storing accumulated squared gradients and updates.
     Methods:
         step(params: List[Union[Tensor, dict]]):
-            Perform one optimization step over the given parameters.
-        zero_grad(params: List[Tensor]):
-            Reset gradients of all given parameters to None.
+            Perform one optimization step over a list of parameters. Supports
+            both raw Tensors and dictionaries containing {"param": Tensor, "layer": Layer}.
     """
-    def __init__(self, rho=0.95, epsilon=1e-8):
-        super().__init__(learning_rate=0.0)  # AdaDelta does not use a fixed LR
+    def __init__(self, learning_rate=1.0, rho=0.95, epsilon=1e-8):
+        super().__init__(learning_rate)
         self.rho = xp.array(rho, dtype=DTYPE)
         self.epsilon = xp.array(epsilon, dtype=DTYPE)
-        self.state = {}
+        self.state = {} # store moments per parameter
 
     def step(self, params):
-        for param_desc in params:
-            # --- Extract param & layer if available ---
-            if isinstance(param_desc, dict):
-                p = param_desc["param"]
-                layer = param_desc.get("layer", None)
-            else:
-                p = param_desc
-                layer = None
-
-            if not isinstance(p, Tensor) or not p.requires_grad:
+        for param, layer, custom_optim in self._iter_params(params):
+            # If param has its own optimizer → delegate and skip
+            if custom_optim is not None and custom_optim is not self:
+                custom_optim.step([param]) # Step only that param
                 continue
-            if p.grad is None:
-                continue
-
-            grad = p.grad
-
-            # Initialize state if needed
-            if p not in self.state:
-                self.state[p] = {
-                    "Eg2": xp.zeros_like(p.data, dtype=DTYPE),   # running avg of grad^2
-                    "Edx2": xp.zeros_like(p.data, dtype=DTYPE),  # running avg of update^2
+            # Otherwise, use *this* optimizer to update it
+            grad = param.grad
+            data = param.data
+            if param not in self.state:
+                self.state[param] = {
+                    "Eg2": xp.zeros_like(data, dtype=DTYPE),
+                    "Edx2": xp.zeros_like(data, dtype=DTYPE),
                 }
-
-            state = self.state[p]
-
-            # Accumulate gradient squared
+            state = self.state[param]
             state["Eg2"] = self.rho * state["Eg2"] + (1 - self.rho) * (grad * grad)
-
-            # Compute update step
-            update = - (xp.sqrt(state["Edx2"] + self.epsilon) /
-                        xp.sqrt(state["Eg2"] + self.epsilon)) * grad
-
-            # Accumulate updates squared
-            state["Edx2"] = self.rho * state["Edx2"] + (1 - self.rho) * (update * update)
-
-            # Apply update
-            p.data += update
+            rms_g = xp.sqrt(state["Eg2"] + self.epsilon)
+            rms_dx = xp.sqrt(state["Edx2"] + self.epsilon)
+            delta = (rms_dx / rms_g) * grad
+            lr = self._get_lr(param, layer)
+            update = -lr * delta
+            data += update
+            state["Edx2"] = self.rho * state["Edx2"] + (1 - self.rho) * (delta * delta)
+            self._apply_weight_decay(param, layer, lr)
