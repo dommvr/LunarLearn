@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class HuberLoss(BaseLoss):
+class Huber(BaseLoss):
     """
     Huber loss with autograd support.
 

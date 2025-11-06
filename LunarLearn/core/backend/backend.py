@@ -18,7 +18,7 @@ import os
 import time
 import numpy as _np
 from contextlib import contextmanager
-from LunarLearn.backend.config import CONFIG
+from LunarLearn.core.backend import CONFIG
 
 
 # ---------------------------

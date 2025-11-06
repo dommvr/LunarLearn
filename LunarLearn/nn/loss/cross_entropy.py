@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class CategoricalCrossEntropyLoss(BaseLoss):
+class CategoricalCrossEntropy(BaseLoss):
     """
     Categorical cross-entropy loss with autograd support.
 

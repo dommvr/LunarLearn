@@ -1,1 +1,5 @@
-from LunarLearn.bar.bar import bar
+from .bar import bar
+
+__all__ = [
+    "bar"
+]

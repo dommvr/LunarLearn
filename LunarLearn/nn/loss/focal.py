@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class FocalLoss(BaseLoss):
+class Focal(BaseLoss):
     """
     Focal loss with autograd support.
 

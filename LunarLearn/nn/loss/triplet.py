@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class TripletLoss(BaseLoss):
+class Triplet(BaseLoss):
     """
     Triplet loss with autograd support.
 

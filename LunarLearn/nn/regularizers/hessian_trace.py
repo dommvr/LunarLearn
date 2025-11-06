@@ -6,7 +6,7 @@ from LunarLearn.tensor import Tensor
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class HessianTraceRegularizer(BaseRegularizer):
+class HessianTrace(BaseRegularizer):
     """
     Hutchinson-based Hessian trace regularizer.
 

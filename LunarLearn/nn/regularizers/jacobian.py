@@ -6,7 +6,7 @@ from LunarLearn.tensor import Tensor
 xp = backend.xp
 
 
-class JacobianRegularizer(BaseRegularizer):
+class Jacobian(BaseRegularizer):
     """
     Penalizes the Jacobian norm of the model output w.r.t. its input.
 

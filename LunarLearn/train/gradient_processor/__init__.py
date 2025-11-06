@@ -1,1 +1,5 @@
-from LunarLearn.GradientProcessor.GradientProcessor import GradientProcessor
+from .gradient_processor import GradientProcessor
+
+__all__ = [
+    "GradientProcessor"
+]

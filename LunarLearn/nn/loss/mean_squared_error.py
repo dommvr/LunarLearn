@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class MeanSquaredErrorLoss(BaseLoss):
+class MeanSquaredError(BaseLoss):
     """
     Mean Squared Error (MSE) loss with autograd support.
 

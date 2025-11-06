@@ -2,7 +2,7 @@ from LunarLearn.regularizers.BaseRegularizer import BaseRegularizer
 from LunarLearn.tensor import ops
 from LunarLearn.tensor import Tensor
 
-class ActivityRegularizer(BaseRegularizer):
+class Activity(BaseRegularizer):
     """
     Penalizes large activations.
     Loss = lam * mean(|A|) or lam * mean(A^2)

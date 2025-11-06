@@ -1,2 +1,7 @@
-from LunarLearn.DeepSupervision.DeepSupervision import DeepSupervision
-from LunarLearn.DeepSupervision.AuxiliaryClassifier import AuxiliaryClassifier
+from .deepsupervision import DeepSupervision
+from .auxiliary_classifier import AuxiliaryClassifier
+
+__all__ = [
+    "DeepSupervision",
+    "AuxiliaryClassifier"
+]

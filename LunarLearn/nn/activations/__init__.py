@@ -12,3 +12,20 @@ from .activations import gelu
 from .activations import softplus
 from .activations import elu
 from .activations import selu
+
+__all__ = [
+    "get_activation",
+    "linear",
+    "sigmoid",
+    "relu",
+    "leaky_relu",
+    "tanh",
+    "softmax",
+    "log_softmax",
+    "swish",
+    "mish",
+    "gelu",
+    "softplus",
+    "elu",
+    "selu"
+]

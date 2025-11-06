@@ -1,6 +1,6 @@
 from LunarLearn.regularizers.BaseRegularizer import BaseRegularizer
 
-class GradientHookRegularizer(BaseRegularizer):
+class GradientHook(BaseRegularizer):
     """
     Apply a custom user-defined penalty function to gradients or parameters.
 

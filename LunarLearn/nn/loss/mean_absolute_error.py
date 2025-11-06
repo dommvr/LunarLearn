@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class MAELoss(BaseLoss):
+class MeanAbsoluteError(BaseLoss):
     """
     Mean Absolute Error (MAE) loss with autograd support.
 

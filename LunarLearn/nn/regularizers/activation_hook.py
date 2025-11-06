@@ -1,7 +1,7 @@
 from LunarLearn.regularizers.BaseRegularizer import BaseRegularizer
 from LunarLearn.tensor import Tensor
 
-class ActivationHookRegularizer(BaseRegularizer):
+class ActivationHook(BaseRegularizer):
     """
     Flexible user-defined regularizer on layer activations, weights, or attributes.
 

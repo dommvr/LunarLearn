@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class CosineSimilarityLoss(BaseLoss):
+class CosineSimilarity(BaseLoss):
     """
     Cosine similarity loss with autograd support.
 

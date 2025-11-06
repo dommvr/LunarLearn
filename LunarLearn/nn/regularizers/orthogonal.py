@@ -4,7 +4,7 @@ from LunarLearn.regularizers.BaseRegularizer import BaseRegularizer
 
 xp = backend.xp
 
-class OrthogonalRegularizer(BaseRegularizer):
+class Orthogonal(BaseRegularizer):
     """
     Orthogonal Regularization.
     Loss = λ * ||WᵀW - I||_F²

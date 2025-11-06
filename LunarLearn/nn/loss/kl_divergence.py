@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class KLDivergenceLoss(BaseLoss):
+class KLDivergence(BaseLoss):
     """
     Kullback-Leibler (KL) Divergence loss with autograd support.
 

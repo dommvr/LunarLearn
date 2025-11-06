@@ -5,7 +5,7 @@ from LunarLearn.tensor import Tensor
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class Adafactor(BaseOptimizer):
+class AdaFactor(BaseOptimizer):
     """
     Adafactor optimizer with autograd support.
 

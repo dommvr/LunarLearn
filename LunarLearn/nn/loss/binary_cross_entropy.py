@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class BinaryCrossEntropyLoss(BaseLoss):
+class BinaryCrossEntropy(BaseLoss):
     """
     Binary Cross-Entropy (BCE) loss with autograd support.
 

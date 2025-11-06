@@ -6,7 +6,7 @@ from LunarLearn.tensor import ops
 xp = backend.xp
 
 
-class ContractiveRegularizer(BaseRegularizer):
+class Contractive(BaseRegularizer):
     """
     Contractive Regularizer (used in Contractive Autoencoders).
 

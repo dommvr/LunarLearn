@@ -6,7 +6,7 @@ from LunarLearn.tensor import Tensor
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class FisherLogitTraceRegularizer(BaseRegularizer):
+class FisherLogit(BaseRegularizer):
     """
     Fisher (logit) trace proxy regularizer.
 

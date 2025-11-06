@@ -5,7 +5,7 @@ xp = backend.xp
 DTYPE = backend.DTYPE
 
 
-class NoamScheduler(BaseScheduler):
+class Noam(BaseScheduler):
     def __init__(self, target, attr_name: str, model_dim, warmup_steps=4000, factor=1.0):
         """
         Noam Scheduler (used in Transformers).

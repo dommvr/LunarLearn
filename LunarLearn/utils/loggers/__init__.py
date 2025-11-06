@@ -1,2 +1,7 @@
-from LunarLearn.loggers.History import History
-from LunarLearn.loggers.GradsLogger import GradsLogger
+from .grads_logger import GradsLogger
+from .history import History
+
+__all__ = [
+    "GradsLogger",
+    "History"
+]

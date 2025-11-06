@@ -6,7 +6,7 @@ xp = backend.xp
 DTYPE = backend.DTYPE
 
 
-class SharpnessAwareRegularizer(BaseRegularizer):
+class SharpnessAware(BaseRegularizer):
     """
     First-order Hessian trace proxy regularizer (SAM-style).
 

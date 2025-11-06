@@ -6,7 +6,7 @@ from LunarLearn.tensor import Tensor
 xp = backend.xp
 
 
-class NoiseRegularizer(BaseRegularizer):
+class Noise(BaseRegularizer):
     """
     Noise-based regularizer for robustness and smoothness.
 
