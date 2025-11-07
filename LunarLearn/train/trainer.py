@@ -1,12 +1,12 @@
-import LunarLearn.backend as backend
+import LunarLearn.core.backend.backend as backend
 
 MIXED_PRECISION = backend.MIXED_PRECISION
 SCALING_FACTOR = backend.SCALING_FACTOR
 
 class Trainer:
     def __init__(self, model, optimizer, loss_fn):
-        from LunarLearn.schedulers import SchedulerManager
-        from LunarLearn.GradientProcessor import GradientProcessor
+        from LunarLearn.train.scheduler_manager import SchedulerManager 
+        from LunarLearn.train.gradient_processor import GradientProcessor
         self.model = model
         self.optimizer = optimizer
         self.loss_fn = loss_fn
@@ -70,10 +70,10 @@ class Trainer:
         self.normalizer = norm
 
     def train(self, train_loader, val_loader=None, epochs=1, train_amp=True, eval_amp=True):
-        from LunarLearn.loggers import History
-        from LunarLearn.bar import bar
-        from LunarLearn.engine import accuracy
-        import LunarLearn.amp as amp
+        from LunarLearn.utils.loggers import History
+        from LunarLearn.utils.bar import bar
+        from LunarLearn.train.utils import accuracy
+        from LunarLearn.amp import amp
         
         self.model.train()
         if not hasattr(self, "history") or self.history is None:
@@ -177,7 +177,7 @@ class Trainer:
         Returns:
             tuple: (mean_loss, mean_accuracy)
         """
-        from LunarLearn.engine import accuracy
+        from LunarLearn.train.utils import accuracy
         import LunarLearn.amp as amp
 
         total_loss = 0.0
