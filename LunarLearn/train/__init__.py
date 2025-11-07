@@ -5,6 +5,7 @@ from . import freezemanager
 from . import gradient_processor
 from . import models
 from . import scheduler_manager
+from . import utils
 
 __all__ = [
     "Trainer",
@@ -12,5 +13,6 @@ __all__ = [
     "freezemanager",
     "gradient_processor",
     "models",
-    "scheduler_manager"
+    "scheduler_manager",
+    "utils"
 ]
