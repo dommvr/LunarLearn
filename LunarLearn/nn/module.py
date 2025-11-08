@@ -102,9 +102,9 @@ class Module(Stateful):
                 params += attr.named_parameters(prefix=f"{prefix}{name}.", with_layer=with_layer)
         return params
     
-    def layers(self):
+    def modules(self):
         for name, module in self.__dict__.items():
-            if isinstance(module, BaseLayer):
+            if isinstance(module, (Module, BaseLayer)):
                 yield module
 
     def forward(self, *inputs, **kwargs) -> Tensor:

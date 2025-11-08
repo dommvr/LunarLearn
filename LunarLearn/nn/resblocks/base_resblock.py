@@ -13,6 +13,7 @@ class BaseResBlock(BaseLayer):
         self.strides = strides
         self.norm_layer = norm_layer
         self.activation = activation
+        self.expansion = 1
 
         self.main_path = []
         self.shortcut = None

@@ -8,13 +8,13 @@ C_DTYPE = backend.C_DTYPE
 MIXED_PRECISION = backend.MIXED_PRECISION
 
 class ResNeXtBlock(BaseResBlock):
-    def __init__(self, filters, cardinality=32, bottleneck_ratio=4, strides=1, norm_layer=BatchNorm2D, activation="relu"):
+    def __init__(self, filters, groups=32, bottleneck_ratio=4, strides=1, norm_layer=BatchNorm2D, activation="relu"):
         super().__init__(filters, strides=strides, activation=activation)
         mid_channels = filters // bottleneck_ratio
 
         self.conv1 = Conv2D(mid_channels, kernel_size=1, strides=1, padding="same")
         self.norm1 = norm_layer() if norm_layer else None
-        self.conv2 = Conv2D(mid_channels, kernel_size=3, strides=strides, padding="same", groups=cardinality)
+        self.conv2 = Conv2D(mid_channels, kernel_size=3, strides=strides, padding="same", groups=groups)
         self.norm2 = norm_layer() if norm_layer else None
         self.conv3 = Conv2D(filters, kernel_size=1, strides=1, padding="same")
         self.norm3 = norm_layer() if norm_layer else None

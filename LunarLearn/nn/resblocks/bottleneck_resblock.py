@@ -4,6 +4,7 @@ from LunarLearn.nn.layers import Conv2D, BatchNorm2D
 
 class BottleneckResBlock(BaseResBlock):
     def __init__(self, filters, strides=1, norm_layer=BatchNorm2D, activation="relu", expansion=4):
+        self.expansion = expansion
         expanded = filters * expansion
         super().__init__(expanded, strides=strides, activation=activation)
 

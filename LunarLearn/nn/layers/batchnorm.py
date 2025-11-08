@@ -43,7 +43,7 @@ class BatchNorm(BaseLayer):
     forward(Z: Tensor) -> Tensor
         Normalizes input activations, applies scale and shift, and returns the result.
     """
-    def __init__(self, ndim, momentum=0.9, epsilon=1e-3):
+    def __init__(self, ndim, momentum=0.9, epsilon=1e-3, zero_init=False):
 
         # Validate momentum
         if not isinstance(momentum, (float, int)):
@@ -63,6 +63,7 @@ class BatchNorm(BaseLayer):
 
         self.momentum = xp.array(momentum, dtype=DTYPE)
         self.epsilon = xp.array(epsilon, dtype=DTYPE)
+        self.zero_init = zero_init
 
         self.custom_hook_metrics = ["running_mean", "running_var"]
 
@@ -77,6 +78,9 @@ class BatchNorm(BaseLayer):
 
         W = xp.ones(shape, dtype=DTYPE)
         b = xp.zeros(shape, dtype=DTYPE)
+
+        if self.zero_init:
+            W = xp.zeros(shape, dtype=DTYPE)
 
         self.W = Parameter(W, requires_grad=True)
         self.b = Parameter(b, requires_grad=True)
