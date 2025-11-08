@@ -6,39 +6,54 @@ class ModuleList(BaseLayer):
     def __init__(self, modules=None):
         super().__init__(trainable=True)
         # store list of submodules (EncoderBlock, DecoderBlock, etc.)
-        self.modules = list(modules) if modules is not None else []
+        self._modules = list(modules) if modules is not None else []
+
+    def state_dict(self):
+        out = {"_type": self.__class__.__name__, "num_modules": len(self._modules)}
+        for i, module in enumerate(self._modules):
+            out[str(i)] = module.state_dict()
+        return out
+    
+    def load_state_dict(self, state):
+        for i, module in enumerate(self._modules):
+            key = str(i)
+            if key in state:
+                module.load_state_dict(state[key])
+
+    def modules(self):
+        return self._modules
 
     def append(self, module):
         """Add a new submodule to the list."""
-        self.modules.append(module)
+        self._modules.append(module)
 
     def extend(self, modules):
         """Add multiple submodules."""
-        self.modules.extend(modules)
+        self._modules.extend(modules)
 
     def __getitem__(self, idx):
-        return self.modules[idx]
+        return self._modules[idx]
 
     def __len__(self):
-        return len(self.modules)
+        return len(self._modules)
 
     def forward(self, x: Tensor, *args, **kwargs) -> Tensor:
         """Sequentially pass x through all modules."""
-        for m in self.modules:
+        for m in self._modules:
             x = m(x, *args, **kwargs)
         return x
 
     def parameters(self, with_layer=False):
         """Collect parameters recursively from all submodules."""
         params = []
-        for m in self.modules:
+        for m in self._modules:
             params.extend(m.parameters(with_layer=with_layer))
         return params
 
     def named_parameters(self, prefix: str = "", with_layer: bool = False):
         """Same as parameters(), but with names included."""
         params = []
-        for i, m in enumerate(self.modules):
+        for i, m in enumerate(self._modules):
             sub_prefix = f"{prefix}block{i}."
             params.extend(m.named_parameters(prefix=sub_prefix, with_layer=with_layer))
         return params
@@ -48,6 +63,9 @@ class SharedBlock(BaseLayer):
     def __init__(self, block):
         super().__init__(trainable=block.trainable)
         self.block = block
+
+    def __repr__(self):
+        return f"SharedBlock({self.block.__class__.__name__})"
 
     def forward(self, x, **kwargs):
         return self.block(x, **kwargs)
@@ -69,6 +87,18 @@ class Sequential(Module):
     def __init__(self, *layers):
         super().__init__()
         self._layers = list(layers)
+
+    def state_dict(self):
+        out = {"_type": self.__class__.__name__, "num_layers": len(self._layers)}
+        for i, layer in enumerate(self._layers):
+            out[str(i)] = layer.state_dict()
+        return out
+    
+    def load_state_dict(self, state):
+        for i, layer in enumerate(self._layers):
+            key = str(i)
+            if key in state:
+                layer.load_state_dict(state[key])
 
     def add(self, layer: BaseLayer):
         """Append a new layer to the container."""

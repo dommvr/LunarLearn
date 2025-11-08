@@ -44,6 +44,7 @@ class AdaBound(BaseOptimizer):
         self.epsilon = xp.array(epsilon, dtype=DTYPE)
         self.t = 0
         self.state = {} # store moments per parameter
+        
     def step(self, params):
         self.t += 1
         for param, layer, custom_optim in self._iter_params(params):

@@ -1,92 +1,52 @@
 import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn import Stateful
 from LunarLearn.core import Parameter
+import copy
 
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class BaseOptimizer:
-    """
-    Base class for optimizers with autograd support.
-
-    This class defines the interface and common functionality for all optimizers,
-    such as learning rate handling, serialization, and integration with schedulers.
-    Concrete optimizers (e.g., Adam, AdaBound) should inherit from this class and 
-    implement the `step` method.
-
-    Args:
-        learning_rate (float): 
-            Global learning rate used for parameter updates.
-
-    Attributes:
-        learning_rate0 (float): 
-            Initial learning rate provided at construction.
-        learning_rate (float): 
-            Current learning rate (possibly modified by schedulers or scaling).
-        scheduler (object, optional): 
-            Learning rate scheduler attached to the optimizer.
-
-    Methods:
-        get_config() -> dict:
-            Serialize optimizer configuration for saving/loading.
-        from_config(config: dict) -> BaseOptimizer:
-            Restore an optimizer instance from configuration.
-        _get_lr(param_desc: Union[Tensor, dict]) -> float:
-            Resolve the learning rate for a given parameter or parameter descriptor.
-            Supports per-layer overrides and schedulers.
-        step(params: List[Union[Tensor, dict]]):
-            Perform one optimization step over parameters.
-            Must be implemented by subclasses.
-        zero_grad(params: List[Tensor]):
-            Set gradients of all given parameters to None.
-    """
+class BaseOptimizer(Stateful):
     def __init__(self, learning_rate):
         self.learning_rate = xp.array(learning_rate, dtype=DTYPE)
 
         self.scheduler = None
         self.enable_weight_decay = False
 
-    def get_config(self):
-        from LunarLearn.engine import serialize_value
-
-        init_params = ["learning_rate", "epsilon"]
-
-        return {
-            "module": self.__class__.__module__,
-            "class": self.__class__.__name__,
-            "params": {
-                k: serialize_value(v)
-                for k, v in self.__dict__.items()
-                if k in init_params
-            },
-            "extra": {
-                k: serialize_value(v)
-                for k, v in self.__dict__.items()
-                if k not in init_params and k != "scheduler"
-            },
-            "scheduler": self.scheduler.get_config() if self.scheduler else None
+    def state_dict(self):
+        out = {
+            "learning_rate": self.learning_rate,
+            "enable_weight_decay": self.enable_weight_decay
         }
 
-    @classmethod
-    def from_config(cls, config):
-        from LunarLearn.engine import object_from_config
-        import importlib
+        if self.scheduler is not None:
+            out["scheduler"] = self.scheduler.state_dict()
 
-        # Import the optimizer class
-        module = importlib.import_module(config["module"])
-        klass = getattr(module, config["class"])
+        if getattr(self, "weight_decay", None) is not None:
+            out["weight_decay"] = self.weight_decay
+        if getattr(self, "t", None) is not None:
+            out["t"] = self.t
+        if getattr(self, "state", None) is not None:
+            out["state"] = copy.deepcopy(self.state)
 
-        # Initialize with params
-        obj = klass(**config.get("params", {}))
+        return out
 
-        # Set extra attributes
-        for k, v in config.get("extra", {}).items():
-            setattr(obj, k, v)
-
-        # Restore scheduler if present
-        if "scheduler" in config and config["scheduler"] is not None:
-            obj.scheduler = object_from_config(config["scheduler"], optimizer=obj)
-
-        return obj
+    def load_state_dict(self, state):
+        if "learning_rate" in state:
+            self.learning_rate = xp.array(state["learning_rate"], dtype=self.learning_rate.dtype)
+        if "weight_decay" in state:
+            if hasattr(self, "weight_decay"):
+                self.weight_decay = state["weight_decay"]
+        if "enable_weight_decay" in state:
+            self.enable_weight_decay = state["enable_weight_decay"]
+        if "t" in state:
+            if hasattr(self, "t"):
+                self.t = state["t"]
+        if "state" in state:
+            if hasattr(self, "state"):
+                self.state = copy.deepcopy(state["state"])
+        if "scheduler" in state and self.scheduler is not None:
+            self.scheduler.load_state_dict(state["scheduler"])
     
     def _iter_params(self, params):
         """Yield trainable Parameter objects from a params list."""

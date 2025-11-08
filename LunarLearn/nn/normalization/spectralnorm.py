@@ -1,10 +1,11 @@
 import LunarLearn.core.backend.backend as backend
-from LunarLearn.core import Tensor, Parameter, ops
+from LunarLearn.nn import Stateful
+from LunarLearn.core import Tensor, Parameter
 
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class SpectralNorm:
+class SpectralNorm(Stateful):
     def __init__(self, param: Parameter, dim=0, n_iter=1, epsilon=1e-12):
         """
         Spectral Normalization constraint.
@@ -33,6 +34,13 @@ class SpectralNorm:
         # Tell the parameter it’s normalized by this
         param.normalization = self
 
+    def state_dict(self):
+        return {"u_data": self.u.data}
+    
+    def load_state_dict(self, state):
+        if "u_data" in state:
+            self.u.data[...] = xp.array(state["u_data"])
+
     def __call__(self, W: Tensor) -> Tensor:
         """Apply spectral normalization each forward."""
         W_mat = self._reshape_for_matmul(W.data)
@@ -51,5 +59,5 @@ class SpectralNorm:
         W_bar = W_mat / (sigma + self.epsilon)
 
         out = Tensor(W_bar.reshape(self.W_shape), requires_grad=W.requires_grad)
-        out.stop_grad = True  # <--- important, to bypass autograd chain
+        out.skip_grad = True  # <--- important, to bypass autograd chain
         return out

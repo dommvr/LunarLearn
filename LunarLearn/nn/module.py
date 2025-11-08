@@ -1,11 +1,12 @@
 import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn import Stateful
 from LunarLearn.nn.layers import BaseLayer
 from LunarLearn.core import Tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class Module:
+class Module(Stateful):
     """
     Base class for models, similar to torch.nn.Module.
 
@@ -16,6 +17,25 @@ class Module:
     """
     def __init__(self):
         self.training = True
+
+    def state_dict(self):
+        out = {"_type": self.__class__.__name__}
+        for k, v in self.__dict__.items():
+            if isinstance(v, Stateful):
+                out[k] = v.state_dict()
+            else:
+                out[k] = v
+        return out
+    
+    def load_state_dict(self, state):
+        for k, v in state.items():
+            if k == "_type":
+                continue
+            val = getattr(self, k, None)
+            if isinstance(val, Stateful):
+                val.load_state_dict(v)
+            else:
+                setattr(self, k, v)
 
     def __call__(self, *inputs, **kwargs) -> Tensor:
         return self.forward(*inputs, **kwargs)

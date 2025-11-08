@@ -1,4 +1,5 @@
 import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn import Stateful
 from ops import (
     # slicing
     slice, 
@@ -24,7 +25,7 @@ from utils import ensure_tensor
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class Tensor:
+class Tensor(Stateful):
     # ======================================================
     # Core initialization
     # ======================================================
@@ -61,9 +62,26 @@ class Tensor:
         self._activation_hooks = []
         self._grad_hooks = []
         self._retain_grad = False
+        self.skip_grad = False
         self.is_leaf = True
         self._backward = lambda: None
         self._prev = set()
+
+    def state_dict(self):
+        return {
+            "data": self.data,
+            "grad": self.grad,
+            "requires_grad": self.requires_grad
+        }
+    
+    def load_state_dict(self, state):
+        if "data" in state:
+            self.data[...] = xp.array(state["data"])
+        grad = state.get("grad", None)
+        if grad is not None:
+            self.grad = xp.array(grad)
+        if "requires_grad" in state:
+            self.requires_grad = state["requires_grad"]
 
     # ======================================================
     # Display / Python integration

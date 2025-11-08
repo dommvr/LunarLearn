@@ -1,7 +1,10 @@
 from .tensor import Tensor
 import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn import Stateful
 
-class Parameter:
+xp = backend.xp
+
+class Parameter(Stateful):
     """
     Trainable parameter with automatic AMP support:
     - Stores a master FP32 weight
@@ -26,6 +29,66 @@ class Parameter:
         self.scheduler = None
 
         self.frozen = False
+
+        self._state_fields = [
+            "requires_grad",
+            "weight_decay",
+            "weight_decay_scale",
+            "decay_exempt",
+            "lr_scale",
+            "base_lr",
+            "frozen"
+        ]
+
+    def state_dict(self):
+        out = {
+            "master_data": self.master.data,
+            "master_grad": self.master.grad,
+            "dtype": str(self.master.dtype) if self.master.dtype is not None else None,
+        }
+
+         # optional attached states
+        if self.normalization is not None:
+            out["normalization"] = self.normalization.state_dict()
+        if self.regularizer is not None:
+            out["regularizer"] = self.regularizer.state_dict()
+        if self.optimizer is not None:
+            out["optimizer"] = self.optimizer.state_dict()
+        if self.scheduler is not None:
+            out["scheduler"] = self.scheduler.state_dict()
+
+        for name in self._state_fields:
+            val = getattr(self, name, None)
+            if val is not None:
+                out[name] = val
+        
+        return out
+    
+    def load_state_dict(self, state):
+        # restore tensor data safely
+        if "master_data" in state:
+            self.master.data[...] = xp.array(state["master_data"])
+
+        # restore grad if present
+        grad = state.get("master_grad", None)
+        if grad is not None:
+            self.master.grad = xp.array(grad)
+
+        # load submodules if present and initialized
+        if "normalization" in state and self.normalization is not None:
+            self.normalization.load_state_dict(state["normalization"])
+        if "regularizer" in state and self.regularizer is not None:
+            self.regularizer.load_state_dict(state["regularizer"])
+
+        if "optimizer" in state and self.optimizer is not None:
+            self.optimizer.load_state_dict(state["optimizer"])
+        if "scheduler" in state and self.scheduler is not None:
+            self.scheduler.load_state_dict(state["scheduler"])
+
+        # restore scalars
+        for name in self._state_fields:
+            if name in state:
+                setattr(self, name, state[name])
         
     @property
     def data(self):

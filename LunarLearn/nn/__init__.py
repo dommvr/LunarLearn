@@ -1,3 +1,4 @@
+from .stateful import Stateful
 from .module import Module
 from .container import ModuleList
 from .container import SharedBlock
@@ -16,6 +17,7 @@ from . import resblocks
 from . import transformer
 
 __all__ = [
+    "Stateful",
     "Module",
     "ModuleList",
     "SharedBlock",

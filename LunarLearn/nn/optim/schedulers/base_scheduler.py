@@ -1,9 +1,10 @@
 import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn import Stateful
 
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class BaseScheduler:
+class BaseScheduler(Stateful):
     """
         Universal base scheduler for optimizers, layers, etc.
 
@@ -14,7 +15,7 @@ class BaseScheduler:
             mode (str): 'epoch' or 'step'
     """
     def __init__(self, target, attr_name: str, mode='epoch'):
-        self.target =target
+        self.target = target
         self.attr_name = attr_name
         self.mode = mode
         self.epoch = 0
@@ -22,40 +23,25 @@ class BaseScheduler:
 
         self.initial_value = getattr(target, attr_name)
 
-    def get_config(self):
-        from LunarLearn.engine import serialize_value
-
-        return {
-            "module": self.__class__.__module__,
-            "class": self.__class__.__name__,
-            "params": {
-                k: serialize_value(v)
-                for k, v in self.__dict__.items()
-                if k != "optimizer"
-            }
+    def state_dict(self):
+        out = {
+            "epoch": self.epoch,
+            "last_step": self.last_step,
+            "initial_value": self.initial_value
         }
+
+        for k, v in self.__dict__.items():
+            if k in ("target", "attr_name", "mode"):
+                continue
+            if isinstance(v, (int, float, str, bool, xp.ndarray)):
+                out[k] = v
+
+        return out
     
-    @classmethod
-    def from_config(cls, config, optimizer=None):
-        from LunarLearn.engine import object_from_config
-        import importlib
-
-        module = importlib.import_module(config["module"])
-        klass = getattr(module, config["class"])
-
-        # Merge init params and optimizer if needed
-        init_args = dict(config.get("params", {}))
-        if optimizer is not None:
-            init_args["optimizer"] = optimizer
-
-        # Initialize without optimizer
-        obj = klass(**init_args)
-
-        # Set extra attributes
-        for k, v in config.get("extra", {}).items():
-            setattr(obj, k, v)
-
-        return obj
+    def load_state_dict(self, state):
+        for name, value in state.items():
+            if hasattr(self, name):
+                setattr(self, name, value)
     
     def get_value(self):
         return getattr(self.target, self.attr_name)

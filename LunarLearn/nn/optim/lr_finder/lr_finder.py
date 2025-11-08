@@ -1,6 +1,6 @@
 import copy
 import math
-import LunarLearn.amp as amp
+from LunarLearn.amp import amp
 import numpy as np
 import LunarLearn.core.backend.backend as backend
 

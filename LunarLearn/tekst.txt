@@ -1112,10 +1112,54 @@ and trainer takes care of everything else
 -skip_grad for tensors
 -compute hooks
 -zero_grad() optimization to dont pass zero grads
-=dropout, recurrent_dropout, make as ops move from regularizers
 -gradientchecker
+-LoRA
+-save/load model
+-fine tuning
+-dataloaders and dataset
+-popular architectures
+-change base_layer named_parameters to look for other baselayers as well
 
 spectralnorm (stop_grad)
 
 if a.skip_grad:
     a.grad = out.grad
+
+
+I want to do research, create and test new model architecture based on human brain. Core idea is to use latent space. I already do some research and i got this ideas:
+-model got 3 main parts, encoder, core, decoder, where encoder/decodec changes tokens into embeddings and then into latent space or latent space into tokens.
+-core do "thinking" using latent representation, so it isnt bond to specific language.
+-memory = St where S = G groups of K slots with [role, content]
+-slots are updated inside each groups, summary over all groups, group summary goes back to slots
+-gated slot updating
+-slots update based on top slot(s)
+-branching based on confidence, potencial value change and expected gain
+-Speculation: stochastic proposal + cleanup + selection of best one(S)
+-Memory and replay scheduling, use past states every m steps or when uncertanity > treshold
+-"imagination" new hypotesias by merging role, content from diffrent slots when they are similar
+-slots halting, freeze slot when further computation is not needed anymore
+-ends when all slots frozen or max iters reachead
+-frozen slots from memory from step t -> back to text
+
+Next thinkg that i want to try to implement is spliting "memory" and "thinking". Those two should be updated separatly where "memory" is updated with informations and has space
+that allows to add new info during/after model training. And "thinking" core is trained to know what to do, logical thinking, like inteligent humans that even in some topic that is
+new to them, will know whats going on or got it pretty fast. "Memory" should be like library, with all known knwoledge, for this inteligent human in this metaphore. I want to try
+solving continous learning and disability of models to work on data never seen before.
+
+Do deep research on how human brain works and how those mechanisms (memory, choosing good/bad ideas, imaginary e.t.c) can be implemented in ai.
+See if my ideas, i gave you before, are good, if so include theme, if not prepare new/changed architecture.
+Also take into account dynamic reinforcment learning and genetic algorithms, can it be usefull?
+When preparing answear go realy deep into this topic and give me expanded one.
+
+Tell me more about:
+-vector databases with FAISS indexing
+-VAE and its way of creating latent space
+-meta-learned core for rapid adaptation
+-retrieval-augmented generation (RAG)-like queries
+-monte carlo sampling
+-Ebbinghaus decay
+-apply_pending_state_if_any() to layers init
+
+since model we are discussing don't behave like standart transformer, e.g. don't outputs next token in a sequence, it's harder to train it. Normaly during training we can compare 
+predicted token with real ones, one by one. But here we will get only final answear. Models "thinking" memory is represented in latent space, so we can't clearly compare it with
+expected output on each thinking step. How to approach this problem?

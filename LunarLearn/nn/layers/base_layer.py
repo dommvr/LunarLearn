@@ -1,11 +1,12 @@
 import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn import Stateful
 from LunarLearn.core import Tensor, Parameter
 
 xp = backend.xp
 DTYPE = backend.DTYPE
 C_DTYPE = backend.C_DTYPE
 
-class BaseLayer:
+class BaseLayer(Stateful):
 
     def __init__(self, trainable: bool = False):
         self.trainable = trainable
@@ -46,6 +47,57 @@ class BaseLayer:
         self.weight_decay = None
         self.weight_decay_scale = 1.0
         self.decay_exempt = False
+
+        self._state_fields = [
+            "training",
+            "lr_scale",
+            "base_lr",
+            "frozen",
+            "weight_decay",
+            "weight_decay_scale",
+            "decay_exempt"
+        ]
+
+    def is_initialized(self):
+        for k, v in self.__dict__.items():
+            if isinstance(v, Parameter):
+                return True
+        return False
+
+    def _named_state_items(self):
+        for name, v in self.__dict__.items():
+            if isinstance(v, Stateful):
+                yield name, v
+
+    def state_dict(self):
+        out = {"_type": self.__class__.__name__}
+        for name, obj in self._named_state_items():
+            out[name] = obj.state_dict()
+        for name in self._state_fields:
+            val = getattr(self, name, None)
+            if val is not None:
+                out[name] = val
+        return out
+    
+    def load_state_dict(self, state):
+        if not self.is_initialized():
+            self._pending_state = state
+            return
+        
+        for name, obj in self._named_state_items():
+            if name in state:
+                obj.load_state_dict(state[name])
+
+        for name in self._state_fields:
+            if name in state:
+                setattr(self, name, state[name])
+
+    def apply_pending_state_if_any(self):
+        ps = getattr(self, "_pending_state", None)
+        if ps is None:
+            return
+        del self._pending_state
+        self.load_state_dict(ps)
 
     def __call__(self, x: Tensor, *args, **kwargs) -> Tensor:
         return self.forward(x, *args, **kwargs)

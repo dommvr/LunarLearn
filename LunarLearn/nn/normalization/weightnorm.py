@@ -1,10 +1,11 @@
 import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn import Stateful
 from LunarLearn.core import Tensor, Parameter, ops
 
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class WeightNorm:
+class WeightNorm(Stateful):
     def __init__(self, param: Parameter, dim=0, epsilon=1e-8):
         self.dim = dim
         self.epsilon = epsilon
@@ -14,6 +15,24 @@ class WeightNorm:
         self.g = Parameter(g, requires_grad=True)
 
         param.normalization = self
+
+    def state_dict(self):
+        return {"v_master_data": self.v.master.data,
+                "v_master_grad": self.v.master.grad,
+                "g_master_data": self.g.master.data,
+                "g_master_grad": self.g.master.grad}
+    
+    def load_state_dict(self, state):
+        if "v_master_data" in state:
+            self.v.master.data[...] = state["v_master_data"]
+        v_grad = state.get("v_master_grad", None)
+        if v_grad is not None:
+            self.v.master.grad = v_grad
+        if "g_master_data" in state:
+            self.g.master.data[...] = state["g_master_data"]
+        g_grad = state.get("g_master_grad", None)
+        if g_grad is not None:
+            self.g.master.grad = g_grad
 
     def __call__(self, v: Tensor) -> Tensor:
         g = self.g.to_compute()

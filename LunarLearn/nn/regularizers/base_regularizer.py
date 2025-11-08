@@ -1,10 +1,11 @@
 import LunarLearn.core.backend.backend as backend
+from LunarLearn.nn import Stateful
 from LunarLearn.core import Tensor
 
 xp = backend.xp
 
 
-class BaseRegularizer:
+class BaseRegularizer(Stateful):
     """
     Base class for all regularizers.
 
@@ -21,6 +22,18 @@ class BaseRegularizer:
         if combine_mode not in ["override", "additive"]:
             raise ValueError("combine_mode must be 'override' or 'additive'")
         self.combine_mode = combine_mode
+
+    def state_dict(self):
+        out = {"combine_mode": self.combine_mode}
+        for k, v in self.__dict__.items():
+            if isinstance(v, (int, float, str, bool, xp.ndarray)):
+                out[k] = v
+        return out
+    
+    def load_state_dict(self, state):
+        for name, value in state.items():
+            if hasattr(self, name):
+                setattr(self, name, value)
 
     def __call__(self, model):
         """
