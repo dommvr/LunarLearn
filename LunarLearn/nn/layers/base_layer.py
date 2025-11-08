@@ -200,17 +200,22 @@ class BaseLayer(Stateful):
     def named_parameters(self, prefix: str = "", with_layer: bool = False): #layer
         params = []
         for name, v in self.__dict__.items():
+            pname = f"{prefix}{name}"
             if isinstance(v, Parameter):
-                pname = f"{prefix}{name}"
                 for n, p in v.named_parameters(pname):
                     params.append((n, {"param": p, "layer": self} if with_layer else v))
+
+            elif isinstance(v, BaseLayer):
+                params.extend(v.named_parameters(prefix=f"{pname}.", with_layer=with_layer))
                         
             elif isinstance(v, (list, tuple)):
                 for i, item in enumerate(v):
+                    iname = f"{pname}{i}"
                     if isinstance(item, Parameter):
-                        pname = f"{prefix}{name}{i}"
-                        for n, p in item.named_parameters(pname):
+                        for n, p in item.named_parameters(iname):
                             params.append((n, {"param": p, "layer": self} if with_layer else item))
+                    elif isinstance(item, BaseLayer):
+                        params.extend(item.named_parameters(prefix=f"{iname}.", with_layer=with_layer))
         return params
 
     # -------------------------------
