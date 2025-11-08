@@ -619,6 +619,30 @@ def col2im_transpose_grouped(cols, X_shape, kernel_size, s, output_shape, groups
 
     return X_reconstructed
 
+def upsample(x, scale_factor, mode, align_corners):
+    if mode == "nearest":
+        # Repeat pixels: H then W
+        data = xp.repeat(x, scale_factor, axis=2)
+        data = xp.repeat(data, scale_factor, axis=3)
+    elif mode == "bilinear":
+        if xp.__name__ == "cupy":
+            import cupy
+            data = cupy.ndimage.zoom(
+                x, (1, 1, scale_factor, scale_factor),
+                order=1, grid_mode=align_corners
+            )
+        elif xp.__name__ == "numpy":
+            from scipy.ndimage import zoom
+            data = zoom(
+                x, (1, 1, scale_factor, scale_factor),
+                order=1, grid_mode=align_corners
+            )
+        else:
+            raise NotImplementedError(f"upsample not supported for {xp.__name__}")
+    else:
+        raise ValueError("mode must be 'bilinear' or 'nearest'")
+
+    return data
 
 class RecurrentDropout:
     """

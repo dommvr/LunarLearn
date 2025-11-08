@@ -15,6 +15,7 @@ from .dropout import Dropout
 from .droppath import DropPath
 from .embedding import Embedding
 from .flatten import Flatten
+from .concat import Concat
 from .global_averagepool2d import GlobalAveragePool2D
 from .groupnorm import GroupNorm
 from .gru import GRU
@@ -49,6 +50,7 @@ __all__ = [
     "DropPath",
     "Embedding",
     "Flatten",
+    "Concat",
     "GlobalAveragePool2D",
     "GroupNorm",
     "GRU",

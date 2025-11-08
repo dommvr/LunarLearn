@@ -36,6 +36,10 @@ class ModuleList(BaseLayer):
 
     def __len__(self):
         return len(self._modules)
+    
+    def __iter__(self):
+        for m in self._modules:
+            yield m
 
     def forward(self, x: Tensor, *args, **kwargs) -> Tensor:
         """Sequentially pass x through all modules."""

@@ -3527,7 +3527,7 @@ def cross_entropy(a: Tensor, target: Tensor) -> Tensor:
     """
     return dispatch_amp("cross_entropy", _cross_entropy_impl, a, target)
 
-def _dropout_impl(a: Tensor, keep_prob: float, training: bool = True):
+def _dropout_impl(a: Tensor, keep_prob: float, training: bool = True) -> Tensor:
     a = ensure_tensor(a)
     if not training or keep_prob >= 1.0:
         return a
@@ -3540,7 +3540,7 @@ def _dropout_impl(a: Tensor, keep_prob: float, training: bool = True):
     out.grad_fn = "dropout"
     return out
 
-def dropout(a: Tensor, keep_prob: float, training: bool = True):
+def dropout(a: Tensor, keep_prob: float, training: bool = True) -> Tensor:
     """
     Dropout operation.
 
@@ -3559,3 +3559,79 @@ def dropout(a: Tensor, keep_prob: float, training: bool = True):
         Tensor: Output tensor with dropout applied (training) or unchanged (eval).
     """
     return dispatch_amp("dropout", _dropout_impl, a, keep_prob=keep_prob, training=training)
+
+def _avg_pool2d_impl(a: Tensor, pool_size: int, strides: int, padding: int = 0) -> Tensor:
+    m, n_C_prev, n_H_prev, n_W_prev = a.shape 
+    n_C = n_C_prev
+    n_H = int((n_H_prev + 2 * padding - pool_size) / strides) + 1
+    n_W = int((n_W_prev + 2 * padding - pool_size) / strides) + 1
+
+    a_pad = pad(a, ((0,0),(0,0),(padding,padding),(padding,padding)),
+                mode='constant')
+
+    cols = im2col(a_pad, pool_size, strides)
+    cols_reshaped = cols.reshape(pool_size * pool_size, n_C, -1)
+
+    out = mean(cols_reshaped, axis=0)  # shape: (C, N*out_h*out_w)
+    out = out.reshape(n_C, n_H, n_W, m).transpose(3, 0, 1, 2)  # (N, C, H, W)
+    out.grad_fn = "avg_pool2d"
+
+def avg_pool2d(a: Tensor, pool_size: int, strides: int, padding: int) -> Tensor:
+    return dispatch_amp("avg_pool2d", _avg_pool2d_impl, a, pool_size, strides, padding)
+
+def _upsample_impl(a: Tensor, scale_factor: int = 2, mode: str = "bilinear", align_corners: bool = True) -> Tensor:
+    from LunarLearn.core.tensor.utils import upsample
+    a = ensure_tensor(a)
+    if a.ndim != 4:
+        raise ValueError("upsample expects 4D tensor (B, C, H, W)")
+
+    B, C, H, W = a.shape
+    new_H, new_W = H * scale_factor, W * scale_factor
+
+    data = upsample(a.data, scale_factor, mode, align_corners)
+    requires_grad = a.requires_grad
+    if not backend.is_grad_enabled():
+        requires_grad = False
+    out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
+    out.is_leaf = False
+    out.grad_fn = "upsample"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
+    out._upsample_config = {
+        "scale_factor": scale_factor,
+        "mode": mode,
+        "align_corners": align_corners,
+        "in_shape": a.shape
+    }
+
+    def _backward():
+        if out.grad is None or not a.requires_grad:
+            return
+
+        grad = out.grad
+        scale = scale_factor
+        in_H, in_W = a.shape[2], a.shape[3]
+
+        if mode == "nearest":
+            # Sum repeated gradients
+            grad = grad.reshape(B, C, in_H, scale, in_W, scale)
+            grad = grad.sum(axis=3).sum(axis=5)  # sum over repeated dims
+        elif mode == "bilinear":
+            # Downsample grad via average pooling
+            grad = avg_pool2d(grad, kernel_size=scale, stride=scale, padding=0)
+
+        if a.grad is None:
+            a.grad = grad
+        else:
+            a.grad += grad
+
+    out._backward = _backward
+    out._prev = {a}
+    return out
+
+def upsample(a: Tensor, scale_factor: int = 2, mode: str = "bilinear", align_corners: bool = True) -> Tensor:
+    return dispatch_amp("upsample", _upsample_impl, a, scale_factor=scale_factor, mode=mode, align_corners=align_corners)
