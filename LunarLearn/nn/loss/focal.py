@@ -34,26 +34,10 @@ class Focal(BaseLoss):
         self.alpha = alpha
         self.gamma = gamma
 
-    def forward(self, predictions: Tensor, targets: Tensor, epsilon: float = 1e-15) -> Tensor:
-        # Convert integer labels to one-hot if necessary
-        if targets.ndim == 1:
-            targets_int = targets.astype(int)
-            targets_onehot = ops.eye(predictions.shape[1], dtype=DTYPE)[targets_int]
-        else:
-            targets_onehot = Tensor(targets, requires_grad=False)
-
-        # Clip predictions to avoid log(0)
-        preds_clipped = ops.clip(predictions, epsilon, 1 - epsilon)
-
-        # Compute p_t: probability assigned to the true class
-        pt = ops.sum(targets_onehot * preds_clipped, axis=1, keepdims=True)
-
-        # Compute focal factor
-        focal_factor = self.alpha * (1 - pt) ** self.gamma
-
-        # Compute focal loss
-        loss_tensor = -focal_factor * ops.log(pt)
-        loss = ops.mean(loss_tensor)
+    def forward(self, predictions: Tensor, targets: Tensor) -> Tensor:
+        bce = ops.binary_cross_entropy_with_logits(predictions, targets)
+        pt = ops.exp(-bce)
+        focal = self.alpha * (1 - pt) ** self.gamma * bce
+        loss = ops.mean(focal)
         loss.grad_fn = "focal_loss"
-
         return loss
