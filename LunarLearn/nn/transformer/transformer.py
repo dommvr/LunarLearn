@@ -102,6 +102,8 @@ class Transformer(BaseLayer):
     def decoder(self, tgt: Tensor, mask=None, context=None, return_attn=False):
         attn_list = []
         x = self.dec_embedding(tgt)
+        if self.linear.W is None and self.dec_embedding.W is not None:
+            self.linear.W = self.dec_embedding.W
         x = self.dec_pos_encoding(x)
         for layer in self.decoderblock:
             x, attn = layer(x, mask=mask, context=context, return_attn=True)
