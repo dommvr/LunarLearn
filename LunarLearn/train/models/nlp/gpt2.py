@@ -64,3 +64,12 @@ class GPT2Large(GPT2):
                          n_heads=20,
                          n_layers=36,
                          pretrained=pretrained)
+        
+
+class GPT2XL(GPT2):
+    def __init__(self, vocab_size, pretrained=False):
+        super().__init__(vocab_size=vocab_size,
+                         d_model=1600,
+                         n_heads=25,
+                         n_layers=48,
+                         pretrained=pretrained)
