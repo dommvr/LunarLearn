@@ -57,6 +57,7 @@ class UpBlock(BaseLayer):
 class UNet(Module):
     def __init__(self, num_classes, filters, depth, mode, norm_layer, activation, final_activation, pretrained=False):
         from LunarLearn.nn.activations import get_activation
+        super().__init__()
         self.encoder = ModuleList([DownBlock(filters*(2**i), norm_layer, activation) for i in range(depth)])
         self.bootleneck = DoubleConv(filters*(2**depth), norm_layer, activation)
         self.decoder = ModuleList([UpBlock(filters*(2**(i+1)), norm_layer, activation, mode) for i in range(depth)])

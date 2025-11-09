@@ -109,9 +109,12 @@ class Transformer(BaseLayer):
                 attn_list.append(attn)
         return x, attn_list if return_attn else x
 
-    def forward(self, src: Tensor, tgt: Tensor, pad_idx=None, return_attn=False) -> Tensor:
+    def forward(self, src: Tensor, tgt: Tensor = None, pad_idx=None, return_attn=False) -> Tensor:
         if self.encoder_only and self.decoder_only:
             raise ValueError("Cannot enable both encoder_only and decoder_only at once.")
+        
+        if self.decoder_only:
+            tgt = src
     
         pad_mask = make_pad_mask(src, pad_idx)
         if self.encoder_only:

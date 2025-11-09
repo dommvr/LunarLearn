@@ -1105,6 +1105,14 @@ and trainer takes care of everything else
 -look ahead policy
 -lookahead optim
 
+ViT, GPT2, EfficientNet, YOLOV8, VGG, MobileNet, ConvNeXt, Swin, BERT, CLIP, DDPM, FasterRCNN, DeepLabV3, convlstm
+vison: resnet, vit, convnext, swin, alexnet, EfficientNet, vgg
+segmentation: unet, deeplab
+detection: faster_rrn, yolo
+nlp: gpt2, bert, clip, seq2seq
+diffusion: ddpm
+hybrid: convlstm
+
 -crop2d, concat, cnnlstm1/2/3d, bidirectional
 -correct init_weights in cells
 -add freezemanager to trainer
@@ -1117,8 +1125,8 @@ and trainer takes care of everything else
 -save/load model
 -fine tuning
 -dataloaders and dataset
--popular architectures
--change base_layer named_parameters to look for other baselayers as well
+-fix loss funcs, add as ops
+-ops.expand_dims
 
 spectralnorm (stop_grad)
 
