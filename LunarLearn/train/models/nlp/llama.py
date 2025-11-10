@@ -60,7 +60,7 @@ class LLaMA(Module):
         cache = None
 
         for _ in range(max_new_tokens):
-            logits, cache = self(generated, pad_idx=pad_idx, cache=cache, use_cache=True)
+            logits, _, cache = self(generated, pad_idx=pad_idx, cache=cache, use_cache=True)
             next_logits = logits[:, -1:] / temperature
 
             # Top-p (nucleus) sampling

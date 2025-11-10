@@ -68,7 +68,7 @@ class GPT2(Module):
         generated = input_ids
         cache = None
         for _ in range(max_new_tokens):
-            logits, cache = self(generated, pad_idx=pad_idx, cache=cache, use_cache=True)
+            logits, _, cache = self(generated, pad_idx=pad_idx, cache=cache, use_cache=True)
             next_logits = logits[:, -1:] / temperature
             if top_p < 1.0:
                 # top-p sampling

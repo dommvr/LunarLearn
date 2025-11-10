@@ -14,6 +14,12 @@ from .llama import LLaMA7B
 from .llama import LLaMA13B
 from .llama import LLaMA30B
 from .llama import LLaMA65B
+from .t5 import T5
+from .t5 import T5Small
+from .t5 import T5Base
+from .t5 import T5Large
+from .t5 import T53B
+from .t5 import T511B
 
 __all__ = [
     "GPT2",
@@ -31,5 +37,11 @@ __all__ = [
     "LLaMA7B",
     "LLaMA13B",
     "LLaMA30B",
-    "LLaMA65B"
+    "LLaMA65B",
+    "T5",
+    "T5Small",
+    "T5Base",
+    "T5Large",
+    "T53B",
+    "T511B"
 ]
