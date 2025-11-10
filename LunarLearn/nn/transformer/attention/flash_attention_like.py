@@ -1,7 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.nn.layers import BaseLayer
 from LunarLearn.core import Tensor, Parameter, ops
-from LunarLearn.nn.transformer.utils.positional_encoding import apply_rope, get_alibi_bias
+from LunarLearn.nn.transformer.utils.positional_encoding import get_alibi_bias
 
 xp = backend.xp
 
@@ -22,10 +22,6 @@ class FlashAttentionLike(BaseLayer):
             self.initialize(n_heads, max_len)
 
         scale = 1.0 / xp.sqrt(d_k)
-
-        # Rotary: applied before computing attention scores
-        if pos_mode == "rotary":
-            Q, K = apply_rope(Q, K)
 
         # Compute scaled attention scores
         scores = ops.matmul(Q, ops.transpose(K, (0, 1, 3, 2))) * scale

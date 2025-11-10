@@ -32,7 +32,8 @@ class _AmpState:
         "im2col", "col2im", "im2col_transpose", "col2im_transpose",
         "im2col_grouped", "col2im_grouped", 
         "im2col_transpose_grouped", "col2im_transpose_grouped",
-        "dropout", "upsample", "avg_pool2d"
+        "dropout", "upsample", "avg_pool2d", "sort", "cumsum",
+        "multinomial"
     }
     FP32_FORCE = {
         "zeros", "ones", "full", "arange", "eye",

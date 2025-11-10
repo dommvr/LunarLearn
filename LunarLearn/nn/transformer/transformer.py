@@ -1,6 +1,6 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.nn.layers import BaseLayer, LayerNorm, Dense, Embedding, PositionalEncoding
-from LunarLearn.nn import ModuleList, SharedBlock, Sequential
+from LunarLearn.nn import ModuleList, SharedBlock
 from LunarLearn.nn.transformer import EncoderBlock, DecoderBlock
 from LunarLearn.nn.transformer.attention import ScaledDotProductAttention
 from LunarLearn.nn.transformer.utils.masks import make_pad_mask, make_causal_mask, merge_masks
@@ -13,6 +13,7 @@ class Transformer(BaseLayer):
     def __init__(self,
                  d_model=512,
                  n_heads=8,
+                 n_kv_heads=None,
                  vocab_size=32000,
                  padding_idx=None,
                  max_len=512,
@@ -66,6 +67,7 @@ class Transformer(BaseLayer):
         if not encoder_only:
             self.decoderblock = ModuleList([DecoderBlock(d_model,
                                         n_heads,
+                                        n_kv_heads,
                                         pos_mode,
                                         keep_prob,
                                         keep_prob,
@@ -82,7 +84,7 @@ class Transformer(BaseLayer):
         self.linear.W = self.enc_embedding.W
 
         if use_output_head:
-            self.out_head = Sequential(norm(), Dense(d_model, activation=ff_activation, keep_prob=keep_prob))
+            self.out_head = ModuleList([norm(), Dense(d_model, activation=ff_activation, keep_prob=keep_prob)])
 
         self.encoder_only = encoder_only
         self.decoder_only = decoder_only
@@ -99,19 +101,25 @@ class Transformer(BaseLayer):
                 attn_list.append(attn)
         return x, attn_list if return_attn else x
 
-    def decoder(self, tgt: Tensor, mask=None, context=None, return_attn=False):
+    def decoder(self, tgt: Tensor, mask=None, context=None, return_attn=False, cache=None, use_cache=False):
         attn_list = []
         x = self.dec_embedding(tgt)
         if self.linear.W is None and self.dec_embedding.W is not None:
             self.linear.W = self.dec_embedding.W
         x = self.dec_pos_encoding(x)
-        for layer in self.decoderblock:
-            x, attn = layer(x, mask=mask, context=context, return_attn=True)
+
+        new_cache = []
+
+        for i, layer in enumerate(self.decoderblock):
+            layer_cache = cache[i] if cache is not None else None
+            x, attn, layer_new_cache = layer(x, mask=mask, context=context, return_attn=True, cache=layer_cache, use_cache=use_cache)
             if return_attn:
                 attn_list.append(attn)
-        return x, attn_list if return_attn else x
+            if use_cache:
+                new_cache.append(layer_new_cache)
+        return x, attn_list, new_cache 
 
-    def forward(self, src: Tensor, tgt: Tensor = None, pad_idx=None, return_attn=False) -> Tensor:
+    def forward(self, src: Tensor, tgt: Tensor = None, pad_idx=None, return_attn=False, cache=None, use_cache=False) -> Tensor:
         if self.encoder_only and self.decoder_only:
             raise ValueError("Cannot enable both encoder_only and decoder_only at once.")
         
@@ -133,7 +141,8 @@ class Transformer(BaseLayer):
             enc_out = None
 
         if not self.encoder_only:
-            out, dec_attn = self.decoder(tgt, mask=mask, context=enc_out if not self.decoder_only else None, return_attn=return_attn)
+            out, dec_attn, new_cache = self.decoder(tgt, mask=mask, context=enc_out if not self.decoder_only else None,
+                                                    return_attn=return_attn, cache=cache, use_cache=use_cache)
         else:
             out = enc_out
 
@@ -142,4 +151,7 @@ class Transformer(BaseLayer):
 
         out = self.linear(out)
         out = ops.softmax(out, axis=-1)
-        return (out, enc_attn, dec_attn) if return_attn else (out, None, None)
+        out_attn = {"enc_attn": enc_attn if not self.decoder_only else None,
+                "dec_attn": dec_attn if not self.encoder_only else None}
+        new_cache = new_cache if not self.encoder_only else None
+        return (out, out_attn, new_cache) if return_attn else (out, None, new_cache)

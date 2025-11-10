@@ -1,7 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.nn.layers import BaseLayer
 from LunarLearn.core import Tensor, Parameter, ops
-from LunarLearn.nn.transformer.utils.positional_encoding import apply_rope, get_alibi_bias
+from LunarLearn.nn.transformer.utils.positional_encoding import get_alibi_bias
 
 xp = backend.xp
 
@@ -23,9 +23,6 @@ class LocalAttention(BaseLayer):
             self.initialize(H, L)
 
         scale = 1.0 / xp.sqrt(D)
-
-        if pos_mode == "rotary":
-            Q, K = apply_rope(Q, K)
 
         output = []
         for i in range(L):

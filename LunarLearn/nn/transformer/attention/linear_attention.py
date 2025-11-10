@@ -1,7 +1,6 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.nn.layers import BaseLayer
 from LunarLearn.core import Tensor, ops
-from LunarLearn.nn.transformer.utils.positional_encoding import apply_rope
 
 xp = backend.xp
 
@@ -20,8 +19,6 @@ class LinearAttention(BaseLayer):
             return x  # identity fallback
 
     def forward(self, Q: Tensor, K: Tensor, V: Tensor, mask=None, pos_mode=None) -> Tensor:
-        if pos_mode == "rotary":
-            Q, K = apply_rope(Q, K)
 
         Qf = self._phi(Q)
         Kf = self._phi(K)

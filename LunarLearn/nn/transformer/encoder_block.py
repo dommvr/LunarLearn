@@ -18,7 +18,7 @@ class EncoderBlock(BaseLayer):
                  norm_position="post",
                  res_scale=1.0):
         super().__init__(trainable=True)
-        self.mhattention = MultiHeadAttention(d_model, n_heads, attention, pos_mode, att_keep_prob)
+        self.mhattention = MultiHeadAttention(d_model, n_heads, None, attention, pos_mode, att_keep_prob)
         self.norm1 = norm(axis=-1)
         self.norm2 = norm(axis=-1)
 
@@ -29,14 +29,14 @@ class EncoderBlock(BaseLayer):
     
     def forward(self, x: Tensor, mask=None, return_attn=False) -> Tensor:
         if self.norm_position == "pre":
-            attn_out, attn = self.mhattention(self.norm1(x), mask=mask)
+            attn_out, attn, _ = self.mhattention(self.norm1(x), mask=mask)
             x = x + attn_out * self.res_scale
 
             ff_out = self.feedforward(self.norm2(x))
             out = x + ff_out * self.res_scale
         else:
             # Multi-head self-attention
-            attn_out, attn = self.mhattention(x, mask=mask)
+            attn_out, attn, _ = self.mhattention(x, mask=mask)
             x = self.norm1(x + attn_out * self.res_scale)
 
             # Feed-forward network

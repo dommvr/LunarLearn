@@ -2,10 +2,10 @@ import LunarLearn.core.backend.backend as backend
 
 xp = backend.xp
 
-def apply_rope(Q, K):
+def apply_rope(Q, K, start_pos: int = 0):
     seq_len = Q.shape[-2]
     dim = Q.shape[-1]
-    pos = xp.arange(seq_len)[:, None]
+    pos = xp.arange(start_pos, seq_len + start_pos)[:, None]
     freqs = 1.0 / (10000 ** (xp.arange(0, dim, 2) / dim))
     angles = pos * freqs
     cos = xp.cos(angles)[None, None, :, :]

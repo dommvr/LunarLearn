@@ -55,8 +55,8 @@ class BERT(Module):
         if pretrained:
             self.load_state_dict(None)
 
-    def forward(self, input_ids: Tensor, pad_idx=None, return_hidden=False):
-        hidden = self.transformer(input_ids, pad_idx=pad_idx)
+    def forward(self, input_ids: Tensor, pad_idx=None, return_hidden=False, return_attn=False):
+        hidden, attn, cache = self.transformer(input_ids, pad_idx=pad_idx, return_attn=return_attn)
 
         if return_hidden:
             return hidden
@@ -70,7 +70,7 @@ class BERT(Module):
             cls_hidden = hidden[:, 0]
             outputs["nsp_logits"] = self.nsp_head(cls_hidden)
 
-        return outputs if outputs else hidden
+        return (outputs, attn, cache) if outputs else (hidden, attn, cache)
     
 
 class BERTTiny(BERT):

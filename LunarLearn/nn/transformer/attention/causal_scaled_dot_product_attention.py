@@ -1,6 +1,9 @@
+import LunarLearn.core.backend.backend as backend
 from LunarLearn.nn.transformer.attention import ScaledDotProductAttention
 from LunarLearn.core import Tensor, ops
-from LunarLearn.nn.transformer.utils.positional_encoding import apply_rope, get_alibi_bias
+from LunarLearn.nn.transformer.utils.positional_encoding import get_alibi_bias
+
+xp = backend.xp
 
 class CausalScaledDotProductAttention(ScaledDotProductAttention):
     def forward(self, Q, K, V, mask=None, pos_mode=None):
@@ -11,10 +14,6 @@ class CausalScaledDotProductAttention(ScaledDotProductAttention):
             self.initialize(n_heads, seq_len)
 
         scale = 1.0 / xp.sqrt(d_k)
-
-        # === ROTARY (optional) ===
-        if pos_mode == "rotary":
-            Q, K = apply_rope(Q, K)
 
         # === SCORES ===
         scores = ops.matmul(Q, ops.transpose(K, (0, 1, 3, 2))) * scale

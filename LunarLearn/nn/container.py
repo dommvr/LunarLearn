@@ -31,6 +31,9 @@ class ModuleList(BaseLayer):
         """Add multiple submodules."""
         self._modules.extend(modules)
 
+    def __call__(self, x: Tensor, *args, **kwargs) -> Tensor:
+        return self.forward(x, *args, **kwargs)
+
     def __getitem__(self, idx):
         return self._modules[idx]
 

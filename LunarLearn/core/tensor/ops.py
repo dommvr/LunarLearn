@@ -1037,6 +1037,55 @@ def sum(a: Tensor, axis=None, keepdims=False) -> Tensor:
     """
     return dispatch_amp("sum", _sum_impl, a, axis=axis, keepdims=keepdims)
 
+def _cumsum_impl(a: Tensor, axis: int = -1) -> Tensor:
+    a = ensure_tensor(a)
+    data = xp.cumsum(a.data, axis=axis)
+    requires_grad = a.requires_grad
+    if not backend.is_grad_enabled():
+        requires_grad = False
+    out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
+    out.is_leaf = False
+    out.grad_fn = "cumsum"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
+    def _backward():
+        if out.grad is None:
+            return
+        if not a.requires_grad:
+            return
+        
+        grad = out.grad
+        if axis != -1:
+            grad = xp.moveaxis(grad, axis, -1)
+        rev_cumsum = xp.cumsum(grad[..., ::-1], axis=-1)[..., ::-1]
+        if axis != -1:
+            rev_cumsum = xp.moveaxis(rev_cumsum, -1, axis)
+        if a.grad is None:
+            a.grad = rev_cumsum
+        else:
+            a.grad += rev_cumsum
+
+    out._backward = _backward
+    out._prev = {a}
+    return out
+
+def cumsum(a: Tensor, axis: int = -1) -> Tensor:
+    """
+    Cumulative sum along specified dimension.
+
+    Args:
+        x (Tensor): Input tensor.
+        axis (int, optional): Axis to compute cumulative sum. Default: -1.
+
+    Returns:
+        Tensor: Cumulative sum tensor with same shape as input.
+    """
+    return dispatch_amp("cumsum", _cumsum_impl, a, axis=axis)
+
 def _mean_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     a = ensure_tensor(a)
     data = xp.mean(a.data, axis=axis, keepdims=keepdims)
@@ -2679,6 +2728,44 @@ def renorm(a: Tensor, p=2.0, dim=0, maxnorm=1.0) -> Tensor:
     """
     return dispatch_amp("renorm", _renorm_impl, a, p=p, dim=dim, maxnorm=maxnorm)
 
+def _sort_impl(a: Tensor, dim: int = -1, descending: bool = False) -> tuple[Tensor, Tensor]:
+    a = ensure_tensor(a)
+    data = a.data
+    idx = xp.argsort(data, axis=dim)
+    if descending:
+        idx = idx[..., ::-1]
+    values = xp.take_along_axis(data, idx, axis=dim)
+
+    values_tensor = Tensor(values, requires_grad=False, dtype=a.dtype)
+    indices_tensor = Tensor(idx.astype(xp.int64), requires_grad=False, dtype=xp.int64)
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_values_tensor = hook(values_tensor)
+        if new_values_tensor is not None:
+            values_tensor = new_values_tensor
+
+    values_tensor.is_leaf = False
+    indices_tensor.is_leaf = False
+    values_tensor.grad_fn = "sort_values"
+    indices_tensor.grad_fn = "sort_indices"
+    return values_tensor, indices_tensor
+
+def sort(a: Tensor, dim: int = -1, descending: bool = False) -> tuple[Tensor, Tensor]:
+    """
+    Sort tensor along specified dimension.
+
+    Returns sorted values and original indices.
+
+    Args:
+        x (Tensor): Input tensor.
+        dim (int, optional): Axis to sort along. Default: -1.
+        descending (bool): Sort in descending order if True.
+
+    Returns:
+        tuple[Tensor, Tensor]: (sorted_values, indices)
+    """
+    return dispatch_amp("sort", _sort_impl, a, dim=dim, descending=descending)
+
 def _im2col_impl(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
     from LunarLearn.core.tensor.utils import im2col, col2im
     X = ensure_tensor(X)
@@ -3635,3 +3722,42 @@ def _upsample_impl(a: Tensor, scale_factor: int = 2, mode: str = "bilinear", ali
 
 def upsample(a: Tensor, scale_factor: int = 2, mode: str = "bilinear", align_corners: bool = True) -> Tensor:
     return dispatch_amp("upsample", _upsample_impl, a, scale_factor=scale_factor, mode=mode, align_corners=align_corners)
+
+def _multinomial_impl(probs: Tensor, num_samples: int = 1) -> Tensor:
+    probs = ensure_tensor(probs)
+    if probs.ndim != 2:
+        raise ValueError("probs must be 2D (B, V)")
+    if not xp.allclose(probs.sum(axis=-1), 1.0):
+        probs = softmax(probs, axis=-1)
+
+    B, V = probs.shape
+    flat_probs = probs.data
+    samples = xp.random.choice(
+        V,
+        size=(B, num_samples),
+        p=flat_probs,
+        replace=True
+    )
+    out = Tensor(samples, requires_grad=False, dtype=xp.int64)
+    out.is_leaf = True
+    out.grad_fn = None  # non-differentiable
+
+    for hook in getattr(probs, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
+    return out
+
+def multinomial(probs: Tensor, num_samples: int = 1) -> Tensor:
+    """
+    Sample from categorical distribution.
+
+    Args:
+        probs (Tensor): Probability distribution of shape (B, V). Must be non-negative and sum to 1 along last dim.
+        num_samples (int): Number of samples to draw per batch.
+
+    Returns:
+        Tensor: Sampled indices of shape (B, num_samples), dtype int64.
+    """
+    return dispatch_amp("multinomial", _multinomial_impl, probs, num_samples=num_samples)

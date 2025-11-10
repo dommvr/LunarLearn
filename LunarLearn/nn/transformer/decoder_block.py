@@ -7,6 +7,7 @@ class DecoderBlock(BaseLayer):
     def __init__(self,
                  d_model,
                  n_heads,
+                 n_kv_heads=None,
                  pos_mode=None,
                  att1_keep_prob=1.0,
                  att2_keep_prob=1.0,
@@ -20,8 +21,8 @@ class DecoderBlock(BaseLayer):
                  res_scale=1.0,
                  use_cross_attn=True): #pre
         super().__init__(trainable=True)
-        self.self_attn = MultiHeadAttention(d_model, n_heads, attention, pos_mode, att1_keep_prob)
-        self.cross_attn = MultiHeadAttention(d_model, n_heads, attention, pos_mode, att2_keep_prob)
+        self.self_attn = MultiHeadAttention(d_model, n_heads, n_kv_heads, attention, pos_mode, att1_keep_prob)
+        self.cross_attn = MultiHeadAttention(d_model, n_heads, n_kv_heads, attention, pos_mode, att2_keep_prob)
 
         self.norm1 = norm(axis=-1)
         self.norm2 = norm(axis=-1)
@@ -33,25 +34,35 @@ class DecoderBlock(BaseLayer):
         self.res_scale = res_scale
         self.use_cross_attn = use_cross_attn
 
-    def forward(self, x: Tensor, mask=None, context=None, return_attn=False) -> Tensor:
+    def forward(self, x: Tensor, mask=None, context=None, return_attn=False, cache=None, use_cache=False) -> Tensor:
         if self.norm_position == "pre":
-            attn1_out, attn1 = self.self_attn(self.norm1(x), mask=mask)
+            attn1_out, attn1, cache1 = self.self_attn(self.norm1(x), mask=mask, cache=cache, use_cache=use_cache)
             x = x + attn1_out * self.res_scale
 
             if self.cross_attn:
-                attn2_out, attn2 = self.cross_attn(self.norm2(x), context=context)
+                attn2_out, attn2, cache2 = self.cross_attn(self.norm2(x), context=context, cache=cache, use_cache=use_cache)
                 x = x + attn2_out * self.res_scale
 
             ff_out = self.feedforward(self.norm3(x))
             out = x + ff_out * self.res_scale
         else:
-            attn1_out, attn1 = self.self_attn(x, mask=mask)
+            attn1_out, attn1, cache1 = self.self_attn(x, mask=mask, cache=cache, use_cache=use_cache)
             x = self.norm1(x + attn1_out * self.res_scale)
 
             if self.cross_attn:
-                attn2_out, attn2 = self.cross_attn(x, context=context)
+                attn2_out, attn2, cache2 = self.cross_attn(x, context=context, cache=cache, use_cache=use_cache)
                 x = self.norm2(x + attn2_out * self.res_scale)
 
             ff_out = self.feedforward(x)
             out = self.norm3(x + ff_out * self.res_scale)
-        return (out, {"self": attn1, "cross": attn2 if self.use_cross_attn else None}) if return_attn else (out, None)
+
+
+
+        # Only self-attn uses cache
+        new_cache = cache1 if use_cache else None
+
+        return (
+            out,
+            {"self": attn1, "cross": attn2 if self.use_cross_attn else None},
+            new_cache
+        ) if return_attn else (out, None, new_cache)
