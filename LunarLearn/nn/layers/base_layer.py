@@ -131,6 +131,15 @@ class BaseLayer(Stateful):
             return f"in={self.input_shape}, out={self.output_shape}"
         return ""
     
+    def get_submodule(self, target: str):
+        """
+        Get submodule by dot-separated name.
+        """
+        module = self
+        for part in target.split("."):
+            module = getattr(module, part)
+        return module
+    
     def count_parameters(self) -> int:
         """Return the total number of trainable parameters in this layer."""
         total = 0

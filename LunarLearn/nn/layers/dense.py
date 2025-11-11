@@ -139,7 +139,6 @@ class Dense(BaseLayer):
                 transformation, activation, and optional dropout.
         """
         from LunarLearn.nn.activations import get_activation
-        from LunarLearn.nn.regularizers import dropout
 
         if self.W is None or self.b is None:
             self.initialize((A_prev.shape[1],))
@@ -157,6 +156,6 @@ class Dense(BaseLayer):
         A = activation(Z)
 
         # Dropout (only during training)
-        A = dropout(A, self.keep_prob, training=self.training)
+        A = ops.dropout(A, self.keep_prob, training=self.training)
 
         return A

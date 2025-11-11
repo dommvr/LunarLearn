@@ -1113,7 +1113,9 @@ nlp: gpt2, bert, clip, seq2seq
 diffusion: ddpm
 hybrid: convlstm
 
--crop2d, concat, cnnlstm1/2/3d, bidirectional
+-get_submodule, named_modules, modules
+-check if freez params need requires_grad=False or just skip in optim
+-crop2d, cnnlstm1/2/3d, bidirectional
 -correct init_weights in cells
 -add freezemanager to trainer
 -input level normalization to dataloaders (per chanell mean/std)
