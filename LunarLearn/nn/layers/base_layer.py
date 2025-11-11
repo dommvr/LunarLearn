@@ -1,5 +1,5 @@
 import LunarLearn.core.backend.backend as backend
-from LunarLearn.nn import Stateful
+from LunarLearn.nn import Module, Stateful
 from LunarLearn.core import Tensor, Parameter
 
 xp = backend.xp
@@ -226,6 +226,53 @@ class BaseLayer(Stateful):
                     elif isinstance(item, BaseLayer):
                         params.extend(item.named_parameters(prefix=f"{iname}.", with_layer=with_layer))
         return params
+    
+    def modules(self):
+        return [m for _, m in self.named_modules()]
+
+    def named_modules(self, prefix: str = ""):
+        modules = []
+        modules.append((prefix, self))
+        for name, attr in self.__dict__.items():
+            mname = f"{prefix}{name}." if prefix else f"{name}."
+            if isinstance(attr, BaseLayer):
+                modules += attr.named_modules(prefix=mname)
+            elif isinstance(attr, Module):
+                modules += attr.named_modules(prefix=mname)
+            elif isinstance(attr, (list, tuple)):
+                for i, item in enumerate(attr):
+                    iname = f"{prefix}{name}[{i}]."
+                    if isinstance(item, BaseLayer):
+                        modules += item.named_modules(prefix=iname)
+        return modules
+    
+    def get_submodule(self, target: str):
+        """
+        Get submodule by dot-separated path (e.g., "self_attn.q_proj").
+        Supports list indexing: "decoderblock[0].self_attn"
+        """
+        if not target:
+            return self
+
+        parts = target.split(".", 1)
+        name = parts[0]
+        rest = parts[1] if len(parts) > 1 else ""
+
+        # Handle list indexing: "block[0]"
+        if "[" in name and name.endswith("]"):
+            list_name, idx = name[:-1].split("[")
+            idx = int(idx)
+            attr = getattr(self, list_name)
+            if not isinstance(attr, (list, tuple)) or idx >= len(attr):
+                raise AttributeError(f"Invalid path: {target}")
+            module = attr[idx]
+        else:
+            attr = getattr(self, name)
+            if not isinstance(attr, (BaseLayer, Module)):
+                raise AttributeError(f"Path {target} not a module")
+            module = attr
+
+        return module.get_submodule(rest) if rest else module
 
     # -------------------------------
     # Abstracts (implemented in child)

@@ -103,9 +103,49 @@ class Module(Stateful):
         return params
     
     def modules(self):
-        for name, module in self.__dict__.items():
-            if isinstance(module, (Module, BaseLayer)):
-                yield module
+        return [m for _, m in self.named_modules()]
+
+    def named_modules(self, prefix: str = ""):
+        modules = []
+        for name, attr in self.__dict__.items():
+            if isinstance(attr, BaseLayer):
+                modules += attr.named_modules(prefix=f"{prefix}{name}.")
+            elif isinstance(attr, Module):
+                modules += attr.named_modules(prefix=f"f{prefix}{name}.")
+            elif isinstance(attr, (list, tuple)):
+                for i, item in enumerate(attr):
+                    iname = f"{prefix}{name}[{i}]"
+                    if isinstance(item, (Module, BaseLayer)):
+                        modules += item.named_modules(prefix=f"{iname}.")
+        return modules
+    
+    def get_submodule(self, target: str):
+        """
+        Get submodule by dot-separated path (e.g., "self_attn.q_proj").
+        Supports list indexing: "decoderblock[0].self_attn"
+        """
+        if not target:
+            return self
+
+        parts = target.split(".", 1)
+        name = parts[0]
+        rest = parts[1] if len(parts) > 1 else ""
+
+        # Handle list indexing: "block[0]"
+        if "[" in name and name.endswith("]"):
+            list_name, idx = name[:-1].split("[")
+            idx = int(idx)
+            attr = getattr(self, list_name)
+            if not isinstance(attr, (list, tuple)) or idx >= len(attr):
+                raise AttributeError(f"Invalid path: {target}")
+            module = attr[idx]
+        else:
+            attr = getattr(self, name)
+            if not isinstance(attr, (BaseLayer, Module)):
+                raise AttributeError(f"Path {target} not a module")
+            module = attr
+
+        return module.get_submodule(rest) if rest else module
 
     def forward(self, *inputs, **kwargs) -> Tensor:
         raise NotImplementedError("Subclasses must implement forward().")

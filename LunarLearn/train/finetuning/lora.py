@@ -43,6 +43,9 @@ def apply_lora(
         keep_prob: float = 1.0
 ):
     
+    if target_modules is None:
+        target_modules = ["q_proj", "v_proj", "o_proj", "ffn_up", "ffn_down"]
+    
     for p in model.parameters():
         p.requires_grad = False
 
