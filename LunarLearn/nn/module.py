@@ -159,6 +159,60 @@ class Module(Stateful):
 
         return current
 
+    def set_submodule(self, target: str, new_module):
+        """
+        Set submodule by dot-separated path (e.g., "self_attn.q_proj").
+        Supports list indexing: "decoderblock.0.self_attn"
+        Raises error if path is invalid or setting in immutable structure.
+        """
+        if not target:
+            raise ValueError("Cannot set root module via empty target")
+
+        if not isinstance(new_module, (BaseLayer, Module)):
+            raise ValueError("new_module must be a BaseLayer or Module")
+
+        parts = target.split(".")
+        current = self
+        for i, part in enumerate(parts[:-1]):
+            if not part:
+                raise ValueError(f"Invalid empty part in path: {target}")
+
+            if isinstance(current, (list, tuple)):
+                try:
+                    idx = int(part)
+                    current = current[idx]
+                except ValueError:
+                    raise KeyError(f"Non-integer index '{part}' for list/tuple in path: {target}")
+                except IndexError:
+                    raise IndexError(f"Index {idx} out of range for list/tuple in path: {target}")
+            else:
+                try:
+                    current = getattr(current, part)
+                except AttributeError:
+                    raise AttributeError(f"No attribute '{part}' in path: {target}")
+
+            # Allow intermediate lists, but ensure non-lists are modules
+            if not isinstance(current, (BaseLayer, Module, list, tuple)):
+                raise ValueError(f"Path '{'.'.join(parts[:i+1])}' leads to non-module/non-list: {target}")
+
+        # Now at parent; set the last part
+        last_part = parts[-1]
+        if not last_part:
+            raise ValueError(f"Invalid trailing dot in path: {target}")
+
+        if isinstance(current, (list, tuple)):
+            if isinstance(current, tuple):
+                raise TypeError(f"Cannot set item in immutable tuple at path: {target}")
+            try:
+                idx = int(last_part)
+                current[idx] = new_module
+            except ValueError:
+                raise KeyError(f"Non-integer index '{last_part}' for list/tuple in path: {target}")
+            except IndexError:
+                raise IndexError(f"Index {idx} out of range for list/tuple in path: {target}")
+        else:
+            setattr(current, last_part, new_module)
+
     def forward(self, *inputs, **kwargs) -> Tensor:
         raise NotImplementedError("Subclasses must implement forward().")
 
