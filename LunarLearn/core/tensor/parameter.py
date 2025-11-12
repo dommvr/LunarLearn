@@ -99,6 +99,10 @@ class Parameter(Stateful):
     def grad(self):
         return self.master.grad
     
+    @property
+    def shape(self):
+        return self.master.shape
+    
     def register_activation_hook(self, hook_fn):
         self.master.register_activation_hook(hook_fn)
         if getattr(self, "compute", None) is not None:

@@ -3,6 +3,7 @@ from LunarLearn.nn.layers import BaseLayer
 from LunarLearn.nn.transformer.attention import ScaledDotProductAttention
 from LunarLearn.core import Tensor, Parameter, ops
 from LunarLearn.nn.transformer.utils.positional_encoding import apply_rope
+from LunarLearn.train.finetuning import LoRAParameter
 
 xp = backend.xp
 
@@ -79,9 +80,20 @@ class MultiHeadAttention(BaseLayer):
         V_in = K_in
 
         # Linear projections
-        Q = ops.matmul(Q_in, self.Wq.to_compute())
-        K = ops.matmul(K_in, self.Wk.to_compute())
-        V = ops.matmul(V_in, self.Wv.to_compute())
+        if isinstance(self.Wq, LoRAParameter):
+            Q = self.Wq.forward(Q_in)
+        else:
+            Q = ops.matmul(Q_in, self.Wq.to_compute())
+
+        if isinstance(self.Wk, LoRAParameter):
+            K = self.Wk.forward(K_in)
+        else:
+            K = ops.matmul(K_in, self.Wk.to_compute())
+
+        if isinstance(self.Wv, LoRAParameter):
+            V = self.Wv.forward(V_in)
+        else:
+            V = ops.matmul(V_in, self.Wv.to_compute())
 
         # Split heads
         Q = self._split_heads(Q)
@@ -109,7 +121,10 @@ class MultiHeadAttention(BaseLayer):
         concat = self._combine_heads(attn_out)
 
         # Final linear projection
-        out = ops.matmul(concat, self.Wo.to_compute())
+        if isinstance(self.Wo, LoRAParameter):
+            out = self.Wo.forward(concat)
+        else:
+            out = ops.matmul(concat, self.Wo.to_compute())
 
         # Optional dropout
         out = ops.dropout(out, self.keep_prob, self.training)

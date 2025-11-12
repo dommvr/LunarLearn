@@ -4,34 +4,42 @@ from LunarLearn.core import Parameter, ops
 
 xp = backend.xp
 
-class LoRA(BaseLayer):
+class LoRAParameter(Parameter):
     def __init__(self,
-               layer: Dense,
+               param: Parameter,
                rank: int = 8,
                alpha: float = 16.0,
                keep_prob: float = 1.0
         ):
 
         super().__init__(trainable=True)
-        self.layer = layer
+        self.param = param
         self.scaling = alpha / rank
         self.keep_prob = keep_prob
 
-        d_out, d_in = layer.W.shape
+        d_out, d_in = param.shape
 
-        A = xp.random.randn(d_out, d_in) * 0.01
-        B = xp.zeros((rank, d_in))
+        A = xp.random.randn(d_in, rank) * 0.01
+        B = xp.zeros((rank, d_out))
 
         self.A = Parameter(A, requires_grad=True)
         self.B = Parameter(B, requires_grad=True)
 
-    def forward(self,  x):
-        out = self.layer(x)
+    def to_compute(self):
+        A = self.A.to_compute()
+        B = self.B.to_compute()
+        param = self.param.to_compute()
+        delta = ops.matmul(A, B) * self.scaling
+        return param + delta
 
+    def forward(self, x):
+        A = self.A.to_compute()
+        B = self.B.to_compute()
+        param = self.param.to_compute()
+        out = ops.matmul(x, param)
         if self.keep_prob < 1:
-            out = ops.dropout(out, self.keep_prob)
-
-        delta = ops.matmul(ops.matmul(x, self.B.T), self.A.T) * self.scaling
+            x = ops.dropout(x, self.keep_prob)
+        delta = ops.matmul(ops.matmul(x, A), B) * self.scaling
         return out + delta
     
 
@@ -39,22 +47,19 @@ def apply_lora(
         model,
         rank: int = 8,
         alpha: float = 16.0,
-        target_modules: list = ["q_proj", "v_proj"],
+        target_attributes: list = ["Wq", "Wk", "Wv", "Wo"],
         keep_prob: float = 1.0
 ):
-    
-    if target_modules is None:
-        target_modules = ["q_proj", "v_proj", "o_proj", "ffn_up", "ffn_down"]
     
     for p in model.parameters():
         p.requires_grad = False
 
-    for name, module in model.named_modules():
-        if any(t in name for t in target_modules) and isinstance(module, Dense):
-            parent_name = ".".join(name.split(".")[:-1])
-            module_name = name.split(".")[-1]
-            parent = model.get_submodule(parent_name)
-            lora_module = LoRA(module, rank=rank, alpha=alpha, keep_prob=keep_prob)
-            setattr(parent, module_name, lora_module)
+    for module in model.modules():
+        for attr in target_attributes:
+            if hasattr(module, attr):
+                param = getattr(module, attr)
+                if isinstance(param, Parameter):
+                    lora_param = LoRAParameter(param, rank=rank, alpha=alpha, keep_prob=keep_prob)
+                    setattr(module, attr, lora_param)
 
     return model 
