@@ -30,3 +30,5 @@ def add_prompt(model, n_tokens, d_model):
             prompt_module = PromptEmbedding(module, n_tokens=n_tokens, d_model=d_model)
             setattr(parent, module_name, prompt_module)
             break
+    
+    return model
