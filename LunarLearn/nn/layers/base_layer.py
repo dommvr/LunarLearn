@@ -209,22 +209,22 @@ class BaseLayer(Stateful):
     def named_parameters(self, prefix: str = "", with_layer: bool = False): #layer
         params = []
         for name, v in self.__dict__.items():
-            pname = f"{prefix}{name}"
+            child_prefix = f"{prefix}{'.' if prefix else ''}{name}"
             if isinstance(v, Parameter):
-                for n, p in v.named_parameters(pname):
-                    params.append((n, {"param": p, "layer": self} if with_layer else v))
+                for n, p in v.named_parameters(child_prefix):
+                    params.append((n, {"param": p, "layer": self} if with_layer else p))
 
             elif isinstance(v, BaseLayer):
-                params.extend(v.named_parameters(prefix=f"{pname}.", with_layer=with_layer))
+                params.extend(v.named_parameters(prefix=child_prefix, with_layer=with_layer))
                         
             elif isinstance(v, (list, tuple)):
                 for i, item in enumerate(v):
-                    iname = f"{pname}{i}"
+                    item_prefix = f"{child_prefix}.{i}"
                     if isinstance(item, Parameter):
-                        for n, p in item.named_parameters(iname):
-                            params.append((n, {"param": p, "layer": self} if with_layer else item))
+                        for n, p in item.named_parameters(item_prefix):
+                            params.append((n, {"param": p, "layer": self} if with_layer else p))
                     elif isinstance(item, BaseLayer):
-                        params.extend(item.named_parameters(prefix=f"{iname}.", with_layer=with_layer))
+                        params.extend(item.named_parameters(prefix=item_prefix, with_layer=with_layer))
         return params
     
     def modules(self):
@@ -234,45 +234,56 @@ class BaseLayer(Stateful):
         modules = []
         modules.append((prefix, self))
         for name, attr in self.__dict__.items():
+            child_prefix = f"{prefix}{'.' if prefix else ''}{name}"
             mname = f"{prefix}{name}." if prefix else f"{name}."
             if isinstance(attr, BaseLayer):
-                modules += attr.named_modules(prefix=mname)
+                modules += attr.named_modules(prefix=child_prefix)
             elif isinstance(attr, Module):
-                modules += attr.named_modules(prefix=mname)
+                modules += attr.named_modules(prefix=child_prefix)
             elif isinstance(attr, (list, tuple)):
                 for i, item in enumerate(attr):
-                    iname = f"{prefix}{name}[{i}]."
+                    item_prefix = f"{child_prefix}.{i}"
                     if isinstance(item, BaseLayer):
-                        modules += item.named_modules(prefix=iname)
+                        modules += item.named_modules(prefix=item_prefix)
         return modules
     
     def get_submodule(self, target: str):
         """
         Get submodule by dot-separated path (e.g., "self_attn.q_proj").
-        Supports list indexing: "decoderblock[0].self_attn"
+        Supports list indexing: "decoderblock.0.self_attn"
         """
         if not target:
             return self
 
-        parts = target.split(".", 1)
-        name = parts[0]
-        rest = parts[1] if len(parts) > 1 else ""
+        parts = target.split(".")
+        current = self
+        for i, part in enumerate(parts):
+            if not part:
+                raise ValueError(f"Invalid empty part in path: {target}")
 
-        # Handle list indexing: "block[0]"
-        if "[" in name and name.endswith("]"):
-            list_name, idx = name[:-1].split("[")
-            idx = int(idx)
-            attr = getattr(self, list_name)
-            if not isinstance(attr, (list, tuple)) or idx >= len(attr):
-                raise AttributeError(f"Invalid path: {target}")
-            module = attr[idx]
-        else:
-            attr = getattr(self, name)
-            if not isinstance(attr, (BaseLayer, Module)):
-                raise AttributeError(f"Path {target} not a module")
-            module = attr
+            if isinstance(current, (list, tuple)):
+                try:
+                    idx = int(part)
+                    current = current[idx]
+                except ValueError:
+                    raise KeyError(f"Non-integer index '{part}' for list/tuple in path: {target}")
+                except IndexError:
+                    raise IndexError(f"Index {idx} out of range for list/tuple in path: {target}")
+            else:
+                try:
+                    current = getattr(current, part)
+                except AttributeError:
+                    raise AttributeError(f"No attribute '{part}' in path: {target}")
 
-        return module.get_submodule(rest) if rest else module
+            # Allow intermediate lists, but ensure non-lists are modules
+            if not isinstance(current, (BaseLayer, Module, list, tuple)):
+                raise ValueError(f"Path '{'.'.join(parts[:i+1])}' leads to non-module/non-list: {target}")
+
+        # Final check: should be a module (not a list)
+        if isinstance(current, (list, tuple)):
+            raise ValueError(f"Path '{target}' points to a list/tuple, not a module")
+
+        return current
 
     # -------------------------------
     # Abstracts (implemented in child)
