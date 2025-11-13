@@ -2766,6 +2766,42 @@ def sort(a: Tensor, dim: int = -1, descending: bool = False) -> tuple[Tensor, Te
     """
     return dispatch_amp("sort", _sort_impl, a, dim=dim, descending=descending)
 
+def _searchsorted_impl(sorted_sequence: Tensor, values: Tensor, side: str = 'left') -> Tensor:
+    sorted_sequence = ensure_tensor(sorted_sequence)
+    values = ensure_tensor(values)
+    data_seq = sorted_sequence.data
+    data_val = values.data
+    idx = xp.searchsorted(data_seq, data_val, side=side)
+    indices_tensor = Tensor(idx.astype(xp.int64), requires_grad=False, dtype=xp.int64)
+
+    for hook in getattr(values, "_activation_hooks", []):  # Hooks on values, as it's the varying input
+        new_indices_tensor = hook(indices_tensor)
+        if new_indices_tensor is not None:
+            indices_tensor = new_indices_tensor
+
+    indices_tensor.is_leaf = False
+    indices_tensor.grad_fn = "searchsorted"
+    return indices_tensor
+
+def searchsorted(sorted_sequence: Tensor, values: Tensor, side: str = "left") -> Tensor:
+    """
+    Find the indices where *values* would be inserted into *sorted_sequence*
+    to maintain sorted order.
+
+    Args:
+        sorted_sequence (Tensor): **1-D** sorted tensor (ascending).  
+            Multi-dimensional tensors are treated as flattened.
+        values (Tensor): Values to search for. May be any shape; broadcasting
+            follows NumPy rules.
+        side (str, optional): ``'left'`` (default) returns the first suitable
+            index, ``'right'`` returns the index after the last equal element.
+
+    Returns:
+        Tensor: Integer tensor of the same shape as *values* containing the
+        insertion indices.
+    """
+    return dispatch_amp("searchsorted", _searchsorted_impl, sorted_sequence, values, side=side)
+
 def _im2col_impl(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
     from LunarLearn.core.tensor.utils import im2col, col2im
     X = ensure_tensor(X)
