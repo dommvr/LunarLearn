@@ -1,5 +1,6 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.nn import Module
+from LunarLearn.core import Tensor
 from LunarLearn.quantization import quantize_4bit, dequantize_4bit
 
 class QuantizedModel(Module):
@@ -8,21 +9,30 @@ class QuantizedModel(Module):
         self.model = model
         self.block_size = block_size
         self.quantize = quantize
-        self.quantized_states = {}
+        self._quant_cache = dict[str, tuple[Tensor, Tensor]] = {}
+
+    def _ensure_quantised(self):
+        """Quantise every parameter that is not yet in the cache."""
+        if not self.quantize:
+            return
+
+        for name, param in self.model.named_parameters():
+            if name in self._quant_cache:
+                continue
+
+            # ``param.master`` is the FP32 tensor we quantise from
+            q, s = quantize_4bit(param.master, block_size=self.block_size)
+            self._quant_cache[name] = (q, s)
 
     def forward(self, *args, **kwargs):
-        if self.quantize:
-            for name, param in self.model.named_parameters():
-                if name not in self.quantized_states:
-                    self.quantized_states[name] = quantize_4bit(param.master, block_size=self.block_size)
-            with backend.no_grad():
-                for name, param in self.model_parameters():
-                    q, s = self.quantized_states[name]
-                    param.master = dequantize_4bit(q, s, block_size=self.block_size)
-            out = self.model(*args, **kwargs)
-            for name, param in self.model.named_parameters():
-                q, s = self.quantized_states[name]
-                q = quantize_4bit(param.master)[0]
-            return out 
-        else:
+        if not self.quantize:
             return self.model(*args, **kwargs)
+        
+        self._ensure_quantised()
+
+        with backend.no_grad():
+            for name, param in self.model.name_parameters():
+                q, s, shape = self._quant_cache[name]
+                param.master = dequantize_4bit(q, s, block_size=self.block_size, original_shape=shape)
+        
+        return self.model(*args, **kwargs)

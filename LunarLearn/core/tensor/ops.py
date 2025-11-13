@@ -1280,6 +1280,23 @@ def argmax(a: Tensor, axis=None) -> Tensor:
     """
     return dispatch_amp("argmax", _argmax_impl, a, axis=axis)
 
+def _argmin_impl(a: Tensor, axis=None) -> Tensor:
+    a = ensure_tensor(a)
+    data = xp.argmin(a.data, axis=axis)
+    out = Tensor(data, requires_grad=False, dtype=a.dtype)
+    out.is_leaf = False
+    out.grad_fn = "argmin"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
+    return out
+
+def argmin(a: Tensor, axis=None) -> Tensor:
+    return dispatch_amp("argmin", _argmin_impl, a, axis=axis)
+
 def _var_impl(a: Tensor, axis=None, keepdims=False) -> Tensor:
     a = ensure_tensor(a)
     mean_a = mean(a, axis=axis, keepdims=True)   # use autograd mean
@@ -2664,6 +2681,25 @@ def normalize(a: Tensor, axis=None, epsilon=1e-8):
         Tensor: Normalized tensor.
     """
     return dispatch_amp("normalize", _normalize_impl, a, axis=axis, epsilon=epsilon)
+
+def _normalize_absmax_impl(a: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    abs_block = abs(a)
+    scale = max(abs_block)
+    scale = where(scale == 0, Tensor(1.0), scale)
+    return divide(a, scale)
+
+def normalize_absmax(a: Tensor) -> Tensor:
+    """
+    Scale Tensor to [-1, 1] using absolute maximum.
+
+    Args:
+        a (Tensor): Input tensor.
+
+    Returns:
+        Tensor: Normalized tensor.
+    """
+    return dispatch_amp("normalize_absmax", _normalize_absmax_impl, a)
 
 def _renorm_impl(a: Tensor, p=2.0, dim=0, maxnorm=1.0) -> Tensor:
     a = ensure_tensor(a)

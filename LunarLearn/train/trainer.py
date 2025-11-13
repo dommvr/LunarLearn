@@ -178,7 +178,7 @@ class Trainer:
             tuple: (mean_loss, mean_accuracy)
         """
         from LunarLearn.train.utils import accuracy
-        import LunarLearn.amp as amp
+        from LunarLearn.amp import amp
 
         total_loss = 0.0
         total_correct = 0

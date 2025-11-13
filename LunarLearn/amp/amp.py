@@ -42,9 +42,9 @@ class _AmpState:
         "eq", "ne", "lt", "le", "gt", "ge",
         "logical_add", "logical_or", "logical_xor",
         "logical_not",
-        "max", "min", "argmax",
+        "max", "min", "argmax", "argmin",
         "inv", "det", "trace", "svd",
-        "normalize", "renorm"
+        "normalize", "normalize_absmax", "renorm"
     }
     REDUCE_FP32 = {"sum", "mean", "var", "std", "logsumexp", "norm",
                    "sigmoid", "softmax", "log_softmax", "cross_entropy"}
