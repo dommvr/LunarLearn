@@ -19,8 +19,8 @@ class LoRAParameter(Parameter):
 
         d_out, d_in = param.shape
 
-        A = xp.random.randn(d_in, rank) * 0.01
-        B = xp.zeros((rank, d_out))
+        A = xp.random.randn(rank, d_in) * 0.01
+        B = xp.zeros((d_out, rank))
 
         self.A = Parameter(A, requires_grad=True)
         self.B = Parameter(B, requires_grad=True)
@@ -70,7 +70,7 @@ class LoRAParameter(Parameter):
         A = self.A.to_compute()
         B = self.B.to_compute()
         param = self.param.to_compute()
-        delta = ops.matmul(A, B) * self.scaling
+        delta = ops.matmul(B, A) * self.scaling
         return param + delta
 
     def forward(self, x):
@@ -80,7 +80,7 @@ class LoRAParameter(Parameter):
         out = ops.matmul(x, param)
         if self.keep_prob < 1:
             x = ops.dropout(x, self.keep_prob)
-        delta = ops.matmul(ops.matmul(x, A), B) * self.scaling
+        delta = ops.matmul(ops.matmul(x, A.T), B.T) * self.scaling
         return out + delta
     
 

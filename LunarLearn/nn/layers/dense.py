@@ -147,9 +147,9 @@ class Dense(BaseLayer):
         b = self.b.to_compute()
 
         if self.transpose_weight:
-            Z = ops.matmul(A_prev, W.T) + b
-        else:
             Z = ops.matmul(A_prev, W) + b
+        else:
+            Z = ops.matmul(A_prev, W.T) + b
 
         # Activation
         activation = get_activation(self.activation)
