@@ -7,6 +7,7 @@ from .batchnorm1d import BatchNorm1D
 from .batchnorm2d import BatchNorm2D
 from .batchnorm3d import BatchNorm3D
 from .checkpoint_block import CheckpointBlock
+from .class_encoding import ClassEncoding
 from .conv2d_transpose import Conv2DTranspose
 from .conv2d import Conv2D
 from .dense import Dense
@@ -26,6 +27,7 @@ from .layernorm import LayerNorm
 from .lstm import LSTM
 from .lstmcell import LSTMCell
 from .maxpool2d import MaxPool2D
+from .patch_embedding import PatchEmbedding
 from .positional_encoding import PositionalEncoding
 from .recurrent_base import RecurrentBase
 from .relu import ReLU
@@ -42,6 +44,7 @@ __all__ = [
     "BatchNorm2D",
     "BatchNorm3D",
     "CheckpointBlock",
+    "ClassEncoding",
     "Conv2DTranspose",
     "Conv2D",
     "Dense",
@@ -61,6 +64,7 @@ __all__ = [
     "LSTM",
     "LSTMCell",
     "MaxPool2D",
+    "PatchEmbedding",
     "PositionalEncoding",
     "RecurrentBase",
     "ReLU",

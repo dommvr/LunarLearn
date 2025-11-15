@@ -85,6 +85,8 @@ class Transformer(BaseLayer):
 
         if use_output_head:
             self.out_head = ModuleList([norm(), Dense(d_model, activation=ff_activation, keep_prob=keep_prob)])
+        else:
+            self.out_head = None
 
         self.encoder_only = encoder_only
         self.decoder_only = decoder_only

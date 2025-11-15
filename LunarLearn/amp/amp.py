@@ -2,7 +2,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Any, Callable, Iterable
 
-from LunarLearn.core import backend
+import LunarLearn.core.backend.backend as backend
 from LunarLearn.core import Tensor
 from LunarLearn.amp import DynamicLossScaler
 

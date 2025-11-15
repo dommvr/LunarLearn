@@ -1,7 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.nn import Module
 from LunarLearn.core import Tensor
-from LunarLearn.quantization import quantize_4bit, dequantize_4bit
+from LunarLearn.quantization.utils import quantize_4bit, dequantize_4bit
 
 class QuantizedModel(Module):
     def __init__(self, model, block_size: int = 64, quantize: bool = True):

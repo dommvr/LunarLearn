@@ -140,8 +140,13 @@ class Parameter(Stateful):
         if self.normalization is not None:
             self.compute = self.normalization(self.compute)
 
+        self._copy_hooks()
         self.compute.register_grad_hook(self._sync_grad)
         return self.compute
+
+    def _copy_hooks(self):
+        self.compute._activation_hooks = self.master._activation_hooks
+        self.compute._grad_hooks = self.master._grad_hooks
 
     def _sync_grad(self, grad):
         if grad is not None:

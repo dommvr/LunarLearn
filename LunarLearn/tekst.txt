@@ -1113,7 +1113,6 @@ nlp: gpt2, bert, clip, seq2seq
 diffusion: ddpm
 hybrid: convlstm
 
--get_submodule, named_modules, modules
 -check if freez params need requires_grad=False or just skip in optim
 -crop2d, cnnlstm1/2/3d, bidirectional
 -correct init_weights in cells
@@ -1123,12 +1122,11 @@ hybrid: convlstm
 -compute hooks
 -zero_grad() optimization to dont pass zero grads
 -gradientchecker
--LoRA
 -save/load model
--fine tuning
 -dataloaders and dataset
 -fix loss funcs, add as ops
 -ops.expand_dims
+-bias on/off during layers init
 
 spectralnorm (stop_grad)
 

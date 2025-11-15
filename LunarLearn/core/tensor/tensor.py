@@ -239,6 +239,9 @@ class Tensor(Stateful):
     def flatten(self):
         """Flatten tensor into 1D view."""
         return self.reshape(self.size)
+    
+    def transpose(self, *shape):
+        return transpose(self, axes=shape)
 
     @property
     def T(self):

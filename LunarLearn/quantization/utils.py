@@ -16,7 +16,7 @@ NF4_QUANTILES   = Tensor(NF4_CODEBOOK)
 NF4_DEQUANTILES = Tensor(NF4_CODEBOOK)
 
 
-def pack_4bit(indices: xp.ndarray) -> xp.ndarray:
+def pack_4bit(indices):
     """Pack flat int8 indices (0-15) into uint8 array (two per byte)."""
     indices = indices.astype(xp.uint8)  # Safe for 0-15
     if len(indices) % 2 != 0:
@@ -24,7 +24,7 @@ def pack_4bit(indices: xp.ndarray) -> xp.ndarray:
     packed = (indices[::2] << 4) | indices[1::2]
     return packed
 
-def unpack_4bit(packed: xp.ndarray, original_numel: int) -> xp.ndarray:
+def unpack_4bit(packed, original_numel: int):
     """Unpack uint8 to flat int8 indices, truncate to original_numel."""
     unpacked = xp.zeros(len(packed) * 2, dtype=xp.int8)
     unpacked[::2] = (packed >> 4).astype(xp.int8)
@@ -157,3 +157,32 @@ def dequantize_4bit(packed: Tensor, scales: Tensor, block_size: int = 64, origin
 
     dequant_data = xp.array(dequant_flat).reshape(original_shape)
     return Tensor(dequant_data)
+
+def fake_quantize_4bit(tensor: Tensor, block_size: int = 64) -> Tensor:
+    """
+    Fake quant for QAT: Quantize to 4-bit NF4, then dequantize back to float.
+    Forward: Simulates quant error.
+    Backward: Straight-through (grads unchanged).
+    """
+    if not backend.is_grad_enabled() or not tensor.requires_grad:
+        return tensor  # No-op if not training
+
+    # Quantize (your function, returns q, s, shape)
+    q, s, shape = quantize_4bit(tensor, block_size=block_size)
+    
+    # Dequantize back to float (simulates but keeps differentiable)
+    deq = dequantize_4bit(q, s, block_size=block_size, original_shape=shape)
+    
+    # For STE: In backward, use custom grad_fn
+    out = Tensor(deq.data, requires_grad=tensor.requires_grad, dtype=tensor.dtype)
+    out.is_leaf = False
+    out.grad_fn = "fake_quantize_4bit"
+    
+    # Define backward: Straight-through (copy input grad to output)
+    def _backward(grad_output: Tensor) -> Tensor:
+        return grad_output  # Ignore quant; pass gradients straight through
+    
+    out._backward = _backward  # Assuming your Tensor has a _backward hook
+    out._prev = {tensor}
+
+    return out
