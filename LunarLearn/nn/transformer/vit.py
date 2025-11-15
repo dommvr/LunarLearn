@@ -5,6 +5,7 @@ from LunarLearn.nn.transformer.attention import ScaledDotProductAttention
 
 class VisionTransformer(BaseLayer):
     def __init__(self,
+                 img_size=224,
                  patch_size=16,
                  n_classes=1000,
                  d_model=768,
@@ -23,36 +24,37 @@ class VisionTransformer(BaseLayer):
                  ):
         super().__init__(trainable=True)
         self.patch_emb = PatchEmbedding(patch_size=patch_size, emb_dim=d_model)
-        num_patches = self.patch_emb.num_patches
+        grid_size = img_size // patch_size
+        num_patches = grid_size ** 2
         self.cls_encoding = ClassEncoding()
         self.pos_encoding = PositionalEncoding(emb_dim=d_model, max_len=num_patches + 1, mode=pos_mode)
         if enc_share_weights:
             encoder = EncoderBlock(d_model=d_model,
-                                n_heads=n_heads,
-                                pos_mode=pos_mode,
-                                att_keep_prob=keep_prob,
-                                ff_layer1_nodes=ff_dim,
-                                ff_layer2_nodes=d_model,
-                                ff_activation=ff_activation,
-                                ff_keep_prob=keep_prob,
-                                attention=attention,
-                                norm=norm,
-                                norm_position=norm_position,
-                                res_scale=res_scale)
+                                   n_heads=n_heads,
+                                   pos_mode=pos_mode,
+                                   att_keep_prob=keep_prob,
+                                   ff_layer1_nodes=ff_dim,
+                                   ff_layer2_nodes=d_model,
+                                   ff_activation=ff_activation,
+                                   ff_keep_prob=keep_prob,
+                                   attention=attention,
+                                   norm=norm,
+                                   norm_position=norm_position,
+                                   res_scale=res_scale)
             self.encoder = ModuleList([SharedBlock(encoder) for _ in range(n_layers)])
         else:
             self.encoder = ModuleList([EncoderBlock(d_model=d_model,
-                                n_heads=n_heads,
-                                pos_mode=pos_mode,
-                                att_keep_prob=keep_prob,
-                                ff_layer1_nodes=ff_dim,
-                                ff_layer2_nodes=d_model,
-                                ff_activation=ff_activation,
-                                ff_keep_prob=keep_prob,
-                                attention=attention,
-                                norm=norm,
-                                norm_position=norm_position,
-                                res_scale=res_scale) for _ in range(n_layers)])
+                                                    n_heads=n_heads,
+                                                    pos_mode=pos_mode,
+                                                    att_keep_prob=keep_prob,
+                                                    ff_layer1_nodes=ff_dim,
+                                                    ff_layer2_nodes=d_model,
+                                                    ff_activation=ff_activation,
+                                                    ff_keep_prob=keep_prob,
+                                                    attention=attention,
+                                                    norm=norm,
+                                                    norm_position=norm_position,
+                                                    res_scale=res_scale) for _ in range(n_layers)])
             
         if use_output_head:
             self.out_head = ModuleList([LayerNorm(), Dense(n_classes)])

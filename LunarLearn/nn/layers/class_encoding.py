@@ -9,7 +9,7 @@ class ClassEncoding(BaseLayer):
         super().__init__(trainable=True)
         self.P = None
 
-    def _initilize(self, input_shape):
+    def _initialize(self, input_shape):
         n_patches, d_model = input_shape
         P = xp.random.randn(1, 1, d_model)
         self.P = Parameter(P, requires_grad=True)
@@ -17,8 +17,9 @@ class ClassEncoding(BaseLayer):
 
     def forward(self, x: Tensor) -> Tensor:
         if self.P is None:
-            self._initilize(x.shape[1:])
+            self._initialize(x.shape[1:])
         batch = x.shape[0]
         P = self.P.to_compute()
         cls_tokens = P.expand(batch, -1, -1)
         x = ops.concatenate([cls_tokens, x], axis=1)
+        return x
