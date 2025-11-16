@@ -53,7 +53,7 @@ class Dense(BaseLayer):
         and applies dropout during training if keep_prob < 1.
     """
     def __init__(self, nodes, activation='linear',
-                 w_init='auto', uniform=False, gain=1, keep_prob=1, transpose_weight=False):
+                 w_init='auto', uniform=False, gain=1, keep_prob=1, transpose_weight=False, bias=True, weight_norm=False):
         from LunarLearn.nn.activations import activations
         from LunarLearn.nn.initializations import initializations
 
@@ -95,6 +95,8 @@ class Dense(BaseLayer):
         self.gain = gain
         self.keep_prob = keep_prob
         self.transpose_weight = transpose_weight
+        self.bias = bias
+        self.weight_norm = weight_norm
 
     def initialize(self, input_shape):
         from LunarLearn.nn.initializations import initialize_weights
@@ -115,7 +117,10 @@ class Dense(BaseLayer):
         )
 
         self.W = Parameter(W, requires_grad=True)
-        self.b = Parameter(b, requires_grad=True)
+        if self.bias:
+            self.b = Parameter(b, requires_grad=True)
+        else:
+            self.b = None
 
         self._apply_param_settings()
 
@@ -140,16 +145,22 @@ class Dense(BaseLayer):
         """
         from LunarLearn.nn.activations import get_activation
 
-        if self.W is None or self.b is None:
+        if self.W is None:
             self.initialize((A_prev.shape[1],))
             
         W = self.W.to_compute()
-        b = self.b.to_compute()
+
+        if self.weight_norm:
+            W = ops.l2_normalize(W, axis=1)
 
         if self.transpose_weight:
-            Z = ops.matmul(A_prev, W) + b
+            Z = ops.matmul(A_prev, W)
         else:
-            Z = ops.matmul(A_prev, W.T) + b
+            Z = ops.matmul(A_prev, W.T)
+        
+        if self.b is not None:
+            b = self.b.to_compute()
+            Z += b
 
         # Activation
         activation = get_activation(self.activation)

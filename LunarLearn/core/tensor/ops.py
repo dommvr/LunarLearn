@@ -322,6 +322,26 @@ def norm(a: Tensor, ord=2, axis=None, keepdims=False, eps=1e-8) -> Tensor:
     """
     return dispatch_amp("norm", _norm_impl, a, ord=ord, axis=axis, keepdims=keepdims, eps=eps)
 
+def _l2_normalize_impl(a: Tensor, axis: int = -1, eps: float = 1e-8) -> Tensor:
+    a = ensure_tensor(a)
+    norm_val = norm(a, axis=axis, keepdims=True, eps=eps)
+    return a / norm_val
+
+def l2_normalize(a: Tensor, axis: int = -1, eps: float = 1e-8) -> Tensor:
+    """
+    L2-normalize tensor along specified axis.
+    Equivalent to: a / (||a||_2 + eps)
+    Args:
+        a (Tensor): Input tensor.
+        axis (int or tuple, optional): Axis or axes along which to compute the norm.
+        keepdims (bool, optional): Whether to keep reduced dimensions. Default is False.
+        eps (float, optional): Small value to avoid division by zero. Default is 1e-8.
+
+    Returns:
+        Tensor: Tensor normalized along specified axis.
+    """
+    return dispatch_amp("l2_normalize", _l2_normalize_impl, a, axis=axis, eps=eps)
+
 def _clip_impl(a: Tensor, a_min, a_max) -> Tensor:
     a = ensure_tensor(a)
     data = xp.clip(a.data, a_min, a_max)
