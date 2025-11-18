@@ -29,17 +29,5 @@ class Triplet(BaseLoss):
                 Tensor: Scalar tensor containing the mean triplet loss. 
                         Gradients are tracked automatically.
     """
-    def forward(self, anchor: Tensor, positive: Tensor, negative: Tensor, epsilon: float = 1e-15) -> Tensor:
-
-        anchor = anchor.astype(DTYPE)
-        positive = positive.astype(DTYPE)
-        negative = negative.astype(DTYPE)
-
-        d_pos = ops.sum((anchor - positive) ** 2, axis=1)
-        d_neg = ops.sum((anchor - negative) ** 2, axis=1)
-
-        loss = ops.maximum(d_pos - d_neg + self.margin, 0)
-        loss = ops.mean(loss)
-        loss.grad_fn = "triplet_loss"
-
-        return loss
+    def forward(self, anchor: Tensor, positive: Tensor, negative: Tensor, margin: float = 0.2, epsilon: float = 1e-15) -> Tensor:
+        return ops.triplet(anchor, positive, negative, margin=margin, epsilon=epsilon)

@@ -47,7 +47,11 @@ class _AmpState:
         "normalize", "normalize_absmax", "renorm"
     }
     REDUCE_FP32 = {"sum", "mean", "var", "std", "logsumexp", "norm",
-                   "sigmoid", "softmax", "log_softmax", "cross_entropy"}
+                   "sigmoid", "softmax", "log_softmax", "log_sigmoid",
+                   "cross_entropy", "binary_cross_entropy", "dice",
+                   "cosine_similarity", "binary_cross_entropy_with_logits",
+                   "binary_cross_entropy_dice", "focal", "huber", "kl_divergence",
+                   "mean_absolute_error", "mean_squared_error", "triplet"}
 
 STATE = _AmpState()
 

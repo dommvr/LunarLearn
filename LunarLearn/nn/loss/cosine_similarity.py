@@ -29,16 +29,4 @@ class CosineSimilarity(BaseLoss):
                 Tensor: Scalar tensor containing the mean loss. Gradients are tracked automatically.
     """
     def forward(self, predictions: Tensor, targets: Tensor, epsilon: float = 1e-15) -> Tensor:
-        predictions = predictions.astype(DTYPE)
-        targets = targets.astype(DTYPE)
-
-        # Normalize vectors
-        pred_norm = ops.norm(predictions, axis=1, keepdims=True) + epsilon
-        targ_norm = ops.norm(targets, axis=1, keepdims=True) + epsilon
-
-        # Cosine similarity
-        cosine_sim = ops.sum(predictions * targets, axis=1) / (pred_norm * targ_norm)
-        loss = ops.mean(1.0 - cosine_sim)
-        loss.grad_fn = "cosine_similarity"
-
-        return loss
+        return ops.cosine_similarity(predictions, targets, epsilon=epsilon)

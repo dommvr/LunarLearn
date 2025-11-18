@@ -26,18 +26,4 @@ class MeanAbsoluteError(BaseLoss):
                         Gradients are tracked automatically.
     """
     def forward(self, predictions: Tensor, targets: Tensor) -> Tensor:
-        # Convert integer labels to one-hot if needed
-        if targets.ndim == 1:
-            targets_int = targets.astype(int)
-            targets_onehot = ops.eye(predictions.shape[1], dtype=DTYPE)[targets_int]
-        else:
-            targets_onehot = Tensor(targets, requires_grad=False)
-
-        # Clip targets for numerical stability
-        targets_onehot = ops.clip(targets_onehot, 0.0, 1.0)
-
-        # MAE elementwise
-        loss_tensor = ops.abs(predictions - targets_onehot)
-        loss = ops.mean(loss_tensor)
-        loss.grad_fn = "mae"
-        return loss
+        return ops.mean_absolute_error(predictions, targets)

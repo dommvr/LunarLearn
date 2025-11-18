@@ -26,11 +26,4 @@ class KLDivergence(BaseLoss):
                 Tensor: Scalar tensor containing the mean KL divergence. Gradients are tracked automatically.
     """
     def forward(self, predictions: Tensor, targets: Tensor, epsilon: float = 1e-15) -> Tensor:
-        epsilon = xp.array(epsilon, dtype=DTYPE)
-        preds_clipped = ops.clip(predictions, epsilon, 1 - epsilon)
-        targets_clipped = ops.clip(targets.astype(DTYPE), epsilon, 1 - epsilon)
-
-        loss_tensor = targets_clipped * (ops.log(targets_clipped) - ops.log(preds_clipped))
-        loss = ops.mean(ops.sum(loss_tensor, axis=1))
-        loss.grad_fn = "kl_divergence"
-        return loss
+        return ops.kl_divergence(predictions, targets, epsilon=epsilon)

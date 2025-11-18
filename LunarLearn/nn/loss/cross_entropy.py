@@ -27,8 +27,5 @@ class CategoricalCrossEntropy(BaseLoss):
             Returns:
                 Tensor: Scalar tensor containing the mean loss. Gradients are tracked automatically.
     """
-    def forward(self, predictions: Tensor, targets: Tensor,) -> Tensor:
-        log_probs = ops.log_softmax(predictions, axis=1)
-        loss = ops.nll_loss(log_probs, targets)
-        loss.grad_fn = "categorical_cross_entropy"
-        return loss
+    def forward(self, predictions: Tensor, targets: Tensor, axis: int = -1, epsilon: float = 1e-15) -> Tensor:
+        return ops.cross_entropy(predictions, targets, axis=axis, epsilon=epsilon)

@@ -3579,10 +3579,10 @@ def softmax(a: Tensor, axis=-1) -> Tensor:
     """
     return dispatch_amp("softmax", _softmax_impl, a, axis=axis)
 
-def _log_softmax_impl(a: Tensor, axis=-1) -> Tensor:
+def _log_softmax_impl(a: Tensor, axis=-1, epsilon=1e-15) -> Tensor:
     a = ensure_tensor(a)
     shifted = a.data - xp.max(a.data, axis=axis, keepdims=True)
-    log_sum_exp = xp.log(xp.sum(xp.exp(shifted), axis=axis, keepdims=True))
+    log_sum_exp = xp.log(xp.sum(xp.exp(shifted) + epsilon, axis=axis, keepdims=True))
     data = shifted - log_sum_exp
     requires_grad = a.requires_grad
     if not backend.is_grad_enabled():
@@ -3617,7 +3617,7 @@ def _log_softmax_impl(a: Tensor, axis=-1) -> Tensor:
     out._prev = {a}
     return out
 
-def log_softmax(a: Tensor) -> Tensor:
+def log_softmax(a: Tensor, axis=-1, epsilon=1e-15) -> Tensor:
     """
     Log-Softmax activation function.
     Applies the log of softmax along a specified axis:
@@ -3631,7 +3631,68 @@ def log_softmax(a: Tensor) -> Tensor:
     Returns:
         Tensor: Log-probabilities of the same shape as `x`.
     """
-    return dispatch_amp("log_softmax", _log_softmax_impl, a)
+    return dispatch_amp("log_softmax", _log_softmax_impl, a, axis=axis, epsilon=epsilon)
+
+def _log_sigmoid_impl(a: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    data = xp.log1p(xp.exp(-a.data))
+    requires_grad = a.requires_grad
+    if not backend.is_grad_enabled():
+        requires_grad = False
+    out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
+    out.is_leaf = False
+    out.grad_fn = "log_sigmoid"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+
+    def _backward():
+        if out.grad is None:
+            return
+        if not a.requires_grad:
+            return
+        
+        grad_input = xp.exp(out.data) * out.grad
+        if a.grad is None:
+            a.grad = grad_input
+        else:
+            a.grad += grad_input
+
+        for hook in getattr(a, "_grad_hooks", []):
+            new_grad = hook(a.grad)
+            if new_grad is not None:
+                a.grad = new_grad
+
+    out._backward = _backward
+    out._prev = {a}
+    return out
+
+def log_sigmoid(a: Tensor) -> Tensor:
+    return dispatch_amp("log_sigmoid", _log_sigmoid_impl, a)
+
+def _mean_absolute_error_impl(a: Tensor, target: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    target = ensure_tensor(target)
+    loss = abs(a - target)
+    out = mean(loss)
+    out.grad_fn = "mean_absolute_error"
+    return out
+
+def mean_absolute_error(a: Tensor, target: Tensor) -> Tensor:
+    return dispatch_amp("mean_absolute_error", _mean_absolute_error_impl, a, target)
+
+def _mean_squared_error_impl(a: Tensor, target: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    target = ensure_tensor(target)
+    diff = a - target
+    out = mean(diff * diff)
+    out.grad_fn = "mean_squared_error"
+    return out
+
+def mean_squared_error(a: Tensor, target: Tensor) -> Tensor:
+    return dispatch_amp("mean_squared_error", _mean_squared_error_impl, a, target)
 
 def _nll_loss_impl(log_probs: Tensor, target: Tensor) -> Tensor:
     log_probs = ensure_tensor(log_probs)
@@ -3686,11 +3747,13 @@ def nll_loss(log_probs: Tensor, target: Tensor) -> Tensor:
         Tensor: Scalar tensor representing the mean negative log-likelihood loss.
     """
     return dispatch_amp("nll_loss", _nll_loss_impl, log_probs, target)
+ 
+def _cross_entropy_impl(a: Tensor, target: Tensor, axis: int = -1, epsilon: float = 1e-15) -> Tensor:
+    out = nll_loss(log_softmax(a, axis=axis, epsilon=epsilon), target)
+    out.grad_fn = "cross_entropy"
+    return out
 
-def _cross_entropy_impl(a: Tensor, target: Tensor) -> Tensor:
-    return nll_loss(log_softmax(a), target)
-
-def cross_entropy(a: Tensor, target: Tensor) -> Tensor:
+def cross_entropy(a: Tensor, target: Tensor, axis: int = -1, epsilon: float = 1e-15) -> Tensor:
     """
     Cross-Entropy loss.
     Combines `log_softmax` and `nll_loss` in one step:
@@ -3704,7 +3767,144 @@ def cross_entropy(a: Tensor, target: Tensor) -> Tensor:
     Returns:
         Tensor: Scalar tensor representing the mean cross-entropy loss.
     """
-    return dispatch_amp("cross_entropy", _cross_entropy_impl, a, target)
+    return dispatch_amp("cross_entropy", _cross_entropy_impl, a, target, axis=axis, epsilon=epsilon)
+
+def _binary_cross_entropy_impl(a: Tensor, target: Tensor, epsilon: float = 1e-15) -> Tensor:
+    a = ensure_tensor(a)
+    target = ensure_tensor(target)
+    if target.ndim == 1:
+        # Binary classification with class indices 0 or 1
+        target = target.reshape(-1, 1) if a.ndim > 1 else target
+
+    preds_clipped = clip(a, epsilon, 1 - epsilon)
+    loss = -(a * log(preds_clipped) + (1 - target) * log(1 - preds_clipped))
+    
+    # Standard reduction: mean over all elements
+    out = mean(loss)  # or ops.sum(loss) / loss.size
+    out.grad_fn = "binary_cross_entropy"
+    return out
+
+def binary_cross_entropy(a: Tensor, target: Tensor, epsilon: float = 1e-15) -> Tensor:
+    return dispatch_amp("binary_cross_entropy", _binary_cross_entropy_impl, a, target, epsilon=epsilon)
+
+def _binary_cross_entropy_with_logits_impl(a: Tensor, target: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    target = ensure_tensor(target)
+    out = mean(-target * log_sigmoid(a) -
+              (1 - target) * log_sigmoid(-a))
+    out.grad_fn = "binary_cross_entropy_with_logits"
+    return out
+
+def binary_cross_entropy_with_logits(a: Tensor, target: Tensor) -> Tensor:
+    return dispatch_amp("binary_cross_entropy_with_logits", _binary_cross_entropy_with_logits_impl, a, target)
+
+def _dice_impl(a: Tensor, target: Tensor, smooth: float = 1.0) -> Tensor:
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+    probs = a.reshape(-1)
+    targets = target.reshape(-1)
+    inter = (probs * targets).sum()
+    union = probs.sum() + targets.sum()
+    dice = (2.0 * inter + smooth) / (union + smooth)
+    out = 1.0 - dice
+    out.grad_fn = "dice"
+    return out
+
+def dice(a: Tensor, target: Tensor, smooth: float = 1.0) -> Tensor:
+    return dispatch_amp("dice", _dice_impl, a, target, smooth=smooth)
+
+def _binary_cross_entropy_dice_impl(a: Tensor, target: Tensor) -> Tensor:
+    a = ensure_tensor(a)
+    target = ensure_tensor(target)
+    bce_loss = binary_cross_entropy(a, target)
+    probs = sigmoid(a)
+    dice_loss = dice(probs, target)
+    out = bce_loss + dice_loss
+    out.grad_fn = "binary_cross_entropy_dice"
+    return out
+
+def binary_cross_entropy_dice(a: Tensor, target: Tensor) -> Tensor:
+    return dispatch_amp("binary_cross_entropy_dice", _binary_cross_entropy_dice_impl, a, target)
+
+def _cosine_similarity_impl(a: Tensor, target: Tensor, epsilon: float = 1e-15) -> Tensor:
+    a = ensure_tensor(a)
+    target = ensure_tensor(target)
+
+    pred_norm = normalize(a, axis=1)
+    targ_norm = normalize(target, axis=1)
+
+    cosine_sim = sum(pred_norm * targ_norm, axis=1)
+    cosine_sim = clip(cosine_sim, -1.0, 1.0)
+    out = mean(1.0 - cosine_sim)
+    out.grad_fn = "cosine_similarity"
+    return out
+
+def cosine_similarity(a: Tensor, target: Tensor, epsilon: float = 1e-15) -> Tensor:
+    return dispatch_amp("cosine_similarity", _cosine_similarity_impl, a, target, epsilon=epsilon)
+
+def _focal_impl(a: Tensor, target: Tensor, alpha: float = 1.0, gamma: float = 2.0) -> Tensor:
+    a = ensure_tensor(a)
+    target = ensure_tensor(target)
+    bce = binary_cross_entropy_with_logits(a, target)
+    pt = exp(-bce)
+    focal = alpha * (1 - pt) ** gamma * bce
+    out = mean(focal)
+    out.grad_fn = "focal_loss"
+    return out
+
+def focal(a: Tensor, target: Tensor, alpha: float = 1.0, gamma: float = 2.0) -> Tensor:
+    return dispatch_amp("focal", _focal_impl, a, target, alpha=alpha, gamma=gamma)
+
+def _huber_impl(a: Tensor, target: Tensor, delta: float = 1.0) -> Tensor:
+    a = ensure_tensor(a)
+    target = ensure_tensor(target)
+    error = a - target
+    abs_error = abs(error)
+
+    quadratic = 0.5 * (error ** 2) / delta
+    linear = abs_error - 0.5 * delta
+
+    loss_tensor = where(abs_error < delta, quadratic, linear)
+    out = mean(loss_tensor)
+    out.grad_fn = "huber"
+    return out
+
+def huber(a: Tensor, target: Tensor, delta: float = 1.0) -> Tensor:
+    return dispatch_amp("huber", _huber_impl, a, target, delta=delta)
+
+def _kl_divergence_impl(a: Tensor, target: Tensor, epsilon: float = 1e-15) -> Tensor:
+    a = ensure_tensor(a)
+    target = ensure_tensor(target)
+    preds_clipped = clip(a, epsilon, 1.0 - epsilon)
+    
+    # Small epsilon inside log for targets (only to prevent log(0) if targets have exact 0s)
+    log_targets = log(target + epsilon)
+    log_preds = log(preds_clipped)
+
+    loss_tensor = target * (log_targets - log_preds)
+    out = mean(sum(loss_tensor, axis=1))  # batchmean reduction
+    return out
+
+def kl_divergence(a: Tensor, target: Tensor, epsilon: float = 1e-15) -> Tensor:
+    return dispatch_amp("kl_divergence", _kl_divergence_impl, a, target, epsilon=epsilon)
+
+def _triplet_impl(anchor: Tensor, positive: Tensor, negative: Tensor, margin: float = 0.2, epsilon: float = 1e-6) -> Tensor:
+    anchor = normalize(anchor + epsilon, axis=1)    # or just ops.l2_normalize(anchor)
+    positive = normalize(positive + epsilon, axis=1)
+    negative = normalize(negative + epsilon, axis=1)
+
+    # Squared Euclidean distance (equivalent to 2 - 2*cosine_sim for normalized vectors)
+    d_pos = sum((anchor - positive) ** 2, axis=1)
+    d_neg = sum((anchor - negative) ** 2, axis=1)
+
+    # Standard triplet hinge loss
+    losses = relu(d_pos - d_neg + margin)   # ops.maximum(x, 0) == relu(x)
+    out = mean(losses)
+    out.grad_fn = "triplet"
+    return out
+
+def triplet(anchor: Tensor, positive: Tensor, negative: Tensor, margin: float = 0.2, epsilon: float = 1e-6) -> Tensor:
+    return dispatch_amp("triplet", _triplet_impl, anchor, positive, negative, margin=margin, epsilon=epsilon)
 
 def _dropout_impl(a: Tensor, keep_prob: float, training: bool = True) -> Tensor:
     a = ensure_tensor(a)

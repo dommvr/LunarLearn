@@ -35,9 +35,4 @@ class Focal(BaseLoss):
         self.gamma = gamma
 
     def forward(self, predictions: Tensor, targets: Tensor) -> Tensor:
-        bce = ops.binary_cross_entropy_with_logits(predictions, targets)
-        pt = ops.exp(-bce)
-        focal = self.alpha * (1 - pt) ** self.gamma * bce
-        loss = ops.mean(focal)
-        loss.grad_fn = "focal_loss"
-        return loss
+        return ops.focal(predictions, targets, alpha=self.alpha, gamma=self.gamma)

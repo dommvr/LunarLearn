@@ -32,30 +32,4 @@ class Huber(BaseLoss):
                 Tensor: Scalar tensor containing the mean Huber loss. Gradients are tracked automatically.
     """
     def forward(self, predictions: Tensor, targets: Tensor, delta: float = 1.0) -> Tensor:
-
-        delta = Tensor(delta, requires_grad=False, dtype=predictions.dtype)
-
-        # --- Handle targets for classification ---
-        if targets.ndim == 1 and predictions.ndim == 2 and predictions.shape[1] > 1:
-            # integer labels -> one-hot
-            targets_int = targets.astype(int)
-            targets = ops.eye(predictions.shape[1])[targets_int]
-        elif targets.ndim == 2 and predictions.ndim == 2 and targets.shape[1] == predictions.shape[1]:
-            targets = Tensor(targets, requires_grad=False)
-        elif targets.ndim == 1 and predictions.ndim == 2 and predictions.shape[1] == 1:
-            targets = Tensor(targets.reshape(-1, 1), requires_grad=False)
-        elif targets.ndim == 2 and predictions.ndim == 2 and predictions.shape[1] == 1:
-            targets = Tensor(targets, requires_grad=False)
-        # else regression mode
-
-        # --- Compute error ---
-        error = predictions - targets
-        abs_error = ops.abs(error)
-
-        quadratic = 0.5 * (error * error)
-        linear = delta * (abs_error - 0.5 * delta)
-
-        loss_tensor = ops.where(abs_error <= delta, quadratic, linear)
-        loss = ops.mean(loss_tensor)
-        loss.grad_fn = "huber_loss"
-        return loss
+        return ops.huber(predictions, targets, delta=delta)
