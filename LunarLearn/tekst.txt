@@ -1171,3 +1171,6 @@ Tell me more about:
 since model we are discussing don't behave like standart transformer, e.g. don't outputs next token in a sequence, it's harder to train it. Normaly during training we can compare 
 predicted token with real ones, one by one. But here we will get only final answear. Models "thinking" memory is represented in latent space, so we can't clearly compare it with
 expected output on each thinking step. How to approach this problem?
+
+
+distillation tokens, mae, swintransformer

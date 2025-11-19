@@ -36,7 +36,8 @@ class _AmpState:
         "multinomial", "searchsorted"
     }
     FP32_FORCE = {
-        "zeros", "ones", "full", "arange", "eye",
+        "zeros", "zeros_like", "ones", "ones_like", "full",
+        "arange", "eye", "random_normal", "random_uniform",
         "exp", "log", "sqrt", "erf", "erfc",
         "divide", "power",
         "eq", "ne", "lt", "le", "gt", "ge",
@@ -46,12 +47,14 @@ class _AmpState:
         "inv", "det", "trace", "svd",
         "normalize", "normalize_absmax", "renorm"
     }
-    REDUCE_FP32 = {"sum", "mean", "var", "std", "logsumexp", "norm",
-                   "sigmoid", "softmax", "log_softmax", "log_sigmoid",
-                   "cross_entropy", "binary_cross_entropy", "dice",
-                   "cosine_similarity", "binary_cross_entropy_with_logits",
-                   "binary_cross_entropy_dice", "focal", "huber", "kl_divergence",
-                   "mean_absolute_error", "mean_squared_error", "triplet"}
+    REDUCE_FP32 = {
+        "sum", "mean", "var", "std", "logsumexp", "norm",
+        "sigmoid", "softmax", "log_softmax", "log_sigmoid",
+        "cross_entropy", "binary_cross_entropy", "dice",
+        "cosine_similarity", "binary_cross_entropy_with_logits",
+        "binary_cross_entropy_dice", "focal", "huber", "kl_divergence",
+        "mean_absolute_error", "mean_squared_error", "triplet"
+    }
 
 STATE = _AmpState()
 

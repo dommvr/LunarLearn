@@ -24,6 +24,7 @@ from .grucell import GRUCell
 from .instancenorm import InstanceNorm
 from .lambda_layer import LambdaLayer
 from .layernorm import LayerNorm
+from .leaky_relu import LeakyReLU
 from .lstm import LSTM
 from .lstmcell import LSTMCell
 from .maxpool2d import MaxPool2D
@@ -31,6 +32,7 @@ from .patch_embedding import PatchEmbedding
 from .positional_encoding import PositionalEncoding
 from .recurrent_base import RecurrentBase
 from .relu import ReLU
+from .reshape import Reshape
 from .rmsnorm import RMSNorm
 from .rnn import RNN
 from .rnncell import RNNCell
@@ -61,6 +63,7 @@ __all__ = [
     "InstanceNorm",
     "LambdaLayer",
     "LayerNorm",
+    "LeakyReLU",
     "LSTM",
     "LSTMCell",
     "MaxPool2D",
@@ -68,6 +71,7 @@ __all__ = [
     "PositionalEncoding",
     "RecurrentBase",
     "ReLU",
+    "Reshape",
     "RMSNorm",
     "RNN",
     "RNNCell"

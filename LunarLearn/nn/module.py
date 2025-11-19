@@ -240,6 +240,11 @@ class Module(Stateful):
         for p in self.parameters():
             p.frozen = False
 
+    def zero_grad(self):
+        """Set gradients to zero."""
+        for p in self.parameters():
+            p.grad = None
+
     def summary(self, input_shape: tuple = None, as_dict: bool = False):
         """
         Print or return a detailed summary of the model, similar to Keras/PyTorch.

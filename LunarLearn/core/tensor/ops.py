@@ -30,6 +30,17 @@ def zeros(shape, dtype=DTYPE) -> Tensor:
     """
     return dispatch_amp("zeros", _zeros_impl, shape, dtype=dtype)
 
+def _zeros_like_impl(a: Tensor, dtype=DTYPE) -> Tensor:
+    a = ensure_tensor(a)
+    data = xp.zeros_like(a.data, dtype=dtype)
+    out = Tensor(data, requires_grad=False, dtype=dtype)
+    out.is_leaf = True
+    out.grad_fn = "zeros_like"
+    return out
+
+def zeros_like(a: Tensor, dtype=DTYPE) -> Tensor:
+    return dispatch_amp("zeros_like", _zeros_like_impl, a, dtype=dtype)
+
 def _ones_impl(shape, dtype=DTYPE) -> Tensor:
     data = xp.ones(shape, dtype=dtype)
     out = Tensor(data, requires_grad=False, dtype=dtype)
@@ -49,6 +60,17 @@ def ones(shape, dtype=DTYPE) -> Tensor:
         Tensor: New tensor of given shape filled with ones.
     """
     return dispatch_amp("ones", _ones_impl, shape, dtype=dtype)
+
+def _ones_like_impl(a: Tensor, dtype=DTYPE) -> Tensor:
+    a = ensure_tensor(a)
+    data = xp.ones_like(a.data, dtype=dtype)
+    out = Tensor(data, requires_grad=False, dtype=dtype)
+    out.is_leaf = False
+    out.grad_fn = "ones_like"
+    return out
+
+def ones_like(a: Tensor, dtype=DTYPE) -> Tensor:
+    return dispatch_amp("ones_like", _ones_like_impl, a, dtype=dtype)
 
 def _full_impl(shape, value, dtype=DTYPE) -> Tensor:
     data = xp.full(shape, value, dtype=DTYPE)
@@ -111,6 +133,26 @@ def eye(n, m=None, dtype=DTYPE):
         Tensor: Identity (or eye) tensor.
     """
     return dispatch_amp("eye", _eye_impl, n, m, dtype=dtype)
+
+def _random_normal_impl(shape: tuple, dtype=DTYPE) -> Tensor:
+    data = xp.random.randn(shape, dtype=DTYPE)
+    out = Tensor(data, requires_grad=False, dtype=dtype)
+    out.is_leaf = True
+    out.grad_fn = "random_normal"
+    return out
+
+def random_normal(shape: tuple, dtype=DTYPE) -> Tensor:
+    return dispatch_amp("random_normal", _random_normal_impl, shape, dtype=dtype)
+
+def _random_uniform_impl(shape: tuple, low: float = -1.0, high: float = 1.0, dtype=DTYPE) -> Tensor:
+    data = xp.random.uniform(low, high, size=shape, dtype=DTYPE)
+    out = Tensor(data, requires_grad=False, dtype=dtype)
+    out.is_leaf = True
+    out.grad_fn = "random_uniform"
+    return out
+
+def random_uniform(shape: tuple, low: float = -1.0, high: float = 1.0, dtype=DTYPE) -> Tensor:
+    return dispatch_amp("random_uniform", _random_uniform_impl, shape, low=low, high=high, dtype=dtype)
 
 # ============================================================================
 # Unary operations
