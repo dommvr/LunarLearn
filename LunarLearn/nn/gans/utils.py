@@ -54,10 +54,9 @@ def sample_noise(
 
     return z
 
-def gradient_penalty(disc, real, fake, lambda_gp=10.0, enable_amp=True):
-    batch = real.shape[0]
-
+def standard_penalty(disc, real, fake, gamma=10.0, enable_amp=True):
     with amp.autocast(enabled=enable_amp):
+        batch = real.shape[0]
         eps = ops.random_uniform((batch, 1, 1, 1), low=0.0, high=1.0)
         eps = ops.expand(eps, real.shape)
         interp = eps * real + (1 - eps) * fake
@@ -70,10 +69,30 @@ def gradient_penalty(disc, real, fake, lambda_gp=10.0, enable_amp=True):
         dummy_loss = amp.scale_loss(dummy_loss)
         dummy_loss.backward()
 
-        grads = interp.grad
-        grads_flat = grads.reshape(batch, -1)
+        grad = interp.grad
+        grads_flat = grad.reshape(batch, -1)
         grad_norm = ops.sqrt(ops.sum(grads_flat ** 2, axis=1) + 1e-12)
-        gp = ops.mean((grad_norm - 1.0) ** 2)
-        return gp * lambda_gp
+        penalty = ops.mean((grad_norm - 1.0) ** 2)
+        return penalty * gamma
 
+def r1_penalty(disc, real, gamma=10.0, enable_amp=True):
+    with amp.autocast(enabled=enable_amp):
+        real.requires_grad = True
+        scores = disc(real)
+        dummy_loss = scores.sum()
+        dummy_loss = amp.scale_loss(dummy_loss)
+        dummy_loss.backward()
+
+        grad = real.grad
+        penalty = ops.mean(ops.norm(grad.reshape(grad.shape[0], -1), ord=2, axis=1) ** 2)
+        real.requires_grad = False
+        return penalty * (gamma / 2)
     
+def gradient_penalty(disc, real, fake=None, gamma=10.0, mode="r1", enable_amp=True):
+    with amp.autocast(enabled=enable_amp):
+        if mode == "standard":
+            return standard_penalty(disc, real, fake, gamma, enable_amp)
+        elif mode == "r1":
+            return r1_penalty(disc, real, gamma, enable_amp)
+        else:
+            return 0

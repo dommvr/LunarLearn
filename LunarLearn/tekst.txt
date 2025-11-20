@@ -1124,7 +1124,6 @@ hybrid: convlstm
 -gradientchecker
 -save/load model
 -dataloaders and dataset
--fix loss funcs, add as ops
 -ops.expand_dims
 -bias on/off during layers init
 
@@ -1174,3 +1173,54 @@ expected output on each thinking step. How to approach this problem?
 
 
 distillation tokens, mae, swintransformer
+
+As you see im building my own dl library (LunarLearn) from scratch. Im using only numpy/cupy and occasionally libraries like matplotlib or graphz. Below is list of things that i implemented.
+Is there anything im missing? Is there anything else that i should consider implementing? I mean things that are used, not some exotic technics barely used by anybody.
+Additionally rate it. Be harsh, talk without beating around the bush, i want to know truth even when its not pleasantly. This is my main portfolio project for getting a job. 
+I dont have cs degree so it need to do the job.
+Idealistically i want to land job in research lab or something like that. Because of that im working on one more project (research project), which will be brain-inspired ai architecture.
+Im discussing it with you in our different chat named "Brain-Inspired AI Architecture Development", idk if you have access to it. But lets focus on current project, LunarLearn.
+Just keep in mind that potentially i will have this research project in my portfolio as well when judging my chances and value from potential recruiter perspective.
+LunarLearn got:
+-full autograd engine (params, tensors, ops, backward)
+-full amp with autocast, dynamic loss scaling and checking if grad is safe for optim step
+-full backend with cpu/gpu (np/cp), seed setting, default dtype setting, autograd switch and other funcs to set defaults or helpers func like is_grad_enale() or warmup_cupy
+-different dataloaders, like for arrays, images, text, synthetic data and few more. support for only batch loading into memory.
+-many ready to use, popular datasets
+-almost 40 different layers, like dense, conv, dropout, rnn cells/layers, activation, norm
+-lazy init without need to specifie input shape, diffrent init func
+-diffrent activation func like, softmax, sigmoid, tanh, relu, swish and more
+-10+ loss funcs like, bce, cs, ce, dice, mse
+-10+ diffrent regularizers (like elasticnet, nuclear, maxnorm, orthogonal) supported param/layer/global regularization
+-normalization for params, weightnorm, spectralnorm
+-20+ optimizers like, adabound, adagrad, adam, lion, ranger21, sgd, shampoo
+-25+ diffrent schedulers like, adas, cyclic, expotential, warmup, noam, polynomial, warm restarts cosine annealing. Each can schedule any attribute
+(like lr, lr_scale, res_scale, weight_norm)
+-lr Finder
+-full customizable transformer, allow to create practicly every architecture (bert, gpt, seq2seq)
+-full customizable vit
+-diffrent attentions
+-swin transformer
+-tokenizers, bpe and unigram
+-deepsupervision with adding aux heads and auto loss computation
+-inception blocks, ready to use most popular ones like inception_v1_block or inception_resnet_block
+-resblocks, ready to use most popular ones like bootleneck, resnext, seres
+-diffrent containers like module, modulelist, sequential, sharedblock
+-customizable gans (just builded)
+-activation and grad hooks
+-callbacks
+-gradient processor supporting things like, centalization, cliping, accumulation, nan detection, noise regularization, ema of norm
+-scheduler manager to handle all module schedulers
+-freeze manager for model freezing
+-finetuning methods like lora, prompt, adapter, head, bitfit
+-trainer that takes model, options like optim, loss, reg, norm, epoch/batch hooks, grad options, freeze options and automaticly handle training loop, creates history
+and show live proggres bar
+-ready to use popular models (like unet, resnet, gpt, llama, yolo) in diffrent sizes and with pretrained weights 
+-ready to use training scripts for those models
+-trained model Quantization
+-quantization for training loop 
+-saving/loading weights/models
+-everything build in modular convention (baselayer, baseoptimizer, baseloss) so its easy for user to build custom layer or optimizer
+-general convention is pretty much like in torch, with few changes but in general using it is intuitive for users that already used other framework
+
+
