@@ -1,11 +1,12 @@
 from LunarLearn.nn.layers import BaseLayer
 from LunarLearn.core import ops
 
+
 class SpectralNorm(BaseLayer):
     def __init__(self, layer, n_power_iter=1):
         super().__init__(trainable=True)
         self.layer = layer
-        self.n_power_iters = n_power_iter
+        self.n_power_iter = n_power_iter
         self.u = None
 
     def initialize(self, weight):
@@ -19,7 +20,7 @@ class SpectralNorm(BaseLayer):
         W = self.layer.W
         if W is None or W.master is None:
             return self.layer(x)
-        
+
         weight = W.master
 
         if self.u is None:

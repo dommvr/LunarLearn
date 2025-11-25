@@ -1126,6 +1126,7 @@ hybrid: convlstm
 -dataloaders and dataset
 -ops.expand_dims
 -bias on/off during layers init
+-spectralnorm layer
 
 spectralnorm (stop_grad)
 
@@ -1222,5 +1223,3 @@ and show live proggres bar
 -saving/loading weights/models
 -everything build in modular convention (baselayer, baseoptimizer, baseloss) so its easy for user to build custom layer or optimizer
 -general convention is pretty much like in torch, with few changes but in general using it is intuitive for users that already used other framework
-
-
