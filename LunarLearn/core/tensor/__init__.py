@@ -3,6 +3,7 @@ from .parameter import Parameter
 
 from .utils import RecurrentDropout
 from .utils import ensure_tensor
+from .utils import normalize_index
 from .utils import promote_dtype
 from .utils import unbroadcast
 from .utils import trace_graph
@@ -22,6 +23,7 @@ __all__ = [
     "Parameter",
     "RecurrentDropout",
     "ensure_tensor",
+    "normalize_index",
     "promote_dtype",
     "unbroadcast",
     "trace_graph",

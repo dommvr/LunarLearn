@@ -27,6 +27,18 @@ def ensure_tensor(obj, dtype=None):
     data = xp.array(obj, dtype=DTYPE)
     return Tensor(data, dtype=dtype)
 
+def normalize_index(idx):
+    if isinstance(idx, Tensor):
+        arr = idx.data
+        if arr.shape == ():
+            return int(arr)
+        return arr
+    
+    if isinstance(idx, (tuple, list)):
+        return tuple(normalize_index(i) for i in idx)
+    
+    return idx
+
 def promote_dtype(*dtypes):
     """
     Promote multiple dtypes to a common dtype.

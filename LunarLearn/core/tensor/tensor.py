@@ -130,7 +130,7 @@ class Tensor(Stateful):
     # Indexing
     # ======================================================
     def __getitem__(self, idx):
-        """Tensor slicing. Delegates to ops.slice_op."""
+        """Tensor slicing. Delegates to ops.slice."""
         return slice(self, idx)
 
     # ======================================================

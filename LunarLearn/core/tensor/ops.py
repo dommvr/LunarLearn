@@ -1,6 +1,6 @@
 import LunarLearn.core.backend.backend as backend
 from .tensor import Tensor
-from .utils import ensure_tensor, unbroadcast, promote_dtype
+from .utils import ensure_tensor, normalize_index, unbroadcast, promote_dtype
 from LunarLearn.amp import dispatch_amp
 
 xp = backend.xp
@@ -2054,6 +2054,7 @@ def unsqueeze(a: Tensor, axis: int) -> Tensor:
 
 def _slice_impl(a: Tensor, slices) -> Tensor:
     a = ensure_tensor(a)
+    slices = normalize_index(slices)
     data = a.data[slices]  # forward
     requires_grad = a.requires_grad
     if not backend.is_grad_enabled():
