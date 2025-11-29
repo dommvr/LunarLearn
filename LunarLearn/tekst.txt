@@ -1127,6 +1127,8 @@ hybrid: convlstm
 -ops.expand_dims
 -bias on/off during layers init
 -spectralnorm layer
+-add metrics to trainer, bar, callbacks
+-inception_score
 
 spectralnorm (stop_grad)
 
