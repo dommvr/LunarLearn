@@ -59,7 +59,7 @@ class Conv2D(BaseLayer):
                 (batch, filters, H_out, W_out).
     """
     def __init__(self, filters, kernel_size, strides=1, padding=0, activation='linear',
-                 w_init='auto', uniform=False, gain=1, groups=1):
+                 w_init='auto', uniform=False, gain=1, groups=1, dilation=1):
         from LunarLearn.nn.activations import activations
         from LunarLearn.nn.initializations import initializations
         # Validate number of filters
@@ -118,6 +118,10 @@ class Conv2D(BaseLayer):
         self.uniform = uniform
         self.gain = gain
         self.groups = groups
+        if isinstance(dilation, int):
+            self.dilation = (dilation, dilation)
+        else:
+            self.dilation = dilation
 
     def initialize(self, input_shape):
         from LunarLearn.nn.initializations import initialize_weights
@@ -135,6 +139,7 @@ class Conv2D(BaseLayer):
 
 
         f_h, f_w = self.kernel_size
+        d_h, d_w = self.dilation
         group_in_channels = n_C_prev // self.groups
         group_out_channels = self.filters // self.groups
 
@@ -148,14 +153,17 @@ class Conv2D(BaseLayer):
 
         self._apply_param_settings()
 
+        eff_kh = d_h * (f_h - 1) + 1
+        eff_kw = d_w * (f_w - 1) + 1
+
         if self.padding == 'same':
-            self.padding_h = ((self.strides-1) * n_H_prev + f_h - self.strides) // 2
-            self.padding_w = ((self.strides-1) * n_W_prev + f_w - self.strides) // 2
+            self.padding_h = ((self.strides-1) * n_H_prev + eff_kh - self.strides) // 2
+            self.padding_w = ((self.strides-1) * n_W_prev + eff_kw - self.strides) // 2
         else:
             self.padding_h = self.padding_w = self.padding
 
-        self.n_H = (n_H_prev + 2*self.padding_h - f_h) // self.strides + 1
-        self.n_W = (n_W_prev + 2*self.padding_w - f_w) // self.strides + 1
+        self.n_H = (n_H_prev + 2*self.padding_h - eff_kh) // self.strides + 1
+        self.n_W = (n_W_prev + 2*self.padding_w - eff_kw) // self.strides + 1
         self.output_shape = (self.filters, self.n_H, self.n_W)
 
     def forward(self, A_prev: Tensor) -> Tensor:
@@ -186,6 +194,7 @@ class Conv2D(BaseLayer):
 
         m, n_C_prev, n_H_prev, n_W_prev = A_prev.shape
         pad_h, pad_w = self.padding_h, self.padding_w
+        d_h, d_w = self.dilation
 
         # Pad input
         A_prev_pad = ops.pad(A_prev,
@@ -194,9 +203,9 @@ class Conv2D(BaseLayer):
 
         # Grouped or standard im2col
         if self.groups > 1:
-            X_col = ops.im2col_grouped(A_prev_pad, self.kernel_size, self.strides, self.groups)
+            X_col = ops.im2col_grouped(A_prev_pad, self.kernel_size, self.strides, self.groups, self.dilation)
         else:
-            X_col = ops.im2col(A_prev_pad, self.kernel_size, self.strides)
+            X_col = ops.im2col(A_prev_pad, self.kernel_size, self.strides, self.dilation)
 
         # Reshape W for matmul
         W_col = W.reshape(self.filters, -1)

@@ -2901,10 +2901,10 @@ def searchsorted(sorted_sequence: Tensor, values: Tensor, side: str = "left") ->
     """
     return dispatch_amp("searchsorted", _searchsorted_impl, sorted_sequence, values, side=side)
 
-def _im2col_impl(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
+def _im2col_impl(X: Tensor, kernel_size: tuple, s: int, dilation: int = 1) -> Tensor:
     from LunarLearn.core.tensor.utils import im2col, col2im
     X = ensure_tensor(X)
-    data = im2col(X.data, kernel_size, s)
+    data = im2col(X.data, kernel_size, s, dilation)
     requires_grad = X.requires_grad
     if not backend.is_grad_enabled():
         requires_grad = False
@@ -2924,7 +2924,7 @@ def _im2col_impl(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
             return
         
         # Gradient w.r.t. input X comes from col2im of upstream gradient
-        dX = col2im(out.grad, X.shape, kernel_size, s)
+        dX = col2im(out.grad, X.shape, kernel_size, s, dilation)
         if X.grad is None:
             X.grad = dX
         else:
@@ -2939,7 +2939,7 @@ def _im2col_impl(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
     out._prev = {X}
     return out
 
-def im2col(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
+def im2col(X: Tensor, kernel_size: tuple, s: int, dilation: int = 1) -> Tensor:
     """
     Transform a 4D input tensor into column form for convolutions.
 
@@ -2951,12 +2951,12 @@ def im2col(X: Tensor, kernel_size: tuple, s: int) -> Tensor:
     Returns:
         Tensor: Column-form tensor.
     """
-    return dispatch_amp("im2col", _im2col_impl, X, kernel_size, s)
+    return dispatch_amp("im2col", _im2col_impl, X, kernel_size, s, dilation=dilation)
 
-def _col2im_impl(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
+def _col2im_impl(cols: Tensor, X_shape, kernel_size: tuple, s: int, dilation: int = 1) -> Tensor:
     from LunarLearn.core.tensor.utils import im2col, col2im
     cols = ensure_tensor(cols)
-    data = col2im(cols.data, X_shape, kernel_size, s)
+    data = col2im(cols.data, X_shape, kernel_size, s, dilation)
     requires_grad = cols.requires_grad
     if not backend.is_grad_enabled():
         requires_grad = False
@@ -2976,7 +2976,7 @@ def _col2im_impl(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
             return
         
         # Gradient w.r.t. cols comes from im2col of upstream gradient
-        dcols = im2col(out.grad, kernel_size, s)
+        dcols = im2col(out.grad, kernel_size, s, dilation)
         if cols.grad is None:
             cols.grad = dcols
         else:
@@ -2991,7 +2991,7 @@ def _col2im_impl(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
     out._prev = {cols}
     return out
 
-def col2im(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
+def col2im(cols: Tensor, X_shape, kernel_size: tuple, s: int, dilation: int = 1) -> Tensor:
     """
     Transform a column-form tensor back to its original 4D image shape.
 
@@ -3004,7 +3004,7 @@ def col2im(cols: Tensor, X_shape, kernel_size: tuple, s: int) -> Tensor:
     Returns:
         Tensor: Reconstructed 4D tensor.
     """
-    return dispatch_amp("col2im", _col2im_impl, cols, X_shape, kernel_size, s)
+    return dispatch_amp("col2im", _col2im_impl, cols, X_shape, kernel_size, s, dilation=dilation)
 
 def _im2col_transpose_impl(X: Tensor, kernel_size: tuple, s: int, output_shape: tuple) -> Tensor:
     from LunarLearn.core.tensor.utils import im2col_transpose, col2im_transpose
@@ -3113,10 +3113,10 @@ def col2im_transpose(cols: Tensor, X_shape: tuple, kernel_size: tuple, s: int, o
     """
     return dispatch_amp("col2im_transpose", _col2im_transpose_impl, cols, X_shape, kernel_size, s, output_shape)
 
-def _im2col_grouped_impl(X: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
+def _im2col_grouped_impl(X: Tensor, kernel_size: tuple, s: int, groups: int, dilation: int = 1) -> Tensor:
     from LunarLearn.core.tensor.utils import im2col_grouped, col2im_grouped
     X = ensure_tensor(X)
-    data = im2col_grouped(X.data, kernel_size, s, groups)
+    data = im2col_grouped(X.data, kernel_size, s, groups, dilation)
     requires_grad = X.requires_grad
     if not backend.is_grad_enabled():
         requires_grad = False
@@ -3135,7 +3135,7 @@ def _im2col_grouped_impl(X: Tensor, kernel_size: tuple, s: int, groups: int) -> 
         if not X.requires_grad:
             return
 
-        dX = col2im_grouped(out.grad, kernel_size, s, groups)
+        dX = col2im_grouped(out.grad, kernel_size, s, groups, dilation)
         if X.grad is None:
             X.grad = dX
         else:
@@ -3150,7 +3150,7 @@ def _im2col_grouped_impl(X: Tensor, kernel_size: tuple, s: int, groups: int) -> 
     out._prev = {X}
     return out
 
-def im2col_grouped(X: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
+def im2col_grouped(X: Tensor, kernel_size: tuple, s: int, groups: int, dilation: int = 1) -> Tensor:
     """
     Transform a 4D input tensor into column form for grouped convolutions.
 
@@ -3164,12 +3164,12 @@ def im2col_grouped(X: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor
     Returns:
         Tensor: Column-form tensor suitable for grouped convolution.
     """
-    return dispatch_amp("im2col_grouped", _im2col_grouped_impl, X, kernel_size, s, groups)
+    return dispatch_amp("im2col_grouped", _im2col_grouped_impl, X, kernel_size, s, groups, dilation=dilation)
 
-def _col2im_grouped_impl(cols: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
+def _col2im_grouped_impl(cols: Tensor, kernel_size: tuple, s: int, groups: int, dilation: int = 1) -> Tensor:
     from LunarLearn.core.tensor.utils import im2col_grouped, col2im_grouped
     cols = ensure_tensor(cols)
-    data = col2im_grouped(cols.data, kernel_size, s, groups)
+    data = col2im_grouped(cols.data, kernel_size, s, groups, dilation)
     requires_grad = cols.requires_grad
     if not backend.is_grad_enabled():
         requires_grad = False
@@ -3188,7 +3188,7 @@ def _col2im_grouped_impl(cols: Tensor, kernel_size: tuple, s: int, groups: int) 
         if not cols.requires_grad:
             return
         
-        dcols = im2col_grouped(out.grad, kernel_size, s, groups)
+        dcols = im2col_grouped(out.grad, kernel_size, s, groups, dilation)
         if cols.grad is None:
             cols.grad = dcols
         else:
@@ -3203,7 +3203,7 @@ def _col2im_grouped_impl(cols: Tensor, kernel_size: tuple, s: int, groups: int) 
     out._prev = {cols}
     return out
 
-def col2im_grouped(cols: Tensor, kernel_size: tuple, s: int, groups: int) -> Tensor:
+def col2im_grouped(cols: Tensor, kernel_size: tuple, s: int, groups: int, dilation: int = 1) -> Tensor:
     """
     Transform a column-form tensor back into a 4D image tensor for grouped convolutions.
 
@@ -3216,7 +3216,7 @@ def col2im_grouped(cols: Tensor, kernel_size: tuple, s: int, groups: int) -> Ten
     Returns:
         Tensor: Reconstructed 4D tensor of shape (N, C, H, W).
     """
-    return dispatch_amp("col2im_grouped", _col2im_grouped_impl, cols, kernel_size, s, groups)
+    return dispatch_amp("col2im_grouped", _col2im_grouped_impl, cols, kernel_size, s, groups, dilation=dilation)
 
 def _im2col_transpose_grouped_impl(X: Tensor, kernel_size: tuple, s: int, output_shape: tuple, groups: int) -> Tensor:
     from LunarLearn.core.tensor.utils import im2col_transpose_grouped, col2im_transpose_grouped

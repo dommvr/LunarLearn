@@ -211,17 +211,26 @@ def _safe_batch_size(X_shape, kernel_size, s, safety_factor=SAFE_FACTOR):
     batch_size = max(1, min(m, avail // max(1, bytes_per_image)))
     return batch_size
 
-def _im2col_vectorized(X, kernel_size, s):
+def _im2col_vectorized(X, kernel_size, s, dilation=1):
     m, n_C, n_H, n_W = X.shape
     f_h, f_w = kernel_size
-    n_H_out = (n_H - f_h) // s + 1
-    n_W_out = (n_W - f_w) // s + 1
 
-    i0 = xp.repeat(xp.arange(f_h), f_w)
+    if isinstance(dilation, int):
+        d_h, d_w = dilation, dilation
+    else:
+        d_h, d_w = dilation
+
+    eff_kh = d_h * (f_h - 1) + 1
+    eff_kw = d_w * (f_w - 1) + 1
+
+    n_H_out = (n_H - eff_kh) // s + 1
+    n_W_out = (n_W - eff_kw) // s + 1
+
+    i0 = xp.repeat(xp.arange(f_h) * d_h, f_w)
     i0 = xp.tile(i0, n_C)
     i1 = s * xp.repeat(xp.arange(n_H_out), n_W_out)
 
-    j0 = xp.tile(xp.arange(f_w), f_h * n_C)
+    j0 = xp.tile(xp.arange(f_w) * d_w, f_h * n_C)
     j1 = s * xp.tile(xp.arange(n_W_out), n_H_out)
 
     i = i0.reshape(-1, 1) + i1.reshape(1, -1)
@@ -236,43 +245,52 @@ def _im2col_vectorized(X, kernel_size, s):
     cols = cols.transpose(1, 2, 0).reshape(f_h * f_w * n_C, -1)
     return cols
 
-def _im2col_safe_batch(X, kernel_size, s):
+def _im2col_safe_batch(X, kernel_size, s, dilation=1):
     m = X.shape[0]
     batch = _safe_batch_size(X.shape, kernel_size, s)
     out_list = []
     for start in range(0, m, batch):
         end = min(start + batch, m)
         Xb = X[start:end]
-        out_list.append(_im2col_vectorized(Xb, kernel_size, s))
+        out_list.append(_im2col_vectorized(Xb, kernel_size, s, dilation))
     return xp.concatenate(out_list, axis=1).astype(DTYPE)
 
-def im2col(X, kernel_size, s):
+def im2col(X, kernel_size, s, dilation=1):
     if isinstance(kernel_size, int):
         kernel_size = (kernel_size, kernel_size)
     # try to do full vectorized; caller may catch OOM and call safe batch
     try:
-        return _im2col_vectorized(X, kernel_size, s)
+        return _im2col_vectorized(X, kernel_size, s, dilation)
     except Exception as ex:
         # On CuPy an OOM is raised as cupy.cuda.memory.OutOfMemoryError,
         # but catching general exceptions ensures fallback.
-        return _im2col_safe_batch(X, kernel_size, s)
+        return _im2col_safe_batch(X, kernel_size, s, dilation)
 
-def _col2im_vectorized(cols, X_shape, kernel_size, s):
+def _col2im_vectorized(cols, X_shape, kernel_size, s, dilation=1):
     """
     Channel-first col2im: X_shape = (m, C, H, W)
     cols shape (C*f*f, H_out*W_out*m)
     """
     m, C, H, W = X_shape
     f_h, f_w = kernel_size
-    H_out = (H - f_h) // s + 1
-    W_out = (W - f_w) // s + 1
+
+    if isinstance(dilation, int):
+        d_h, d_w = dilation, dilation
+    else:
+        d_h, d_w = dilation
+
+    eff_kh = d_h * (f_h - 1) + 1
+    eff_kw = d_w * (f_w - 1) + 1
+
+    H_out = (H - eff_kh) // s + 1
+    W_out = (W - eff_kw) // s + 1
 
     # Same index generation as im2col
-    i0 = xp.repeat(xp.arange(f_h), f_w)
+    i0 = xp.repeat(xp.arange(f_h) * d_h, f_w)
     i0 = xp.tile(i0, C)
     i1 = s * xp.repeat(xp.arange(H_out), W_out)
 
-    j0 = xp.tile(xp.arange(f_w), f_h * C)
+    j0 = xp.tile(xp.arange(f_w) * d_w, f_h * C)
     j1 = s * xp.tile(xp.arange(W_out), H_out)
 
     i = i0.reshape(-1, 1) + i1.reshape(1, -1)   # (C*f*f, H_out*W_out)
@@ -307,7 +325,7 @@ def _col2im_vectorized(cols, X_shape, kernel_size, s):
 
     return X_flat.reshape(X_shape)
 
-def _col2im_safe_batch(cols, X_shape, kernel_size, s):
+def _col2im_safe_batch(cols, X_shape, kernel_size, s, dilation=1):
     m, C, H, W = X_shape
     f_h, f_w = kernel_size
     batch = _safe_batch_size(X_shape, kernel_size, s)
@@ -319,17 +337,17 @@ def _col2im_safe_batch(cols, X_shape, kernel_size, s):
     for start in range(0, m, batch):
         end = min(start + batch, m)
         cols_batch = cols[:, start * patches:end * patches]
-        X_batch = _col2im_vectorized(cols_batch, (end - start, C, H, W), kernel_size, s)
+        X_batch = _col2im_vectorized(cols_batch, (end - start, C, H, W), kernel_size, s, dilation)
         X[start:end] = X_batch
     return X
 
-def col2im(cols, X_shape, kernel_size, s):
+def col2im(cols, X_shape, kernel_size, s, dilation=1):
     if isinstance(kernel_size, int):
         kernel_size = (kernel_size, kernel_size)
     try:
-        return _col2im_vectorized(cols, X_shape, kernel_size, s)
+        return _col2im_vectorized(cols, X_shape, kernel_size, s, dilation)
     except Exception:
-        return _col2im_safe_batch(cols, X_shape, kernel_size, s)
+        return _col2im_safe_batch(cols, X_shape, kernel_size, s, dilation)
     
 def _im2col_transpose_vectorized(X, kernel_size, s, output_shape):
     """
@@ -479,7 +497,7 @@ def col2im_transpose(cols, X_shape, kernel_size, s, output_shape):
     except Exception:
         return _col2im_transpose_safe_batch(cols, X_shape, kernel_size, s, output_shape)
     
-def im2col_grouped(X, kernel_size, s, groups):
+def im2col_grouped(X, kernel_size, s, groups, dilation=1):
     """
     Group-aware im2col.
 
@@ -504,14 +522,14 @@ def im2col_grouped(X, kernel_size, s, groups):
         start = g * group_channels
         end = (g + 1) * group_channels
         X_group = X[:, start:end, :, :]  # slice channels for this group
-        cols_group = im2col(X_group, kernel_size, s)
+        cols_group = im2col(X_group, kernel_size, s, dilation)
         cols_list.append(cols_group)
 
     # Concatenate along the first dimension (channel*k*k axis)
     cols = xp.concatenate(cols_list, axis=0)
     return cols
 
-def col2im_grouped(cols, X_shape, kernel_size, s, groups):
+def col2im_grouped(cols, X_shape, kernel_size, s, groups, dilation=1):
     """
     Group-aware col2im.
 
@@ -542,7 +560,7 @@ def col2im_grouped(cols, X_shape, kernel_size, s, groups):
         end_ch = (g + 1) * group_channels
 
         cols_group = cols[start_cols:end_cols, :]
-        X_reconstructed[:, start_ch:end_ch, :, :] += col2im(cols_group, (m, group_channels, H, W), kernel_size, s)
+        X_reconstructed[:, start_ch:end_ch, :, :] += col2im(cols_group, (m, group_channels, H, W), kernel_size, s, dilation)
 
     return X_reconstructed
 
