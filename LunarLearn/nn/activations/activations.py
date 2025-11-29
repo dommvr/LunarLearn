@@ -319,6 +319,8 @@ def get_activation(name_or_fn):
     Returns:
         callable: The activation function.
     """
+    if name_or_fn is None:
+        name_or_fn = "None"
     if callable(name_or_fn):
         return name_or_fn
     if isinstance(name_or_fn, str):

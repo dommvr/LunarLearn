@@ -1,3 +1,4 @@
+from .alexnet import AlexNet
 from .resnet import ResNet
 from .resnet import ResNet18
 from .resnet import ResNet34
@@ -5,6 +6,7 @@ from .resnet import ResNet50
 from .resnet import ResNeXt50
 
 __all__ = [
+    "AlexNet",
     "ResNet",
     "ResNet18",
     "ResNet34",
