@@ -203,7 +203,7 @@ class DeepLabV3Plus(Module):
         scale_h = low_h // feat_h
         scale_w = low_w // feat_w
         # assuming OS is consistent so scale_h == scale_w
-        x = ops.upsample(x, scale_factor=scale_h, mode="bilinear")
+        x = ops.upsample(x, scale_factor=scale_h)
 
         # ----- Project low-level feature -----
         low = self.low_level_conv(low_level)
@@ -227,7 +227,7 @@ class DeepLabV3Plus(Module):
         feat_h, feat_w = x.shape[2], x.shape[3]
         scale_h = input_h // feat_h
         scale_w = input_w // feat_w
-        x = ops.upsample(x, scale_factor=scale_h, mode="bilinear")
+        x = ops.upsample(x, scale_factor=scale_h)
 
         out = self.final_act(x)
         return out
