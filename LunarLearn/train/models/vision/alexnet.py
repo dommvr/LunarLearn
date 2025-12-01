@@ -38,7 +38,7 @@ class AlexNet(Module):
     def __init__(self,
                  num_classes=1000,
                  use_norm=False,
-                 dropout=0.5,
+                 keep_prob=0.5,
                  activation="relu",
                  final_activation=None,
                  pretrained=False):  # e.g. "softmax" or None for logits
@@ -92,11 +92,11 @@ class AlexNet(Module):
 
         self.fc1 = Dense(nodes=4096,
                          activation=activation,
-                         dropout=dropout)
+                         keep_prob=keep_prob)
         
         self.fc2 = Dense(nodes=4096,
                          activation=activation,
-                         dropout=dropout)
+                         keep_prob=keep_prob)
         
         self.fc3 = Dense(num_classes)
         self.final_act = get_activation(final_activation)

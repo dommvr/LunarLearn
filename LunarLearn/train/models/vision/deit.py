@@ -43,7 +43,7 @@ class DeiTTiny(DeiT):
                          d_model=192,
                          n_heads=3,
                          distillation=distillation,
-                         pretrained=False)
+                         pretrained=pretrained)
         
 
 class DeiTSmall(DeiT):

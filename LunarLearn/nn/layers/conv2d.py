@@ -59,7 +59,7 @@ class Conv2D(BaseLayer):
                 (batch, filters, H_out, W_out).
     """
     def __init__(self, filters, kernel_size, strides=1, padding=0, activation='linear',
-                 w_init='auto', uniform=False, gain=1, groups=1, dilation=1):
+                 w_init='auto', uniform=False, gain=1, groups=1, dilation=1, bias=True):
         from LunarLearn.nn.activations import activations
         from LunarLearn.nn.initializations import initializations
         # Validate number of filters
@@ -122,6 +122,7 @@ class Conv2D(BaseLayer):
             self.dilation = (dilation, dilation)
         else:
             self.dilation = dilation
+        self.bias = bias
 
     def initialize(self, input_shape):
         from LunarLearn.nn.initializations import initialize_weights
@@ -149,7 +150,10 @@ class Conv2D(BaseLayer):
                                   self.uniform, self.gain)
         
         self.W = Parameter(W, requires_grad=True)
-        self.b = Parameter(b, requires_grad=True)
+        if self.bias:
+            self.b = Parameter(b, requires_grad=True)
+        else:
+            self.b = None
 
         self._apply_param_settings()
 
@@ -185,7 +189,7 @@ class Conv2D(BaseLayer):
         """
         from LunarLearn.nn.activations import get_activation
 
-        if self.W is None or self.b is None:
+        if self.W is None:
             _, n_C_prev, n_H_prev, n_W_prev = A_prev.shape
             self.initialize((n_C_prev, n_H_prev, n_W_prev))
 
@@ -210,7 +214,11 @@ class Conv2D(BaseLayer):
         # Reshape W for matmul
         W_col = W.reshape(self.filters, -1)
         # Matrix multiplication
-        Z_col = ops.matmul(W_col, X_col) + b
+        Z_col = ops.matmul(W_col, X_col)
+
+        if self.b is not None:
+            b = self.b.to_compute()
+            Z_col += b
 
         # Reshape to output
         H_out = self.n_H
