@@ -22,6 +22,9 @@ from .efficientnet import EfficientNetB4
 from .efficientnet import EfficientNetB5
 from .efficientnet import EfficientNetB6
 from .efficientnet import EfficientNetB7
+from .mobilenet import MobileNetV2
+from .mobilenet import MobileNetV2_0_5
+from .mobilenet import MobileNetV2_1_0
 from .regnet import RegNetY16GF
 from .resnet import ResNet
 from .resnet import ResNet18
@@ -59,6 +62,9 @@ __all__ = [
     "EfficientNetB5",
     "EfficientNetB6",
     "EfficientNetB7",
+    "MobileNetV2",
+    "MobileNetV2_0_5",
+    "MobileNetV2_1_0",
     "RegNetY16GF",
     "ResNet",
     "ResNet18",

@@ -92,6 +92,11 @@ def leaky_relu(x: Tensor, alpha=0.01, **kwargs) -> Tensor:
     out.grad_fn = "leaky_relu"
     return out
 
+def relu6(x: Tensor, **kwargs) -> Tensor:
+    out = ops.minimum(ops.maximum(0, x), 6)
+    out.grad_fn = "relu6"
+    return out
+
 def tanh(x: Tensor, **kwargs) -> Tensor:
     """
     Tanh activation.
@@ -296,6 +301,7 @@ ACTIVATIONS = {
     "sigmoid": sigmoid,
     "relu": relu,
     "leaky_relu": leaky_relu,
+    "relu6": relu6,
     "tanh": tanh,
     "softmax": softmax,
     "log_softmax": log_softmax,

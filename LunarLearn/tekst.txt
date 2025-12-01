@@ -1106,12 +1106,22 @@ and trainer takes care of everything else
 -lookahead optim
 
 ViT, GPT2, EfficientNet, YOLOV8, VGG, MobileNet, ConvNeXt, Swin, BERT, CLIP, DDPM, FasterRCNN, DeepLabV3, convlstm
-vison: _resnet, _vit, _convnext, swin, _alexnet, _EfficientNet, _vgg
+vison: _resnet, _vit, _convnext, swin, _alexnet, _EfficientNet, _vgg, mobilenetv2
 segmentation: _unet, _deeplab
 detection: faster_rrn, yolo
 nlp: _gpt2, _bert, _clip, _seq2seq
 diffusion: _ddpm
+hybrid: convlstm, clip
+
+my correct model zoo contains:
+vison: resnet, vit, convnext, swin, alexnet, EfficientNet, vgg, deit, dino, regnet
+segmentation: unet, deeplab
+detection: faster_rrn, yolo
+nlp: gpt2, bert, llama, t5
+diffusion: ddpm
 hybrid: convlstm
+
+are there some missing models that should be included in such stack?
 
 -check if freez params need requires_grad=False or just skip in optim
 -crop2d, cnnlstm1/2/3d, bidirectional
