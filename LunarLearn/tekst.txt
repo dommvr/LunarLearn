@@ -1110,7 +1110,7 @@ vison: _resnet, _vit, _convnext, swin, _alexnet, _EfficientNet, _vgg
 segmentation: _unet, _deeplab
 detection: faster_rrn, yolo
 nlp: _gpt2, _bert, _clip, _seq2seq
-diffusion: ddpm
+diffusion: _ddpm
 hybrid: convlstm
 
 -check if freez params need requires_grad=False or just skip in optim
@@ -1131,6 +1131,8 @@ hybrid: convlstm
 -inception_score
 -add dilation to other im2col/col2im if needed
 -dropconnect
+-add init to loss
+-change epsilon to eps
 
 spectralnorm (stop_grad)
 
@@ -1227,3 +1229,5 @@ and show live proggres bar
 -saving/loading weights/models
 -everything build in modular convention (baselayer, baseoptimizer, baseloss) so its easy for user to build custom layer or optimizer
 -general convention is pretty much like in torch, with few changes but in general using it is intuitive for users that already used other framework
+
+

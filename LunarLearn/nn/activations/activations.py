@@ -9,7 +9,7 @@ MIXED_PRECISION = backend.MIXED_PRECISION
 # -----------------------------
 # Basic activations
 # -----------------------------
-def linear(x: Tensor) -> Tensor:
+def linear(x: Tensor, **kwargs) -> Tensor:
     """
     Linear activation (identity).
 
@@ -30,7 +30,7 @@ def linear(x: Tensor) -> Tensor:
     out._prev = {x}
     return out
 
-def sigmoid(x: Tensor) -> Tensor:
+def sigmoid(x: Tensor, **kwargs) -> Tensor:
     """
     Sigmoid activation.
 
@@ -50,7 +50,7 @@ def sigmoid(x: Tensor) -> Tensor:
     out.grad_fn = "sigmoid"
     return out
 
-def relu(x: Tensor) -> Tensor:
+def relu(x: Tensor, **kwargs) -> Tensor:
     """
     ReLU activation.
 
@@ -70,7 +70,7 @@ def relu(x: Tensor) -> Tensor:
     out.grad_fn = "relu"
     return out
 
-def leaky_relu(x: Tensor, alpha=0.01) -> Tensor:
+def leaky_relu(x: Tensor, alpha=0.01, **kwargs) -> Tensor:
     """
     Leaky ReLU activation.
 
@@ -92,7 +92,7 @@ def leaky_relu(x: Tensor, alpha=0.01) -> Tensor:
     out.grad_fn = "leaky_relu"
     return out
 
-def tanh(x: Tensor) -> Tensor:
+def tanh(x: Tensor, **kwargs) -> Tensor:
     """
     Tanh activation.
 
@@ -114,7 +114,7 @@ def tanh(x: Tensor) -> Tensor:
 # -----------------------------
 # Advanced activations
 # -----------------------------
-def softmax(x: Tensor, axis=-1) -> Tensor:
+def softmax(x: Tensor, axis=-1, **kwargs) -> Tensor:
     """
     Softmax activation.
 
@@ -136,7 +136,7 @@ def softmax(x: Tensor, axis=-1) -> Tensor:
     out.grad_fn = "softmax"
     return out
 
-def log_softmax(x: Tensor, axis=-1) -> Tensor:
+def log_softmax(x: Tensor, axis=-1, **kwargs) -> Tensor:
     """
     Log-Softmax activation.
 
@@ -160,7 +160,7 @@ def log_softmax(x: Tensor, axis=-1) -> Tensor:
     out.grad_fn = "log_softmax"
     return out
 
-def swish(x: Tensor) -> Tensor:
+def swish(x: Tensor, **kwargs) -> Tensor:
     """
     Swish activation.
 
@@ -181,7 +181,7 @@ def swish(x: Tensor) -> Tensor:
     out.grad_fn = "swish"
     return out
 
-def mish(x: Tensor) -> Tensor:
+def mish(x: Tensor, **kwargs) -> Tensor:
     """
     Mish activation.
 
@@ -202,7 +202,7 @@ def mish(x: Tensor) -> Tensor:
     out.grad_fn = "mish"
     return out
 
-def gelu(x: Tensor, approximate: bool = True) -> Tensor:
+def gelu(x: Tensor, approximate: bool = True, **kwargs) -> Tensor:
     """
     GELU activation.
 
@@ -227,7 +227,7 @@ def gelu(x: Tensor, approximate: bool = True) -> Tensor:
     out.grad_fn = "gelu"
     return out
 
-def softplus(x: Tensor) -> Tensor:
+def softplus(x: Tensor, **kwargs) -> Tensor:
     """
     Softplus activation.
 
@@ -247,7 +247,7 @@ def softplus(x: Tensor) -> Tensor:
     out.grad_fn = "softplus"
     return out
 
-def elu(x: Tensor, alpha=1.0) -> Tensor:
+def elu(x: Tensor, alpha=1.0, **kwargs) -> Tensor:
     """
     ELU activation.
 
@@ -268,7 +268,7 @@ def elu(x: Tensor, alpha=1.0) -> Tensor:
     out.grad_fn = "elu"
     return out
 
-def selu(x: Tensor) -> Tensor:
+def selu(x: Tensor, **kwargs) -> Tensor:
     """
     SELU activation.
 

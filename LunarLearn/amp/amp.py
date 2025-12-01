@@ -33,7 +33,7 @@ class _AmpState:
         "im2col_grouped", "col2im_grouped", 
         "im2col_transpose_grouped", "col2im_transpose_grouped",
         "dropout", "upsample", "avg_pool2d", "sort", "cumsum",
-        "multinomial", "searchsorted"
+        "multinomial", "searchsorted", "bbox_iou"
     }
     FP32_FORCE = {
         "zeros", "zeros_like", "ones", "ones_like", "full",
@@ -53,7 +53,7 @@ class _AmpState:
         "cross_entropy", "binary_cross_entropy", "dice",
         "cosine_similarity", "binary_cross_entropy_with_logits",
         "binary_cross_entropy_dice", "focal", "huber", "kl_divergence",
-        "mean_absolute_error", "mean_squared_error", "triplet"
+        "mean_absolute_error", "mean_squared_error", "triplet", "iou_loss"
     }
 
 STATE = _AmpState()

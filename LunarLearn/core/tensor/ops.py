@@ -3949,6 +3949,36 @@ def _triplet_impl(anchor: Tensor, positive: Tensor, negative: Tensor, margin: fl
 def triplet(anchor: Tensor, positive: Tensor, negative: Tensor, margin: float = 0.2, epsilon: float = 1e-6) -> Tensor:
     return dispatch_amp("triplet", _triplet_impl, anchor, positive, negative, margin=margin, epsilon=epsilon)
 
+def _bbox_iou_impl(boxes1: Tensor, boxes2: Tensor, eps: float = 1e-7) -> Tensor:
+    x1 = maximum(boxes1[..., 0], boxes2[..., 0])
+    y1 = maximum(boxes1[..., 1], boxes2[..., 1])
+    x2 = minimum(boxes1[..., 2], boxes2[..., 2])
+    y2 = minimum(boxes1[..., 3], boxes2[..., 3])
+
+    inter_w = maximum(x2 - x1, 0.0)
+    inter_h = maximum(y2 - y1, 0.0)
+    inter_area = inter_w * inter_h
+
+    area1 = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
+    area2 = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
+
+    union = area1 + area2 - inter_area
+    out = inter_area / (union + eps)
+    out.grad_fn = "bbox_iou"
+    return out
+
+def bbox_iou(boxes1: Tensor, boxes2: Tensor, eps: float = 1e-7) -> Tensor:
+    return dispatch_amp("bbox_iou", _bbox_iou_impl, boxes1, boxes2, eps=eps)
+
+def _iou_loss_impl(boxes1: Tensor, boxes2: Tensor, eps: float = 1e-7) -> Tensor:
+    iou = bbox_iou(boxes1, boxes2, eps=eps)
+    out = 1 - iou
+    out.grad_fn = "iou_loss"
+    return out
+
+def iou_loss(boxes1: Tensor, boxes2: Tensor, eps: float = 1e-7) -> Tensor:
+    return dispatch_amp("iou_loss", _iou_loss_impl, boxes1, boxes2, eps=eps)
+
 def _dropout_impl(a: Tensor, keep_prob: float, training: bool = True) -> Tensor:
     a = ensure_tensor(a)
     if not training or keep_prob >= 1.0:

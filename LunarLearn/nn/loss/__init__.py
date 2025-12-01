@@ -12,6 +12,7 @@ from .mean_absolute_error import MeanAbsoluteError
 from .mean_squared_error import MeanSquaredError
 from .triplet import Triplet
 from .dice import Dice
+from .yolo_loss import YOLOLoss
 
 __all__ = [
     "BaseLoss",
@@ -26,5 +27,6 @@ __all__ = [
     "MeanAbsoluteError",
     "MeanSquaredError",
     "Triplet",
-    "Dice"
+    "Dice",
+    "YOLOLoss"
 ]
