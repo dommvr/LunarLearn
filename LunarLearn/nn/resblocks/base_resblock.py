@@ -1,10 +1,5 @@
-import LunarLearn.core.backend.backend as backend
 from LunarLearn.nn.layers import BaseLayer
 from LunarLearn.core import Tensor
-
-DTYPE = backend.DTYPE
-C_DTYPE = backend.C_DTYPE
-MIXED_PRECISION = backend.MIXED_PRECISION
 
 class BaseResBlock(BaseLayer):
     def __init__(self, filters, strides=1, norm_layer=None, activation="relu", use_shortcut=True):
@@ -56,12 +51,6 @@ class BaseResBlock(BaseLayer):
         # Final activation
         activation = get_activation(self.activation)
         out = activation(out)
-
-        # Mixed precision casting
-        if MIXED_PRECISION:
-            out = out.astype(C_DTYPE, copy=False)
-        else:
-            out = out.astype(DTYPE, copy=False)
 
         return out
         

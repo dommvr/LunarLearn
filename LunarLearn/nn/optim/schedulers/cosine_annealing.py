@@ -10,7 +10,7 @@ class CosineAnnealing(BaseScheduler):
         Cosine annealing learning rate scheduler.
 
         Args:
-            optimizer: optimizer with .learning_rate0
+            target: module with .attr_name
             max_epochs: number of epochs to reach min_lr
             min_lr: minimum learning rate at the end of the cycle
         """
