@@ -1,4 +1,10 @@
 from .alexnet import AlexNet
+from .convnext import ConvNeXt
+from .convnext import ConvNeXtTiny
+from .convnext import ConvNeXtSmall
+from .convnext import ConvNeXtBase
+from .convnext import ConvNeXtLarge
+from .convnext import ConvNeXtXLarge
 from .deit import DeiT
 from .deit import DeiTTiny
 from .deit import DeiTSmall
@@ -25,6 +31,12 @@ from .resnet import ResNeXt50
 
 __all__ = [
     "AlexNet",
+    "ConvNeXt",
+    "ConvNeXtTiny",
+    "ConvNeXtSmall",
+    "ConvNeXtBase",
+    "ConvNeXtLarge",
+    "ConvNeXtXLarge",
     "DeiT",
     "DeiTTiny",
     "DeiTSmall",

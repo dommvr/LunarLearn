@@ -14,7 +14,11 @@ class LayerNorm(BaseLayer):
     def initialize(self, input_shape):
         if self.axis is None:
             self.axis = tuple(range(1, len(input_shape)))
-        param_shape = tuple(input_shape[i] for i in self.axis)
+
+        param_shape = [1] * len(input_shape)
+        for ax in (self.axis if isinstance(self.axis, tuple) else (self.axis,)):
+            param_shape[ax] = input_shape[ax]
+
         W = xp.ones(param_shape, dtype=DTYPE)
         b = xp.zeros(param_shape, dtype=DTYPE)
 
