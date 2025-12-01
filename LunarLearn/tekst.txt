@@ -1106,10 +1106,10 @@ and trainer takes care of everything else
 -lookahead optim
 
 ViT, GPT2, EfficientNet, YOLOV8, VGG, MobileNet, ConvNeXt, Swin, BERT, CLIP, DDPM, FasterRCNN, DeepLabV3, convlstm
-vison: resnet, vit, convnext, swin, alexnet, EfficientNet, vgg
-segmentation: unet, deeplab
+vison: _resnet, _vit, convnext, swin, _alexnet, _EfficientNet, vgg
+segmentation: _unet, _deeplab
 detection: faster_rrn, yolo
-nlp: gpt2, bert, clip, seq2seq
+nlp: _gpt2, _bert, _clip, _seq2seq
 diffusion: ddpm
 hybrid: convlstm
 
@@ -1129,6 +1129,8 @@ hybrid: convlstm
 -spectralnorm layer
 -add metrics to trainer, bar, callbacks
 -inception_score
+-add dilation to other im2col/col2im if needed
+-dropconnect
 
 spectralnorm (stop_grad)
 
