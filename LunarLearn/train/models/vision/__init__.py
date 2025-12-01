@@ -28,6 +28,11 @@ from .resnet import ResNet18
 from .resnet import ResNet34
 from .resnet import ResNet50
 from .resnet import ResNeXt50
+from .vgg import VGG
+from .vgg import VGG11
+from .vgg import VGG13
+from .vgg import VGG16
+from .vgg import VGG19
 
 __all__ = [
     "AlexNet",
@@ -59,5 +64,10 @@ __all__ = [
     "ResNet18",
     "ResNet34",
     "ResNet50",
-    "ResNeXt50"
+    "ResNeXt50",
+    "VGG",
+    "VGG11",
+    "VGG13",
+    "VGG16",
+    "VGG19"
 ]

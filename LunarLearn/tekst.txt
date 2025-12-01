@@ -1106,7 +1106,7 @@ and trainer takes care of everything else
 -lookahead optim
 
 ViT, GPT2, EfficientNet, YOLOV8, VGG, MobileNet, ConvNeXt, Swin, BERT, CLIP, DDPM, FasterRCNN, DeepLabV3, convlstm
-vison: _resnet, _vit, convnext, swin, _alexnet, _EfficientNet, vgg
+vison: _resnet, _vit, _convnext, swin, _alexnet, _EfficientNet, _vgg
 segmentation: _unet, _deeplab
 detection: faster_rrn, yolo
 nlp: _gpt2, _bert, _clip, _seq2seq
