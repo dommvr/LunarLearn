@@ -36,6 +36,8 @@ from .reshape import Reshape
 from .rmsnorm import RMSNorm
 from .rnn import RNN
 from .rnncell import RNNCell
+from .convlstm_cell import ConvLSTMCell
+from .convlstm import ConvLSTM
 
 __all__ = [
     "BaseLayer",
@@ -74,5 +76,7 @@ __all__ = [
     "Reshape",
     "RMSNorm",
     "RNN",
-    "RNNCell"
+    "RNNCell",
+    "ConvLSTMCell",
+    "ConvLSTM"
 ]
