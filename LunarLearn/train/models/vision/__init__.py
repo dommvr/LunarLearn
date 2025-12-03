@@ -36,6 +36,7 @@ from .vgg import VGG11
 from .vgg import VGG13
 from .vgg import VGG16
 from .vgg import VGG19
+from .vit_b16 import VIT_B16
 
 __all__ = [
     "AlexNet",
@@ -75,5 +76,6 @@ __all__ = [
     "VGG11",
     "VGG13",
     "VGG16",
-    "VGG19"
+    "VGG19",
+    "VIT_B16"
 ]

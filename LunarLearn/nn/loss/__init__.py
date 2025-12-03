@@ -4,7 +4,7 @@ from .binary_cross_entropy import BinaryCrossEntropy
 from .binary_cross_entropy_with_logits import BinaryCrossEntropyWithLogits
 from .binary_cross_entropy_dice import BinaryCrossEntropyDice
 from .cosine_similarity import CosineSimilarity
-from .cross_entropy import CategoricalCrossEntropy
+from .cross_entropy import CrossEntropy
 from .focal import Focal
 from .huber import Huber
 from .kl_divergence import KLDivergence
@@ -20,7 +20,7 @@ __all__ = [
     "BinaryCrossEntropyWithLogits",
     "BinaryCrossEntropyDice",
     "CosineSimilarity",
-    "CategoricalCrossEntropy",
+    "CrossEntropy",
     "Focal",
     "Huber",
     "KLDivergence",

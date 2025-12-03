@@ -5,9 +5,9 @@ from LunarLearn.core import Tensor, ops
 xp = backend.xp
 DTYPE = backend.DTYPE
 
-class CategoricalCrossEntropy(BaseLoss):
+class CrossEntropy(BaseLoss):
     """
-    Categorical cross-entropy loss with autograd support.
+    Cross-entropy loss with autograd support.
 
     Computes the mean cross-entropy between predicted probabilities and target labels.
     Fully compatible with autograd: gradients flow through log, multiplication, and mean.
@@ -17,7 +17,7 @@ class CategoricalCrossEntropy(BaseLoss):
 
     Methods:
         forward(predictions: Tensor, targets: Tensor, epsilon: float = 1e-15) -> Tensor:
-            Computes the mean categorical cross-entropy loss.
+            Computes the mean cross-entropy loss.
 
             Args:
                 predictions (Tensor): Predicted probabilities (softmax output) of shape (B, C).

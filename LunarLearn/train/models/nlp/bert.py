@@ -38,19 +38,19 @@ class BERT(Module):
         self.use_nsp_head = use_nsp_head
 
         if use_mlm_head:
-            self.mlm_head = ModuleList(
+            self.mlm_head = ModuleList([
                 Dense(d_model),
                 Activation("gelu"),
                 LayerNorm(),
                 Dense(vocab_size, transpose_weight=True)
-            )
+            ])
 
         if use_nsp_head:
-            self.nsp_head = ModuleList(
+            self.nsp_head = ModuleList([
                 Dense(d_model),
                 Activation("gelu"),
                 Dense(2)
-            )
+            ])
 
         if pretrained:
             self.load_state_dict(None)
