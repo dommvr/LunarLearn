@@ -1106,12 +1106,12 @@ and trainer takes care of everything else
 -lookahead optim
 
 ViT, GPT2, EfficientNet, YOLOV8, VGG, MobileNet, ConvNeXt, Swin, BERT, CLIP, DDPM, FasterRCNN, DeepLabV3, convlstm
-vison: _resnet, _vit, _convnext, swin, _alexnet, _EfficientNet, _vgg, mobilenetv2
+vison: _resnet, _vit, _convnext, swin, _alexnet, _EfficientNet, _vgg, _mobilenetv2
 segmentation: _unet, _deeplab
 detection: faster_rrn, _yolo
 nlp: _gpt2, _bert, _clip, _seq2seq
 diffusion: _ddpm
-hybrid: convlstm, clip
+hybrid: _convlstm, _clip
 
 my correct model zoo contains:
 vison: resnet, vit, convnext, swin, alexnet, EfficientNet, vgg, deit, dino, regnet
@@ -1143,6 +1143,8 @@ are there some missing models that should be included in such stack?
 -dropconnect
 -add init to loss
 -change epsilon to eps
+-conv1d/2d/3d
+-change inception blocks to match inceptionv1
 
 spectralnorm (stop_grad)
 
@@ -1241,185 +1243,10 @@ and show live proggres bar
 -general convention is pretty much like in torch, with few changes but in general using it is intuitive for users that already used other framework
 
 
-check if it is correct:
-
-class VIT_B16(Module):
-    def __init__(self,
-                 img_size=224,
-                 n_classes=1000,
-                 keep_prob=1.0,
-                 pos_mode="learnable",
-                 norm=LayerNorm,
-                 norm_position="post",
-                 enc_share_weights=False,
-                 use_output_head=True,
-                 distillation=False,
-                 ff_activation="gelu",
-                 **kwargs):
-        super().__init__()
-        self.vit = VisionTransformer(img_size=img_size,
-                                     patch_size=16,
-                                     n_classes=n_classes,
-                                     d_model=768,
-                                     n_heads=12,
-                                     pos_mode=pos_mode,
-                                     n_layers=12,
-                                     ff_dim=3072,
-                                     ff_activation=ff_activation,
-                                     keep_prob=keep_prob,
-                                     attention=ScaledDotProductAttention,
-                                     norm=norm,
-                                     norm_position=norm_position,
-                                     enc_share_weights=enc_share_weights,
-                                     use_output_head=use_output_head,
-                                     res_scale=1.0,
-                                     distillation=distillation,
-                                     **kwargs)
-    
-    def forward(self, x: Tensor) -> Tensor:
-        return self.vit(x)
-
-class CLIPImageEncoder(Module):
-    def __init__(self,
-                 backbone: Module,
-                 emb_dim: int,
-                 normalize: bool = True):
-        super().__init__()
-        self.backbone = backbone
-        self.proj = Dense(emb_dim)
-        self.normalize = normalize
-
-    def forward(self, x: Tensor) -> Tensor:
-        feat = self.backbone(x)
-        z = self.proj(feat)
-
-        if self.normalize:
-            z = ops.l2_normalize(z, axis=1)
-
-        return z
-
-
-class CLIPTextEncoder(Module):
-    def __init__(self,
-                 backbone: Module,
-                 emb_dim: int,
-                 normalize: bool = True):
-        super().__init__()
-        self.backbone = backbone
-        self.proj = Dense(emb_dim)
-        self.normalize = normalize
-
-    def forward(self, input_ids: Tensor, attn_mask: Tensor = None) -> Tensor:
-        feat = self.backbone(input_ids, attn_mask)
-        z = self.proj(feat)
-
-        if self.normalize:
-            z = ops.l2_normalize(z, axis=1)
-
-        return z
-
-
-class CLIP(Module):
-    def __init__(self,
-                 image_encoder: Module,
-                 text_encoder: Module,
-                 temp: float = 0.07):
-        super().__init__()
-        self.image_encoder = image_encoder
-        self.text_encoder = text_encoder
-
-        scale = xp.array(xp.log(1/temp), dtype=DTYPE)
-        self.logit_scale = Parameter(scale, requires_grad=True)
-
-    def encode_image(self, images: Tensor) -> Tensor:
-        return self.image_encoder(images)
-
-    def encode_text(self,
-                    input_ids: Tensor,
-                    attn_mask: Tensor = None) -> Tensor:
-        return self.text_encoder(input_ids, attn_mask)
-
-    def forward(self,
-                images: Tensor,
-                input_ids: Tensor,
-                attn_mask: Tensor = None):
-        img_emb = self.encode_image(images)
-        txt_emb = self.encode_text(input_ids, attn_mask)
-
-        logit_scale = ops.exp(self.logit_scale.to_compute())
-        logit_per_image = logit_scale * ops.matmul(img_emb, txt_emb.T)
-        logits_per_text = logit_per_image.T
-
-        return img_emb, txt_emb, logit_per_image, logits_per_text
- 
-
-class CLIPLoss(BaseLoss):
-    def __init__(self):
-        from LunarLearn.nn.loss import CrossEntropy
-        super().__init__(trainable=False)
-        self.ce = CrossEntropy()
-
-    def forward(self,
-                logits_per_image: Tensor,
-                logits_per_text: Tensor) -> Tensor:
-        B = logits_per_image.shape[0]
-        labels = xp.arange(B, dtype=xp.int64)
-
-        loss_i = self.ce(logits_per_image, labels)
-        loss_t = self.ce(logits_per_text, labels)
-        loss = 0.5 * (loss_i + loss_t)
-        return loss
-
-class VIT_B16_Encoder(VIT_B16):
-    def __init__(self):
-        super().__init__()
-        
-    def forward(self, x):
-        cls_out, _ = super().forward(x)
-        return cls_out
-    
-
-class BERTForCLIP(BERT):
-    def __init__(self, pad_idx=None):
-        super().__init__(use_mlm_head=False, use_nsp_head=False)
-        self.pad_idx = pad_idx
-
-    def forward(self, input_ids, attn_mask=None):
-        hidden = super().forward(input_ids, self.pad_idx, return_hidden=True, return_attn=False)
-        cls_emb = hidden[:, 0]
-        return cls_emb
-
-
-vision_backbone = VIT_B16_Encoder()
-
-image_encoder = CLIPImageEncoder(vision_backbone,
-                                 emb_dim=512,
-                                 normalize=True)
-
-nlp_backbone = BERTForCLIP()
-
-text_encoder = CLIPTextEncoder(nlp_backbone,
-                               emb_dim=512,
-                               normalize=True)
-
-clip_model = CLIP(image_encoder, text_encoder, temp=0.07)
-clip_loss = CLIPLoss()
-
-def train_step(batch):
-    images = batch["images"]           # (B, C, H, W)
-    input_ids = batch["input_ids"]     # (B, L)
-    attention_mask = batch["attention_mask"]  # (B, L)
-
-    optimizer.zero_grad()
-
-    _, _, logits_per_image, logits_per_text = clip_model(
-        images,
-        input_ids,
-        attention_mask
-    )
-
-    loss = clip_loss(logits_per_image, logits_per_text)
-    loss.backward()
-    optimizer.step()
-
-    return float(loss)
+I finished my models zoo. Thats what i get:
+-Detection: faster_rcnn, yolo
+-Diffusion: ddpm
+-Hybrid: clip, convlstm
+-Nlp: bert, gpt2, llama, t5
+-Segmentation: deeplab, unet
+-Vision: alexnet, convnext, deit, dino, efficientnet, mobilenet, regnet, resnet, vgg, vit, swin
