@@ -8,6 +8,7 @@ from .batchnorm2d import BatchNorm2D
 from .batchnorm3d import BatchNorm3D
 from .checkpoint_block import CheckpointBlock
 from .class_encoding import ClassEncoding
+from .conv_patch_embedding import ConvPatchEmbedding
 from .conv2d_transpose import Conv2DTranspose
 from .conv2d import Conv2D
 from .dense import Dense
@@ -21,6 +22,7 @@ from .global_averagepool2d import GlobalAveragePool2D
 from .groupnorm import GroupNorm
 from .gru import GRU
 from .grucell import GRUCell
+from .identity import Identity
 from .instancenorm import InstanceNorm
 from .lambda_layer import LambdaLayer
 from .layernorm import LayerNorm
@@ -29,6 +31,7 @@ from .lstm import LSTM
 from .lstmcell import LSTMCell
 from .maxpool2d import MaxPool2D
 from .patch_embedding import PatchEmbedding
+from .patch_merging import PatchMerging
 from .positional_encoding import PositionalEncoding
 from .recurrent_base import RecurrentBase
 from .relu import ReLU
@@ -49,6 +52,7 @@ __all__ = [
     "BatchNorm3D",
     "CheckpointBlock",
     "ClassEncoding",
+    "ConvPatchEmbedding",
     "Conv2DTranspose",
     "Conv2D",
     "Dense",
@@ -62,6 +66,7 @@ __all__ = [
     "GroupNorm",
     "GRU",
     "GRUCell",
+    "Identity",
     "InstanceNorm",
     "LambdaLayer",
     "LayerNorm",
@@ -70,6 +75,7 @@ __all__ = [
     "LSTMCell",
     "MaxPool2D",
     "PatchEmbedding",
+    "PatchMerging",
     "PositionalEncoding",
     "RecurrentBase",
     "ReLU",

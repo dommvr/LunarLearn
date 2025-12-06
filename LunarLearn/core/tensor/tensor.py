@@ -14,7 +14,7 @@ from ops import (
     logical_and, logical_or, logical_xor, logical_not,
 
     # linear algebra / shape ops
-    matmul, reshape, transpose, expand,
+    matmul, reshape, transpose, expand, flatten as flatten_,
 
     # reductions / stats
     mean, std, var, logsumexp,
@@ -236,9 +236,9 @@ class Tensor(Stateful):
         """
         return reshape(self, shape if isinstance(shape[0], int) else shape[0])
 
-    def flatten(self):
+    def flatten(self, start_dim: int = 0, end_dim: int = -1):
         """Flatten tensor into 1D view."""
-        return self.reshape(self.size)
+        return flatten_(self, start_dim=start_dim, end_dim=end_dim)
     
     def transpose(self, *shape):
         return transpose(self, axes=shape)

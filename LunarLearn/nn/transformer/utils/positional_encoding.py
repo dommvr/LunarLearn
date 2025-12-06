@@ -26,3 +26,16 @@ def get_alibi_bias(Q, K):
     distance = xp.arange(seq_len)[None, :] - xp.arange(seq_len)[:, None]
     bias = -xp.abs(distance)[None, None, :, :] * slopes[:, None, None, None]
     return bias
+
+def get_relative_position_index(win_h: int, win_w: int):
+    # win_h * win_w relative coordinates
+    coords_h = xp.arange(win_h)
+    coords_w = xp.arange(win_w)
+    coords = xp.stack(xp.meshgrid(coords_h, coords_w, indexing='ij'))  # 2, Wh, Ww
+    coords_flatten = coords.reshape(2, -1)  # 2, Wh*Ww
+    relative_coords = coords_flatten[:, :, None] - coords_flatten[:, None, :]  # 2, Wh*Ww, Wh*Ww
+    relative_coords = relative_coords.permute(1, 2, 0)  # Wh*Ww, Wh*Ww, 2
+    relative_coords[:, :, 0] += win_h - 1
+    relative_coords[:, :, 1] += win_w - 1
+    relative_coords[:, :, 0] *= 2 * win_w - 1
+    return relative_coords.sum(-1)  # Wh*Ww, Wh*Ww

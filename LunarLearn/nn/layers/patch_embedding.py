@@ -11,7 +11,7 @@ class PatchEmbedding(BaseLayer):
         self.emb_dim = emb_dim
         self.projection = Dense(emb_dim)
 
-    def _initialize(self, input_shape):
+    def initialize(self, input_shape):
         C, H, W = input_shape
         self.grid_h = H // self.patch_size
         self.grid_w = W // self.patch_size
@@ -20,7 +20,7 @@ class PatchEmbedding(BaseLayer):
 
     def forward(self, x: Tensor) -> Tensor:
         if self.num_patches is None:
-            self._initialize(x.shape[1:])
+            self.initialize(x.shape[1:])
 
         B, C, _, _ = x.shape
         x = x.reshape(B, C, self.grid_h, self.patch_size, self.grid_w, self.patch_size)

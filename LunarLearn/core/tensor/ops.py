@@ -1604,6 +1604,84 @@ def dot(a: Tensor, b: Tensor) -> Tensor:
     """
     return dispatch_amp("dot", _dot_impl, a, b)
 
+def _flatten_impl(a: Tensor, start_dim: int = 0, end_dim: int = -1) -> Tensor:
+    a = ensure_tensor(a)
+    shape = list(a.shape)
+
+    # Handle negative indices
+    if start_dim < 0:
+        start_dim += len(shape)
+    if end_dim < 0:
+        end_dim += len(shape)
+    
+    # Validate dims
+    if start_dim > end_dim or start_dim < 0 or end_dim >= len(shape):
+        raise ValueError(f"Invalid dimensions: start_dim={start_dim}, end_dim={end_dim} for shape {shape}")
+    
+    # Compute flattened dim size
+    flat_size = 1
+    for i in range(start_dim, end_dim + 1):
+        flat_size *= shape[i]
+    
+    # New shape
+    new_shape = shape[:start_dim] + [flat_size] + shape[end_dim + 1:]
+    
+    # Reshape data
+    data = a.data.reshape(new_shape)
+    requires_grad = a.requires_grad
+    if not backend.is_grad_enabled():
+        requires_grad = False
+    
+    out = Tensor(data, requires_grad=requires_grad, dtype=a.dtype)
+    out.is_leaf = False
+    out.grad_fn = "flatten"
+
+    for hook in getattr(a, "_activation_hooks", []):
+        new_out = hook(out)
+        if new_out is not None:
+            out = new_out
+    
+    def _backward():
+        if out.grad is None:
+            return
+        if not a.requires_grad:
+            return
+        
+        # Reshape grad back to original shape
+        grad_a = out.grad.reshape(a.shape)
+        
+        if a.grad is None:
+            a.grad = grad_a
+        else:
+            a.grad += grad_a
+        
+        for hook in getattr(a, "_grad_hooks", []):
+            new_grad = hook(a.grad)
+            if new_grad is not None:
+                a.grad = new_grad
+    
+    out._backward = _backward
+    out._prev = {a}
+    return out
+
+def flatten(a: Tensor, start_dim: int = 0, end_dim: int = -1) -> Tensor:
+    """
+    Flatten tensor from start_dim to end_dim (inclusive).
+    
+    Args:
+        a (Tensor): Input tensor.
+        start_dim (int): First dim to flatten (default 0).
+        end_dim (int): Last dim to flatten (default -1, last dim).
+    
+    Returns:
+        Tensor: Flattened tensor.
+    
+    Example:
+        x = Tensor(xp.arange(24).reshape(2, 3, 4))  # (2,3,4)
+        y = flatten(x, start_dim=1)  # (2, 12)
+    """
+    return dispatch_amp("flatten", _flatten_impl, a, start_dim=start_dim, end_dim=end_dim)
+
 def _transpose_impl(a: Tensor, axes=None) -> Tensor:
     a = ensure_tensor(a)
     data = xp.transpose(a.data, axes=axes)

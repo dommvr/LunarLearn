@@ -26,7 +26,7 @@ class _AmpState:
         "minimum", "where",
         "matmul", "dot", "einsum",
         "transpose", "reshape", "squeeze", "unsqueeze",
-        "concatenate", "stack", "split", "slice",
+        "concatenate", "stack", "split", "slice", "flatten",
         "flip", "roll", "gather", "scatter",
         "expand", "repeat", "tile", "pad",
         "im2col", "col2im", "im2col_transpose", "col2im_transpose",
