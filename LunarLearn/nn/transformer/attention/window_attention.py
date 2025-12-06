@@ -45,7 +45,7 @@ class WindowAttention(BaseLayer):
         attn += relative_bias[None, :, :, :]
 
         if mask is not None:
-            attn += (1.0 - mask) * -1e9
+            attn += mask.unsqueeze(1)
 
         attn = ops.softmax(attn, axis=-1)
         x = ops.matmul(attn, v)

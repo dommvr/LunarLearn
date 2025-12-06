@@ -36,7 +36,7 @@ class _AmpState:
         "multinomial", "searchsorted", "bbox_iou"
     }
     FP32_FORCE = {
-        "zeros", "zeros_like", "ones", "ones_like", "full",
+        "zeros", "zeros_like", "ones", "ones_like", "full", "full_like",
         "arange", "eye", "random_normal", "random_uniform",
         "exp", "log", "sqrt", "erf", "erfc",
         "divide", "power",

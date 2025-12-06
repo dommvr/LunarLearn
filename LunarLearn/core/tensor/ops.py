@@ -93,6 +93,17 @@ def full(shape, value, dtype=DTYPE) -> Tensor:
     """
     return dispatch_amp("full", _full_impl, shape, value, dtype=dtype)
 
+def _full_like_impl(a: Tensor, value, dtype=DTYPE):
+    a = ensure_tensor(a)
+    data = xp.full_like(a.data, value, dtype=DTYPE)
+    out = Tensor(data, requires_grad=False, dtype=DTYPE)
+    out.is_leaf = False
+    out.grad_fn = "full_like"
+    return out
+
+def full_like(a: Tensor, value, dtype=DTYPE):
+    return dispatch_amp("full_like", _full_like_impl, value, dtype=dtype)
+
 def _arange_impl(*args, dtype=DTYPE) -> Tensor:
     data = xp.arange(*args, dtype=dtype)
     out = Tensor(data, requires_grad=False, dtype=dtype)

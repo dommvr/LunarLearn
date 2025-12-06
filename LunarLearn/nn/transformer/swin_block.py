@@ -1,6 +1,7 @@
 from LunarLearn.nn import ModuleList
 from LunarLearn.nn.layers import BaseLayer, Dense, LayerNorm
 from LunarLearn.nn.transformer.attention import WindowAttention
+from LunarLearn.nn.transformer.utils.masks import get_shifted_window_mask
 from LunarLearn.core import Tensor, ops
 
 
@@ -37,13 +38,15 @@ class SwinBlock(BaseLayer):
 
         if self.shift_size > 0:
             shifted_x = ops.roll(x, shifts=(-self.shift_size, -self.shift_size), axis=(1, 2))
+            mask = get_shifted_window_mask(H, W, self.window_size, self.shift_size)
         else:
             shifted_x = x
+            mask = None
 
         x_windows = self._window_partition(shifted_x, self.window_size)
         x_windows = x_windows.reshape(-1, self.window_size ** 2, C)
 
-        attn_windows = self.attn(x_windows)
+        attn_windows = self.attn(x_windows, mask=mask)
         attn_windows = attn_windows.reshape(-1, self.window_size, self.window_size, C)
         shifted_x = self._window_reverse(attn_windows, self.window_size, H, W)
 
