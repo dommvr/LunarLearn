@@ -37,7 +37,7 @@ class ElasticNetRegression(Estimator, RegressorMixin):
                     y_centered = y
 
                 n_samples, n_features = X.shape
-                w = ops.zeros(n_samples, dtype=X.dtype)
+                w = ops.zeros(n_features, dtype=X.dtype)
 
                 l1 = self.alpha * self.l1_ratio
                 l2 = self.alpha * (1 - self.l1_ratio)

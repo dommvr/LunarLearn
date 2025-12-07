@@ -12,6 +12,8 @@ ML:
     Matrix factorization
     Basic utilities (scaler, train/test split)
 
+    -If you later add label remapping (classes not 0..K−1), predict_proba stays the same, and you only need to map indices back to original labels in predict
+
 DL:
     -check if freez params need requires_grad=False or just skip in optim
     -crop2d, cnnlstm1/2/3d, bidirectional
