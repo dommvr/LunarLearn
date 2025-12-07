@@ -1106,7 +1106,7 @@ and trainer takes care of everything else
 -lookahead optim
 
 ViT, GPT2, EfficientNet, YOLOV8, VGG, MobileNet, ConvNeXt, Swin, BERT, CLIP, DDPM, FasterRCNN, DeepLabV3, convlstm
-vison: _resnet, _vit, _convnext, swin, _alexnet, _EfficientNet, _vgg, _mobilenetv2
+vison: _resnet, _vit, _convnext, _swin, _alexnet, _EfficientNet, _vgg, _mobilenetv2
 segmentation: _unet, _deeplab
 detection: faster_rrn, _yolo
 nlp: _gpt2, _bert, _clip, _seq2seq
@@ -1249,4 +1249,29 @@ I finished my models zoo. Thats what i get:
 -Hybrid: clip, convlstm
 -Nlp: bert, gpt2, llama, t5
 -Segmentation: deeplab, unet
--Vision: alexnet, convnext, deit, dino, efficientnet, mobilenet, regnet, resnet, vgg, vit, swin
+-Vision: alexnet, convnext, deit, dino, efficientnet, mobilenet, regnet, resnet, vgg, vit, swin, googlenet
+
+LunarLearn/
+  ml/
+    __init__.py
+
+    base.py          # BaseEstimator, ClassifierMixin, RegressorMixin...
+
+    linear.py        # LinearRegression, Ridge, Lasso, ElasticNet, LogisticRegression
+    neighbors.py     # KNNClassifier, KNNRegressor
+    naive_bayes.py   # GaussianNB, MultinomialNB, BernoulliNB
+    tree.py          # DecisionTreeClassifier/Regressor
+    ensemble.py      # RandomForest*, GradientBoosting*, AdaBoost
+    cluster.py       # KMeans, MiniBatchKMeans, GMM, etc (if you add them later)
+    decomp.py        # PCA, IncrementalPCA, LDA (later)
+    recommender.py   # MatrixFactorization, BiasedMF
+
+    preprocessing/
+        __init__.py
+        scaling.py   # StandardScaler, MinMaxScaler
+        features.py  # PolynomialFeatures, maybe encoders
+
+    model_selection/
+        __init__.py
+        split.py     # train_test_split, KFold, StratifiedKFold
+        search.py    # GridSearchCV / simple tuner (if you feel like it)

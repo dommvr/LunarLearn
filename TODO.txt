@@ -1,0 +1,44 @@
+ML:    
+    Linear / logistic regression
+    Regularized linear models
+    Perceptron / Linear SVM
+    Naive Bayes
+    KNN
+    Decision trees
+    Random forests
+    Simple GBT
+    KMeans
+    PCA
+    Matrix factorization
+    Basic utilities (scaler, train/test split)
+
+DL:
+    -check if freez params need requires_grad=False or just skip in optim
+    -crop2d, cnnlstm1/2/3d, bidirectional
+    -correct init_weights in cells
+    -add freezemanager to trainer
+    -input level normalization to dataloaders (per chanell mean/std)
+    -skip_grad for tensors
+    -compute hooks
+    -zero_grad() optimization to dont pass zero grads
+    -gradientchecker
+    -save/load model
+    -dataloaders and dataset
+    -ops.expand_dims
+    -bias on/off during layers init
+    -spectralnorm layer
+    -add metrics to trainer, bar, callbacks
+    -inception_score
+    -add dilation to other im2col/col2im if needed
+    -dropconnect
+    -add init to loss
+    -change epsilon to eps
+    -conv1d/2d/3d
+    -change inception blocks to match inceptionv1
+
+    spectralnorm (stop_grad)
+
+    if a.skip_grad:
+        a.grad = out.grad
+
+Datasets:
