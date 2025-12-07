@@ -7,17 +7,9 @@ xp = backend.xp
 DTYPE = backend.DTYPE
 
 
-class LinearRegression(Estimator, RegressorMixin):
-    """
-    Ordinary Least Squares Linear Regression.
-
-    Parameters
-    ----------
-    fit_intercept : bool
-        Whether to include an intercept term.
-    """
-
-    def __init__(self, fit_intercept: bool = True):
+class RidgeRegression(Estimator, RegressorMixin):
+    def __init__(self, alpha: float = 1.0, fit_intercept: bool = True):
+        self.alpha = alpha
         self.fit_intercept = fit_intercept
         self.coef_ = None
         self.intercept_ = None
@@ -37,15 +29,18 @@ class LinearRegression(Estimator, RegressorMixin):
                 else:
                     X_ext = X
 
-                # Closed form: w = (X^T X)^-1 X^T y
+                n_features = X_ext.shape[1]
                 Xt = X_ext.T
                 XtX = ops.matmul(Xt, X_ext)
                 Xty = ops.matmul(Xt, y)
 
-                # Add tiny regularization to avoid singular matrix issues
-                XtX = XtX + eps * ops.eye(XtX.shape[0], dtype=X.dtype)
+                I = ops.eye(n_features, dtype=XtX.dtype)
+                if self.fit_intercept:
+                    I[0, 0] = 0
 
-                w = ops.solve(XtX, Xty)
+                XtX_reg = XtX + self.alpha * I + eps * I
+
+                w = ops.solve(XtX_reg, Xty)
 
                 if self.fit_intercept:
                     self.intercept_ = w[0]
@@ -55,7 +50,7 @@ class LinearRegression(Estimator, RegressorMixin):
                     self.coef_ = w
 
                 return self
-
+            
     def predict(self, X: Tensor, use_amp: bool = True) -> Tensor:
         with backend.no_grad():
             with amp.autocast(enabled=use_amp):
