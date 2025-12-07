@@ -53,7 +53,8 @@ class _AmpState:
         "cross_entropy", "binary_cross_entropy", "dice",
         "cosine_similarity", "binary_cross_entropy_with_logits",
         "binary_cross_entropy_dice", "focal", "huber", "kl_divergence",
-        "mean_absolute_error", "mean_squared_error", "triplet", "iou_loss"
+        "mean_absolute_error", "mean_squared_error", "triplet", "iou_loss",
+        "solve"
     }
 
 STATE = _AmpState()

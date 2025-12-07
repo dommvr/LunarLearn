@@ -4215,3 +4215,125 @@ def multinomial(probs: Tensor, num_samples: int = 1) -> Tensor:
         Tensor: Sampled indices of shape (B, num_samples), dtype int64.
     """
     return dispatch_amp("multinomial", _multinomial_impl, probs, num_samples=num_samples)
+
+def _solve_impl(a: Tensor, b: Tensor) -> Tensor:
+    """
+    Solve linear system A x = b.
+
+    Notes:
+        - Supports autograd.
+        - Gradients:
+            dL/db = A^{-T} dL/dx
+            dL/dA = - A^{-T} (dL/dx x^T)
+        - A must be square and non-singular.
+    """
+    a = ensure_tensor(a)
+    b = ensure_tensor(b)
+
+    # Promote to a common compute dtype (will be controlled by AMP dispatch)
+    dtype = promote_dtype(a.dtype, b.dtype)
+
+    A = a.data.astype(dtype, copy=False)
+    B = b.data.astype(dtype, copy=False)
+
+    # Normalize B to 2D internally
+    b_was_vector = False
+    if B.ndim == 1:
+        B = B[:, None]
+        b_was_vector = True
+
+    # Forward solve: X = A^{-1} B
+    X = xp.linalg.solve(A, B)
+
+    # Restore original "vector vs matrix" shape for output
+    if b_was_vector:
+        X = X[:, 0]
+
+    requires_grad = a.requires_grad or b.requires_grad
+    if not backend.is_grad_enabled():
+        requires_grad = False
+
+    # Result dtype follows a.dtype (same as your matmul convention)
+    out = Tensor(X.astype(dtype, copy=False), requires_grad=requires_grad, dtype=a.dtype)
+    out.is_leaf = False
+    out.grad_fn = "solve"
+
+    # Activation hooks
+    for t in (a, b):
+        for hook in getattr(t, "_activation_hooks", []):
+            new_out = hook(out)
+            if new_out is not None:
+                out = new_out
+
+    def _backward():
+        if out.grad is None:
+            return
+        if not (a.requires_grad or b.requires_grad):
+            return
+
+        # Use compute dtype for gradients
+        grad_out = out.grad.astype(dtype, copy=False)
+
+        # Normalize grad_out and X to 2D for math
+        if grad_out.ndim == 1:
+            grad_out_2d = grad_out[:, None]
+        else:
+            grad_out_2d = grad_out
+
+        X_data = out.data.astype(dtype, copy=False)
+        if X_data.ndim == 1:
+            X_2d = X_data[:, None]
+        else:
+            X_2d = X_data
+
+        # We need z = A^{-T} grad_out  → solve(A.T, grad_out)
+        Z = xp.linalg.solve(A.T, grad_out_2d)
+
+        # Gradient w.r.t. b: dL/db = A^{-T} dL/dx = Z
+        if b.requires_grad:
+            grad_b = Z
+            if b_was_vector and b.data.ndim == 1:
+                grad_b = grad_b[:, 0]
+
+            if b.grad is None:
+                b.grad = grad_b
+            else:
+                b.grad += grad_b
+
+            # Grad hooks for b
+            for hook in getattr(b, "_grad_hooks", []):
+                new_grad = hook(b.grad)
+                if new_grad is not None:
+                    b.grad = new_grad
+
+        # Gradient w.r.t. A: dL/dA = - A^{-T} (dL/dx x^T) = - Z @ X^T
+        if a.requires_grad:
+            grad_A = -xp.matmul(Z, X_2d.T)
+
+            if a.grad is None:
+                a.grad = grad_A
+            else:
+                a.grad += grad_A
+
+            # Grad hooks for a
+            for hook in getattr(a, "_grad_hooks", []):
+                new_grad = hook(a.grad)
+                if new_grad is not None:
+                    a.grad = new_grad
+
+    out._backward = _backward
+    out._prev = {a, b}
+    return out
+
+def solve(a: Tensor, b: Tensor) -> Tensor:
+    """
+    Solve linear system A x = b.
+
+    Args:
+        a (Tensor): Coefficient matrix A of shape (n, n).
+        b (Tensor): Right-hand side vector or matrix, shape (n,) or (n, k).
+
+    Returns:
+        Tensor: Solution x with same "shape pattern" as b.
+    """
+    return dispatch_amp("solve", _solve_impl, a, b)
