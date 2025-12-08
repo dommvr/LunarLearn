@@ -1,4 +1,8 @@
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.core import Tensor
 import math
+
+xp = backend.xp
 
 
 def _resolve_max_features(n_features: int, max_features):
@@ -33,3 +37,13 @@ def _resolve_max_features(n_features: int, max_features):
 
     m = max(1, min(m, n_features))
     return m
+
+
+def _encode_labels(y: Tensor):
+    """
+    Encode arbitrary labels into 0..n_classes-1 and return (classes, encoded).
+    """
+    y_arr = y.data
+    classes = xp.unique(y_arr)
+    y_encoded = xp.searchsorted(classes, y_arr)
+    return classes, y_encoded.astype("int64")
