@@ -5,7 +5,7 @@ from LunarLearn.core import Tensor, ops
 xp = backend.xp
 
 
-class KNeighborsBase(Estimator):
+class BaseKNeighbors(Estimator):
     """
     Base class for KNN models.
 
@@ -55,13 +55,17 @@ class KNeighborsBase(Estimator):
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
 
-            # Broadcast: (n_q, 1, d) - (1, n_t, d) -> (n_q, n_t, d)
-            diff = X[:, None, :] - X_train[None, :, :]
-            sq = diff ** 2
-            # Sum over features -> (n_q, n_t)
-            dist_sq = sq.sum(axis=-1)
-            # L2 distance
+            # X: (n_q, d), X_train: (n_t, d)
+            X_norm = (X ** 2).sum(axis=1, keepdims=True)            # (n_q, 1)
+            X_train_norm = (X_train ** 2).sum(axis=1, keepdims=True).T  # (1, n_t)
+
+            cross = ops.matmul(X, X_train.T)                        # (n_q, n_t)
+
+            dist_sq = X_norm + X_train_norm - 2 * cross
+            # clamp for numerical noise
+            dist_sq = ops.maximum(dist_sq, ops.zeros_like(dist_sq))
             dists = ops.sqrt(dist_sq + eps)
+
             return dists
 
     def _kneighbors_indices(self, X: Tensor):
