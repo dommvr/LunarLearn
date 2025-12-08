@@ -1,6 +1,6 @@
 ML:    
-    Linear / logistic regression
-    Regularized linear models
+    # Linear / logistic regression
+    # Regularized linear models
     Perceptron / Linear SVM
     Naive Bayes
     KNN
@@ -12,7 +12,9 @@ ML:
     Matrix factorization
     Basic utilities (scaler, train/test split)
 
+    -add metrics to ml/base.py
     -If you later add label remapping (classes not 0..K−1), predict_proba stays the same, and you only need to map indices back to original labels in predict
+    -add markov chain and HiddenMarkovModel to probabilistic/stochastic
 
 DL:
     -check if freez params need requires_grad=False or just skip in optim
