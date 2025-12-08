@@ -1277,5 +1277,4 @@ LunarLearn/
         search.py    # GridSearchCV / simple tuner (if you feel like it)
 
 
-ops.linalg_solve
 tensor.view (reshape?)
