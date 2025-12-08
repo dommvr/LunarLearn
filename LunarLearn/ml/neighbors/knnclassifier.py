@@ -66,12 +66,27 @@ class KNNClassifier(BaseKNeighbors, ClassifierMixin):
         n_query = idx.shape[0]
         n_classes = self.classes_.shape[0]
 
-        probs_arr = xp.zeros((n_query, n_classes), dtype=DTYPE)
+        if n_query == 0:
+            # empty input, empty output; cheap early exit
+            return Tensor(xp.zeros((0, n_classes), dtype=DTYPE), dtype=DTYPE)
 
-        for i in range(n_query):
-            neighbors_enc = y_enc_arr[idx[i]]  # (k,)
-            counts = xp.bincount(neighbors_enc, minlength=n_classes)
-            probs_arr[i] = counts / float(k)
+        # neighbors_enc: (n_query, k)
+        neighbors_enc = y_enc_arr[idx]
+
+        # Build flat indices into a virtual (n_query, n_classes) matrix
+        # row indices: 0,0,...,0, 1,1,...,1, ..., n_query-1 repeated k times each
+        rows = xp.repeat(xp.arange(n_query, dtype="int64"), k)       # (n_query * k,)
+
+        # class indices for each neighbor
+        cols = neighbors_enc.ravel().astype("int64")                 # (n_query * k,)
+
+        # flat index = row * n_classes + col
+        flat_idx = rows * n_classes + cols                           # (n_query * k,)
+
+        # bincount over flattened space, then reshape back to (n_query, n_classes)
+        counts_flat = xp.bincount(flat_idx,
+                                minlength=n_query * n_classes).astype(DTYPE)
+        probs_arr = counts_flat.reshape(n_query, n_classes) / float(k)
 
         return Tensor(probs_arr, dtype=DTYPE)
 
