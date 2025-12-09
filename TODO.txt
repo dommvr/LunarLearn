@@ -14,8 +14,9 @@ ML:
 
     -add metrics to ml/base.py
     -If you later add label remapping (classes not 0..K−1), predict_proba stays the same, and you only need to map indices back to original labels in predict
-    -add markov chain and HiddenMarkovModel to probabilistic/stochastic
-
+    -add markov chain and HiddenMarkovModel (forward-backward, viterbi, em (baum-welch)) to probabilistic/stochastic
+    -add ensure_tensor to model funcs
+    -check add.at/scatter_add (recommender/utils)
 DL:
     -check if freez params need requires_grad=False or just skip in optim
     -crop2d, cnnlstm1/2/3d, bidirectional
