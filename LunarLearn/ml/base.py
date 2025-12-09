@@ -33,3 +33,11 @@ class ClassifierMixin:
         """
         y_pred = self.predict(X)
         return (y_pred == y).astype("float32").mean()
+
+
+class ClusterMixin:
+    def fit_predict(self, X, y=None, **fit_params):
+        if y is None:
+            return self.fit(X, **fit_params).predict(X)
+        else:
+            return self.fit(X, y, **fit_params).predict(X)
