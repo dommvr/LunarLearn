@@ -41,3 +41,15 @@ class ClusterMixin:
             return self.fit(X, **fit_params).predict(X)
         else:
             return self.fit(X, y, **fit_params).predict(X)
+        
+
+class TransformMixin:
+    """
+    Mixin for estimators that implement transform.
+
+    Provides:
+    - fit_transform(X, **fit_params)
+    """
+    def fit_transform(self, X, **fit_params):
+        self.fit(X, **fit_params)
+        return self.transform(X)
