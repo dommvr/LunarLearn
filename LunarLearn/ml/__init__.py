@@ -4,6 +4,7 @@ from . import ensemble
 from . import linear
 from . import naive_bayes
 from . import neighbors
+from . import preprocessing
 from . import recommender
 from . import svm
 from . import tree
@@ -15,6 +16,7 @@ __all__ = [
     "linear",
     "naive_bayes",
     "neighbors",
+    "preprocessing",
     "recommender",
     "svm",
     "tree"

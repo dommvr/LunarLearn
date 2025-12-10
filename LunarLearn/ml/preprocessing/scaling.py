@@ -173,3 +173,175 @@ class MinMaxScaler(Estimator, TransformMixin):
             # undo: X_scaled = X * scale + min  =>  X = (X_scaled - min) / scale
             X_out = (X_arr - self.min_[None, :]) / self.scale_[None, :]
             return Tensor(X_out.astype(DTYPE, copy=False), dtype=DTYPE)
+
+
+class MaxAbsScaler(Estimator, TransformMixin):
+    """
+    Scale each feature by its maximum absolute value.
+
+    For each feature j:
+        X[:, j] <- X[:, j] / max(|X[:, j]|)
+
+    This preserves sparsity patterns (no centering).
+
+    Parameters
+    ----------
+    None
+    """
+
+    def __init__(self):
+        self.max_abs_: xp.ndarray | None = None   # (d,)
+        self.n_features_: int | None = None
+
+    def fit(self, X: Tensor):
+        with backend.no_grad():
+            if X.ndim == 1:
+                X = X.reshape(-1, 1)
+
+            X_arr = X.data.astype(DTYPE, copy=False)
+            n_samples, n_features = X_arr.shape
+            if n_samples == 0:
+                raise ValueError("Cannot fit MaxAbsScaler on empty data.")
+
+            self.n_features_ = n_features
+
+            max_abs = xp.max(xp.abs(X_arr), axis=0)
+            max_abs = xp.where(max_abs == 0, 1.0, max_abs)
+
+            self.max_abs_ = max_abs.astype(DTYPE, copy=False)
+
+        return self
+
+    def transform(self, X: Tensor) -> Tensor:
+        with backend.no_grad():
+            if self.max_abs_ is None:
+                raise RuntimeError("MaxAbsScaler not fitted.")
+
+            if X.ndim == 1:
+                X = X.reshape(-1, self.n_features_ or 1)
+
+            X_arr = X.data.astype(DTYPE, copy=False)
+            X_out = X_arr / self.max_abs_[None, :]
+            return Tensor(X_out.astype(DTYPE, copy=False), dtype=DTYPE)
+
+    def inverse_transform(self, X: Tensor) -> Tensor:
+        with backend.no_grad():
+            if self.max_abs_ is None:
+                raise RuntimeError("MaxAbsScaler not fitted.")
+
+            X_arr = X.data.astype(DTYPE, copy=False)
+            X_out = X_arr * self.max_abs_[None, :]
+            return Tensor(X_out.astype(DTYPE, copy=False), dtype=DTYPE)
+
+
+class RobustScaler(Estimator, TransformMixin):
+    """
+    Scale features using statistics robust to outliers.
+
+    For each feature j:
+        X[:, j] <- (X[:, j] - median_j) / IQR_j
+
+    where IQR_j = q75_j - q25_j.
+
+    Parameters
+    ----------
+    with_centering : bool
+        Whether to subtract the median.
+    with_scaling : bool
+        Whether to scale by IQR.
+    quantile_range : tuple[float, float]
+        Quantile range used to compute IQR (default (25.0, 75.0)).
+    """
+
+    def __init__(
+        self,
+        with_centering: bool = True,
+        with_scaling: bool = True,
+        quantile_range: tuple[float, float] = (25.0, 75.0),
+    ):
+        self.with_centering = bool(with_centering)
+        self.with_scaling = bool(with_scaling)
+
+        if len(quantile_range) != 2:
+            raise ValueError("quantile_range must be a tuple (q_min, q_max).")
+        q_min, q_max = quantile_range
+        if not (0.0 <= q_min < q_max <= 100.0):
+            raise ValueError("quantile_range values must satisfy 0 <= q_min < q_max <= 100.")
+        self.quantile_range = (float(q_min), float(q_max))
+
+        self.center_: xp.ndarray | None = None   # (d,)
+        self.scale_: xp.ndarray | None = None    # (d,)
+        self.n_features_: int | None = None
+
+    def fit(self, X: Tensor):
+        with backend.no_grad():
+            if X.ndim == 1:
+                X = X.reshape(-1, 1)
+
+            X_arr = X.data.astype(DTYPE, copy=False)
+            n_samples, n_features = X_arr.shape
+            if n_samples == 0:
+                raise ValueError("Cannot fit RobustScaler on empty data.")
+
+            self.n_features_ = n_features
+
+            q_min, q_max = self.quantile_range
+
+            # percentiles along axis=0
+            q = xp.percentile(X_arr, [q_min, q_max], axis=0)
+            q_low = q[0]
+            q_high = q[1]
+
+            median = xp.median(X_arr, axis=0)
+
+            iqr = q_high - q_low
+            # avoid zero IQR
+            iqr = xp.where(iqr == 0, 1.0, iqr)
+
+            if self.with_centering:
+                center = median
+            else:
+                center = xp.zeros((n_features,), dtype=DTYPE)
+
+            if self.with_scaling:
+                scale = iqr
+            else:
+                scale = xp.ones((n_features,), dtype=DTYPE)
+
+            self.center_ = center.astype(DTYPE, copy=False)
+            self.scale_ = scale.astype(DTYPE, copy=False)
+
+        return self
+
+    def transform(self, X: Tensor) -> Tensor:
+        with backend.no_grad():
+            if self.center_ is None or self.scale_ is None:
+                raise RuntimeError("RobustScaler not fitted.")
+
+            if X.ndim == 1:
+                X = X.reshape(-1, self.n_features_ or 1)
+
+            X_arr = X.data.astype(DTYPE, copy=False)
+            X_out = X_arr
+
+            if self.with_centering:
+                X_out = X_out - self.center_[None, :]
+            if self.with_scaling:
+                X_out = X_out / self.scale_[None, :]
+
+            return Tensor(X_out.astype(DTYPE, copy=False), dtype=DTYPE)
+
+    def inverse_transform(self, X: Tensor) -> Tensor:
+        with backend.no_grad():
+            if self.center_ is None or self.scale_ is None:
+                raise RuntimeError("RobustScaler not fitted.")
+
+            X_arr = X.data.astype(DTYPE, copy=False)
+            X_out = X_arr
+
+            if self.with_scaling:
+                X_out = X_out * self.scale_[None, :]
+            if self.with_centering:
+                X_out = X_out + self.center_[None, :]
+
+            return Tensor(X_out.astype(DTYPE, copy=False), dtype=DTYPE)
