@@ -17,6 +17,7 @@ ML:
     -add markov chain and HiddenMarkovModel (forward-backward, viterbi, em (baum-welch)) to probabilistic/stochastic
     -add ensure_tensor to model funcs
     -check add.at/scatter_add (recommender/utils)
+    -add preprocessing/features/LabelEncoder to ml models that use it (instead of utils/_encode_labels)
 DL:
     -check if freez params need requires_grad=False or just skip in optim
     -crop2d, cnnlstm1/2/3d, bidirectional
