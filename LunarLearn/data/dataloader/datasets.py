@@ -4,8 +4,8 @@ from PIL import Image
 import csv
 import random
 
-import LunarLearn.backend as backend
-from LunarLearn.tensor import Tensor
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.core import Tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -58,7 +58,7 @@ class ArrayDataset(Dataset):
             x = Tensor(x, requires_grad=False)
             y = Tensor(y, requires_grad=False)
         return x, y
-    
+   
 
 class GeneratorDataset(IterableDataset):
     """
@@ -206,8 +206,9 @@ class CSVImageDataset:
             Y = Tensor(Y, requires_grad=False)
 
         return X, Y
-    
-class SyntheticDataset:
+
+
+class SyntheticDataset(Dataset):
     """
     Generate synthetic data for debugging/training toy models.
     Can create Gaussian blobs, noise, or classification spirals.

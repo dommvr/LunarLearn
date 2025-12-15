@@ -1,6 +1,6 @@
-import LunarLearn.backend as backend
-from LunarLearn.dataloader.datasets import IterableDataset
-from LunarLearn.tensor import Tensor
+import LunarLearn.core.backend.backend as backend
+from LunarLearn.data.dataloader import IterableDataset
+from LunarLearn.core import Tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
