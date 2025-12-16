@@ -2,10 +2,13 @@ import os
 import numpy as np
 from PIL import Image
 import csv
+import json
 import random
+from collections import OrderedDict
 
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.core import Tensor
+from LunarLearn.data.dataloader.utils import _to_tensor_tree, _is_xp_array, _pad_1d, _read_text_file, _tokenize_text
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -43,10 +46,10 @@ class ArrayDataset(Dataset):
     """
     Simple Dataset for in-memory arrays.
     """
-    def __init__(self, X, Y, dtype=DTYPE, to_tensor=True):
+    def __init__(self, X, Y, to_tensor=True):
         super().__init__(to_tensor)
-        self.X = xp.asarray(X, dtype=dtype)
-        self.Y = xp.asarray(Y, dtype=dtype)
+        self.X = xp.asarray(X)
+        self.Y = xp.asarray(Y)
         self.m = self.X.shape[0]
 
     def __len__(self):
@@ -64,11 +67,8 @@ class GeneratorDataset(IterableDataset):
     """
     Wraps a Python generator as an iterable dataset.
 
-    Example:
-        def gen():
-            for i in range(100):
-                yield xp.array([i]), xp.array([i % 2])
-        ds = GeneratorDataset(gen)
+    generator_fn should return an iterator/generator yielding samples.
+    Samples can be (x,y), tuples, dicts, etc.
     """
     def __init__(self, generator_fn, length=None, to_tensor=True):
         super().__init__(to_tensor)
@@ -76,20 +76,218 @@ class GeneratorDataset(IterableDataset):
         self.length = length
 
     def __len__(self):
-        """
-        Return dataset length if known, otherwise None for unknown-length generators.
-        """
-        return getattr(self, "length", None)
+        # Only return an int if it's known
+        if self.length is None:
+            raise TypeError("GeneratorDataset length is unknown (set length=... to enable __len__).")
+        return int(self.length)
 
     def __iter__(self):
-        x, y = self.generator_fn()
-        if self.to_tensor:
-            x = Tensor(x, requires_grad=False)
-            y = Tensor(y, requires_grad=False)
-        return x, y
+        for sample in self.generator_fn():
+            if self.to_tensor:
+                sample = _to_tensor_tree(sample)
+            yield sample
+
+
+class DictDataset(Dataset):
+    """
+    Map-style dataset returning dict samples.
+
+    Supports:
+      - list[dict] (most common)
+      - dict of arrays/lists (columnar): {"image": X, "boxes": B, ...}
+    """
+    def __init__(self, data, to_tensor=True):
+        super().__init__(to_tensor)
+        if isinstance(data, dict):
+            # columnar storage
+            self._columnar = True
+            self.data = data
+            # infer length from first key
+            k0 = next(iter(data.keys()))
+            self.m = len(data[k0])
+        elif isinstance(data, (list, tuple)):
+            self._columnar = False
+            self.data = list(data)
+            self.m = len(self.data)
+        else:
+            raise TypeError("DictDataset expects list[dict] or dict-of-arrays")
+
+    def __len__(self):
+        return self.m
+
+    def __getitem__(self, idx):
+        if self._columnar:
+            sample = {k: v[idx] for k, v in self.data.items()}
+        else:
+            sample = self.data[idx]
+
+        # convert numpy->xp if needed (light-touch)
+        for k, v in list(sample.items()):
+            if _is_xp_array(v):
+                continue
+            # allow python scalars, strings, lists, etc.
+            if hasattr(v, "shape") and hasattr(v, "dtype"):  # numpy-ish
+                sample[k] = xp.asarray(v)
+        return _to_tensor_tree(sample) if self.to_tensor else sample
+
+
+class SequenceDataset(Dataset):
+    """
+    Map-style dataset for token sequences (ids) and optional labels.
+
+    Each item returns a dict:
+      {
+        "input_ids": (L,) or (max_len,) int64,
+        "attention_mask": (max_len,) int64 (if padded),
+        "length": int64,
+        "label": int64 or one-hot (optional)
+      }
+
+    If max_len is None -> returns variable-length input_ids, no mask.
+    If max_len is set -> pads/truncates to max_len and returns mask.
+    """
+    def __init__(
+        self,
+        sequences,
+        labels=None,
+        max_len=None,
+        pad_id=0,
+        truncate=True,
+        one_hot=False,
+        num_classes=None,
+        to_tensor=True,
+    ):
+        super().__init__(to_tensor)
+        self.sequences = sequences
+        self.labels = labels
+        self.max_len = max_len
+        self.pad_id = int(pad_id)
+        self.truncate = truncate
+        self.one_hot = one_hot
+        self.num_classes = num_classes
+
+        if labels is not None and len(labels) != len(sequences):
+            raise ValueError("labels must have same length as sequences")
+
+        if one_hot and (num_classes is None):
+            # infer if possible
+            if labels is None:
+                raise ValueError("one_hot=True requires labels and num_classes (or inferable labels)")
+            self.num_classes = int(max(labels)) + 1
+
+    def __len__(self):
+        return len(self.sequences)
+
+    def __getitem__(self, idx):
+        ids = self.sequences[idx]
+        ids = xp.asarray(ids, dtype=xp.int64)
+
+        if self.max_len is None:
+            sample = {
+                "input_ids": ids,
+                "length": xp.asarray(ids.shape[0], dtype=xp.int64),
+            }
+        else:
+            padded, mask, L = _pad_1d(ids, int(self.max_len), pad_id=self.pad_id, truncate=self.truncate)
+            sample = {
+                "input_ids": padded,
+                "attention_mask": mask,
+                "length": L,
+            }
+
+        if self.labels is not None:
+            lab = self.labels[idx]
+            if self.one_hot:
+                y = xp.eye(int(self.num_classes), dtype=DTYPE)[int(lab)]
+            else:
+                y = xp.asarray(int(lab), dtype=xp.int64)
+            sample["label"] = y
+
+        return _to_tensor_tree(sample) if self.to_tensor else sample
     
 
-class ImageDataset:
+class PackedSequenceDataset(Dataset):
+    """
+    Packs many token sequences into one long stream and returns fixed-size blocks.
+
+    Input:
+      sequences: list of sequences (list[int] or xp arrays)
+      sep_id: optional separator inserted between sequences (e.g., EOS)
+      block_size: output block length
+      stride: step between blocks (default=block_size)
+      next_token: if True, returns x/y shifted blocks
+      drop_last: if True, drop trailing partial blocks
+
+    Output:
+      - if next_token:
+          {"input_ids": (block_size,), "labels": (block_size,)}
+      - else:
+          {"input_ids": (block_size,)}
+    """
+    def __init__(
+        self,
+        sequences,
+        block_size,
+        stride=None,
+        sep_id=None,
+        next_token=True,
+        drop_last=True,
+        to_tensor=True,
+    ):
+        super().__init__(to_tensor)
+
+        self.block_size = int(block_size)
+        self.stride = int(stride) if stride is not None else int(block_size)
+        self.sep_id = None if sep_id is None else int(sep_id)
+        self.next_token = bool(next_token)
+        self.drop_last = bool(drop_last)
+
+        # Build one long token stream
+        parts = []
+        for seq in sequences:
+            ids = xp.asarray(seq, dtype=xp.int64).ravel()
+            parts.append(ids)
+            if self.sep_id is not None:
+                parts.append(xp.asarray([self.sep_id], dtype=xp.int64))
+
+        if len(parts) == 0:
+            self.stream = xp.asarray([], dtype=xp.int64)
+        else:
+            self.stream = xp.concatenate(parts, axis=0).astype(xp.int64)
+
+        L = int(self.stream.shape[0])
+
+        need = self.block_size + (1 if self.next_token else 0)
+        if L < need:
+            self.starts = [] if self.drop_last else [0]
+        else:
+            self.starts = list(range(0, L - need + 1, self.stride))
+
+        if (not self.drop_last) and self.starts:
+            # ensure we cover the tail with one last block start
+            last = self.starts[-1]
+            tail_start = max(0, L - need)
+            if tail_start > last:
+                self.starts.append(tail_start)
+
+    def __len__(self):
+        return len(self.starts)
+
+    def __getitem__(self, idx):
+        s = int(self.starts[int(idx)])
+        if self.next_token:
+            chunk = self.stream[s : s + self.block_size + 1]
+            x = chunk[:-1]
+            y = chunk[1:]
+            sample = {"input_ids": x, "labels": y}
+        else:
+            x = self.stream[s : s + self.block_size]
+            sample = {"input_ids": x}
+
+        return _to_tensor_tree(sample) if self.to_tensor else sample
+
+
+class ImageDataset(Dataset):
     def __init__(self, path, size=(64, 64), to_tensor=True, one_hot=True):
         """
         Image dataset loader compatible with DataLoader.
@@ -100,6 +298,7 @@ class ImageDataset:
             to_tensor (bool): If True, return Tensors. If False, return xp.arrays.
             one_hot (bool): If True, labels are one-hot encoded.
         """
+        super().__init__(to_tensor)
         self.folder_path = path
         self.size = size
         self.to_tensor = to_tensor
@@ -134,21 +333,21 @@ class ImageDataset:
         img_array = np.transpose(img_array, (2, 0, 1))  # (C, H, W)
 
         # Convert to xp
-        X = xp.asarray(img_array, dtype=DTYPE)
+        x = xp.asarray(img_array, dtype=DTYPE)
         if self.one_hot:
-            Y = xp.eye(len(self.class_to_idx), dtype=DTYPE)[label]
+            y = xp.eye(len(self.class_to_idx), dtype=DTYPE)[label]
         else:
-            Y = xp.array(label, dtype=DTYPE)
+            y = xp.array(label, dtype=DTYPE)
 
         # Wrap in Tensor if requested
         if self.to_tensor:
-            X = Tensor(X, requires_grad=False)
-            Y = Tensor(Y, requires_grad=False)
+            x = Tensor(x, requires_grad=False)
+            y = Tensor(y, requires_grad=False)
 
-        return X, Y
+        return x, y
     
 
-class CSVImageDataset:
+class CSVImageDataset(Dataset):
     def __init__(self, csv_file, img_root="", size=(64, 64),
                  to_tensor=True, one_hot=True, delimiter=","):
         """
@@ -162,6 +361,7 @@ class CSVImageDataset:
             one_hot (bool): If True, labels are one-hot encoded.
             delimiter (str): CSV delimiter (default ',').
         """
+        super().__init__(to_tensor)
         self.csv_file = csv_file
         self.img_root = img_root
         self.size = size
@@ -194,87 +394,419 @@ class CSVImageDataset:
         img_array = np.transpose(img_array, (2, 0, 1))  # (C, H, W)
 
         # Convert to xp
-        X = xp.asarray(img_array, dtype=DTYPE)
+        x = xp.asarray(img_array, dtype=DTYPE)
         if self.one_hot:
-            Y = xp.eye(self.num_classes, dtype=DTYPE)[label]
+            y = xp.eye(self.num_classes, dtype=DTYPE)[label]
         else:
-            Y = xp.array(label, dtype=DTYPE)
+            y = xp.array(label, dtype=DTYPE)
 
         # Wrap in Tensor if requested
         if self.to_tensor:
-            X = Tensor(X, requires_grad=False)
-            Y = Tensor(Y, requires_grad=False)
+            x = Tensor(x, requires_grad=False)
+            y = Tensor(y, requires_grad=False)
 
-        return X, Y
-
-
-class SyntheticDataset(Dataset):
-    """
-    Generate synthetic data for debugging/training toy models.
-    Can create Gaussian blobs, noise, or classification spirals.
-
-    Args:
-        n_samples (int): Number of samples.
-        n_features (int): Dimensionality of features.
-        n_classes (int): Number of classes.
-        mode (str): ['gaussian', 'spiral', 'noise'].
-        to_tensor (bool): Whether to return Tensors instead of arrays.
-    """
-    def __init__(self, n_samples=1000, n_features=2, n_classes=2,
-                 mode="gaussian", to_tensor=True):
-        self.n_samples = n_samples
-        self.n_features = n_features
-        self.n_classes = n_classes
-        self.mode = mode
-        self.to_tensor = to_tensor
-
-        self.X, self.Y = self._generate()
-
-    def _generate(self):
-        if self.mode == "gaussian":
-            X = []
-            Y = []
-            for i in range(self.n_classes):
-                mean = xp.random.randn(self.n_features) * 2
-                cov = xp.eye(self.n_features)
-                samples = xp.random.multivariate_normal(mean, cov,
-                                                        size=self.n_samples // self.n_classes)
-                X.append(samples)
-                Y.append(xp.full(samples.shape[0], i))
-            X = xp.vstack(X)
-            Y = xp.concatenate(Y)
-
-        elif self.mode == "spiral":
-            X = xp.zeros((self.n_samples, self.n_features))
-            Y = xp.zeros(self.n_samples, dtype=int)
-            n_per_class = self.n_samples // self.n_classes
-            for j in range(self.n_classes):
-                ix = range(j * n_per_class, (j + 1) * n_per_class)
-                r = xp.linspace(0.0, 1, n_per_class)
-                t = xp.linspace(j * 4, (j + 1) * 4, n_per_class) + xp.random.randn(n_per_class) * 0.2
-                X[ix] = xp.c_[r * xp.sin(t), r * xp.cos(t)]
-                Y[ix] = j
-
-        elif self.mode == "noise":
-            X = xp.random.randn(self.n_samples, self.n_features)
-            Y = xp.random.randint(0, self.n_classes, self.n_samples)
-
-        else:
-            raise ValueError(f"Unknown mode: {self.mode}")
-
-        return X.astype(DTYPE), Y.astype(int)
-
-    def __len__(self):
-        return self.n_samples
-
-    def __getitem__(self, idx):
-        x, y = self.X[idx], self.Y[idx]
-        if self.to_tensor:
-            return Tensor(x, requires_grad=False), Tensor(y, requires_grad=False)
         return x, y
 
 
-class AugmentedDataset:
+class TextFolderDataset(Dataset):
+    """
+    Folder structure:
+      root/
+        class_a/*.txt
+        class_b/*.txt
+
+    Returns either:
+      - {"text": str, "label": ...} if tokenizer is None
+      - token dict if tokenizer provided (like SequenceDataset)
+    """
+    def __init__(
+        self,
+        root,
+        tokenizer=None,
+        max_len=None,
+        pad_id=0,
+        truncate=True,
+        one_hot=True,
+        encoding="utf-8",
+        extensions=(".txt",),
+        to_tensor=True,
+        dtype=None,
+    ):
+        super().__init__(to_tensor)
+        if dtype is None:
+            dtype = DTYPE
+
+        self.root = root
+        self.tokenizer = tokenizer
+        self.max_len = max_len
+        self.pad_id = int(pad_id)
+        self.truncate = truncate
+        self.one_hot = one_hot
+        self.encoding = encoding
+        self.extensions = tuple(e.lower() for e in extensions)
+        self.dtype = dtype
+
+        self.class_names = sorted([
+            d for d in os.listdir(root)
+            if os.path.isdir(os.path.join(root, d))
+        ])
+        self.class_to_idx = {c: i for i, c in enumerate(self.class_names)}
+        self.num_classes = len(self.class_names)
+
+        self.samples = []
+        for cls in self.class_names:
+            folder = os.path.join(root, cls)
+            for fn in os.listdir(folder):
+                if fn.lower().endswith(self.extensions):
+                    self.samples.append((os.path.join(folder, fn), self.class_to_idx[cls]))
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        path, label = self.samples[idx]
+        text = _read_text_file(path, encoding=self.encoding)
+
+        if self.tokenizer is None:
+            sample = {"text": text}
+        else:
+            ids = _tokenize_text(text, self.tokenizer)
+            if self.max_len is None:
+                sample = {"input_ids": ids, "length": xp.asarray(ids.shape[0], dtype=xp.int64)}
+            else:
+                padded, mask, L = _pad_1d(ids, int(self.max_len), pad_id=self.pad_id, truncate=self.truncate)
+                sample = {"input_ids": padded, "attention_mask": mask, "length": L}
+
+        if self.one_hot:
+            y = xp.eye(self.num_classes, dtype=self.dtype)[int(label)]
+        else:
+            y = xp.asarray(int(label), dtype=xp.int64)
+        sample["label"] = y
+
+        return _to_tensor_tree(sample) if self.to_tensor else sample
+    
+
+class CSVTextDataset(Dataset):
+    """
+    CSV-based text dataset.
+    Supports either:
+      - inline text column: text_col="text"
+      - file path column:   text_col="path" + text_root
+
+    Required label_col (default "label") for supervised.
+    If label_col is None -> returns unsupervised samples.
+
+    Returns dict samples:
+      - raw text: {"text": str, ...}
+      - tokenized: {"input_ids", "attention_mask", "length", ...}
+    """
+    def __init__(
+        self,
+        csv_file,
+        text_col="text",
+        label_col="label",
+        delimiter=",",
+        text_root="",
+        tokenizer=None,
+        max_len=None,
+        pad_id=0,
+        truncate=True,
+        one_hot=False,
+        num_classes=None,
+        encoding="utf-8",
+        to_tensor=True,
+        dtype=None,
+    ):
+        super().__init__(to_tensor)
+        if dtype is None:
+            dtype = DTYPE
+
+        self.csv_file = csv_file
+        self.text_col = text_col
+        self.label_col = label_col
+        self.delimiter = delimiter
+        self.text_root = text_root
+        self.tokenizer = tokenizer
+        self.max_len = max_len
+        self.pad_id = int(pad_id)
+        self.truncate = truncate
+        self.one_hot = one_hot
+        self.num_classes = num_classes
+        self.encoding = encoding
+        self.dtype = dtype
+
+        self.rows = []
+        with open(csv_file, "r", encoding=encoding, newline="") as f:
+            reader = csv.DictReader(f, delimiter=delimiter)
+            for row in reader:
+                self.rows.append(row)
+
+        if self.label_col is not None and self.one_hot and self.num_classes is None:
+            labels = [int(r[self.label_col]) for r in self.rows]
+            self.num_classes = int(max(labels)) + 1
+
+    def __len__(self):
+        return len(self.rows)
+
+    def __getitem__(self, idx):
+        row = self.rows[idx]
+        raw = row[self.text_col]
+
+        # If it's a path, load file
+        if self.text_root or os.path.exists(raw):
+            candidate = os.path.join(self.text_root, raw) if self.text_root else raw
+            if os.path.exists(candidate):
+                text = _read_text_file(candidate, encoding=self.encoding)
+            else:
+                text = raw
+        else:
+            text = raw
+
+        if self.tokenizer is None:
+            sample = {"text": text}
+        else:
+            ids = _tokenize_text(text, self.tokenizer)
+            if self.max_len is None:
+                sample = {"input_ids": ids, "length": xp.asarray(ids.shape[0], dtype=xp.int64)}
+            else:
+                padded, mask, L = _pad_1d(ids, int(self.max_len), pad_id=self.pad_id, truncate=self.truncate)
+                sample = {"input_ids": padded, "attention_mask": mask, "length": L}
+
+        if self.label_col is not None:
+            lab = int(row[self.label_col])
+            if self.one_hot:
+                y = xp.eye(int(self.num_classes), dtype=self.dtype)[lab]
+            else:
+                y = xp.asarray(lab, dtype=xp.int64)
+            sample["label"] = y
+
+        return _to_tensor_tree(sample) if self.to_tensor else sample
+
+
+class JSONLTextDataset(Dataset):
+    """
+    JSONL dataset (one JSON object per line).
+
+    Supports arbitrary schemas:
+      - classification: {"text":..., "label":...}
+      - QA: {"context":..., "question":..., "answer":...}
+      - captioning: {"text":..., "image_path":...} (you can extend)
+
+    If tokenizer is set and text_key is provided, tokenizes that field.
+    If text_key is None, returns the full dict (and optionally tensorifies numeric arrays).
+    """
+    def __init__(
+        self,
+        jsonl_file,
+        text_key="text",
+        label_key="label",
+        tokenizer=None,
+        max_len=None,
+        pad_id=0,
+        truncate=True,
+        one_hot=False,
+        num_classes=None,
+        encoding="utf-8",
+        to_tensor=True,
+        dtype=None,
+    ):
+        super().__init__(to_tensor)
+        if dtype is None:
+            dtype = DTYPE
+
+        self.jsonl_file = jsonl_file
+        self.text_key = text_key
+        self.label_key = label_key
+        self.tokenizer = tokenizer
+        self.max_len = max_len
+        self.pad_id = int(pad_id)
+        self.truncate = truncate
+        self.one_hot = one_hot
+        self.num_classes = num_classes
+        self.encoding = encoding
+        self.dtype = dtype
+
+        self.items = []
+        with open(jsonl_file, "r", encoding=encoding) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                self.items.append(json.loads(line))
+
+        if self.label_key is not None and self.one_hot and self.num_classes is None:
+            labels = [int(it[self.label_key]) for it in self.items if self.label_key in it]
+            if labels:
+                self.num_classes = int(max(labels)) + 1
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, idx):
+        it = dict(self.items[idx])  # copy
+
+        # If tokenizing a specific key
+        if self.tokenizer is not None and self.text_key is not None and self.text_key in it:
+            text = it[self.text_key]
+            ids = _tokenize_text(text, self.tokenizer)
+            if self.max_len is None:
+                out = {"input_ids": ids, "length": xp.asarray(ids.shape[0], dtype=xp.int64)}
+            else:
+                padded, mask, L = _pad_1d(ids, int(self.max_len), pad_id=self.pad_id, truncate=self.truncate)
+                out = {"input_ids": padded, "attention_mask": mask, "length": L}
+
+            # optionally carry raw text too
+            out["text"] = text
+
+            # label handling
+            if self.label_key is not None and self.label_key in it:
+                lab = int(it[self.label_key])
+                if self.one_hot:
+                    y = xp.eye(int(self.num_classes), dtype=self.dtype)[lab]
+                else:
+                    y = xp.asarray(lab, dtype=xp.int64)
+                out["label"] = y
+
+            # keep extra fields (context/question/answer, ids, etc.)
+            for k, v in it.items():
+                if k not in (self.text_key, self.label_key):
+                    out[k] = v
+            return _to_tensor_tree(out) if self.to_tensor else out
+
+        # otherwise: return full dict
+        return _to_tensor_tree(it) if self.to_tensor else it
+
+
+class TextFileDataset(Dataset):
+    """
+    Single text file dataset.
+
+    Modes:
+      - line_mode=True: each line is a sample
+      - line_mode=False: the whole file is one stream and you emit windows
+
+    Tokenization:
+      - If tokenizer is None: returns {"text": ...}
+      - If tokenizer provided: returns token samples.
+
+    LM options:
+      - block_size: fixed-length chunk size (required for token stream mode)
+      - next_token: if True, returns {"input_ids": x, "labels": y} where y is shifted
+    """
+    def __init__(
+        self,
+        path,
+        tokenizer=None,
+        encoding="utf-8",
+        line_mode=True,
+        strip_lines=True,
+
+        # token stream options
+        block_size=None,
+        stride=None,          # if None: stride=block_size
+        drop_last=True,
+        next_token=False,
+
+        pad_id=0,             # only used in line_mode with max_len
+        max_len=None,         # optional per-line padding/truncation
+        truncate=True,
+
+        to_tensor=True,
+    ):
+        super().__init__(to_tensor)
+        self.path = path
+        self.tokenizer = tokenizer
+        self.encoding = encoding
+        self.line_mode = line_mode
+        self.strip_lines = strip_lines
+
+        self.block_size = block_size
+        self.stride = stride
+        self.drop_last = drop_last
+        self.next_token = next_token
+
+        self.pad_id = int(pad_id)
+        self.max_len = max_len
+        self.truncate = truncate
+
+        if not os.path.exists(path):
+            raise FileNotFoundError(path)
+
+        if not line_mode:
+            if tokenizer is None:
+                raise ValueError("tokenizer is required for line_mode=False (stream/window mode)")
+            if block_size is None:
+                raise ValueError("block_size is required for line_mode=False")
+
+        if self.line_mode:
+            with open(path, "r", encoding=encoding) as f:
+                lines = f.readlines()
+            if strip_lines:
+                lines = [ln.strip() for ln in lines]
+                lines = [ln for ln in lines if ln != ""]
+            self.lines = lines
+        else:
+            text = _read_text_file(path, encoding=encoding)
+            self.tokens = _tokenize_text(text, tokenizer)  # (L,)
+            self.tokens = self.tokens.astype(xp.int64)
+            self.block_size = int(block_size)
+            self.stride = int(stride) if stride is not None else int(block_size)
+
+            # compute windows
+            L = int(self.tokens.shape[0])
+            # if next_token, we need block_size+1 tokens to make x/y
+            need = self.block_size + (1 if self.next_token else 0)
+            starts = list(range(0, max(0, L - need + 1), self.stride))
+            if not starts:
+                starts = [0] if (not self.drop_last and L >= 1) else []
+            self.starts = starts
+
+    def __len__(self):
+        if self.line_mode:
+            return len(self.lines)
+        return len(self.starts)
+
+    def __getitem__(self, idx):
+        if self.line_mode:
+            text = self.lines[int(idx)]
+            if self.tokenizer is None:
+                sample = {"text": text}
+                return _to_tensor_tree(sample) if self.to_tensor else sample
+
+            ids = _tokenize_text(text, self.tokenizer).astype(xp.int64)
+
+            # optional per-line pad/truncate
+            if self.max_len is not None:
+                T = int(self.max_len)
+                L = int(ids.shape[0])
+                if self.truncate and L > T:
+                    ids = ids[:T]
+                    L = T
+                out = xp.full((T,), self.pad_id, dtype=xp.int64)
+                out[:L] = ids
+                mask = xp.zeros((T,), dtype=xp.int64)
+                mask[:L] = 1
+                sample = {"input_ids": out, "attention_mask": mask, "length": xp.asarray(L, dtype=xp.int64)}
+            else:
+                sample = {"input_ids": ids, "length": xp.asarray(ids.shape[0], dtype=xp.int64)}
+
+            return _to_tensor_tree(sample) if self.to_tensor else sample
+
+        # stream/window mode
+        s = int(self.starts[int(idx)])
+        if self.next_token:
+            chunk = self.tokens[s : s + self.block_size + 1]
+            x = chunk[:-1]
+            y = chunk[1:]
+            sample = {"input_ids": x, "labels": y}
+        else:
+            chunk = self.tokens[s : s + self.block_size]
+            sample = {"input_ids": chunk}
+
+        return _to_tensor_tree(sample) if self.to_tensor else sample
+
+
+class AugmentedDataset(Dataset):
     """
     Wraps another dataset and applies a transform to each sample.
 
@@ -282,7 +814,8 @@ class AugmentedDataset:
         dataset (Dataset): Base dataset.
         transform (callable): Function applied to (x, y).
     """
-    def __init__(self, dataset, transform=None):
+    def __init__(self, dataset, transform=None, to_tensor=True):
+        super().__init__(to_tensor)
         self.dataset = dataset
         self.transform = transform
 
@@ -291,12 +824,41 @@ class AugmentedDataset:
 
     def __getitem__(self, idx):
         x, y = self.dataset[idx]
-        if self.transform:
+        if self.transform is not None:
             x, y = self.transform(x, y)
+        if self.to_tensor:
+            x = Tensor(x, requires_grad=False)
+            y = Tensor(y, requires_grad=False)
         return x, y
+    
+
+class AugmentedIterableDataset(IterableDataset):
+    """
+    Wraps another dataset and applies a transform to each sample.
+
+    Args:
+        dataset (Dataset): Base dataset.
+        transform (callable): Function applied to (x, y).
+    """
+    def __init__(self, dataset, transform=None, to_tensor=True):
+        super().__init__(to_tensor)
+        self.dataset = dataset
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __iter__(self):
+        for x, y in self.dataset:
+            if self.transform is not None:
+                x, y = self.transform(x, y)
+            if self.to_tensor:
+                x = Tensor(x, requires_grad=False)
+                y = Tensor(y, requires_grad=False)
+            yield x, y
 
 
-class LazyDataset:
+class LazyDataset(Dataset):
     """
     Lazily loads data only when indexed (no preloading).
 
@@ -306,6 +868,7 @@ class LazyDataset:
         to_tensor (bool): Convert output to Tensors.
     """
     def __init__(self, loader_fn, length, to_tensor=True):
+        super().__init__(to_tensor)
         self.loader_fn = loader_fn
         self.length = length
         self.to_tensor = to_tensor
@@ -321,14 +884,15 @@ class LazyDataset:
         return x, y
 
 
-class ConcatDataset:
+class ConcatDataset(Dataset):
     """
     Concatenate multiple datasets into one.
 
     Args:
         datasets (list): List of Dataset objects.
     """
-    def __init__(self, datasets):
+    def __init__(self, datasets, to_tensor=True):
+        super().__init__(to_tensor)
         self.datasets = datasets
         self.cumulative_sizes = np.cumsum([len(d) for d in datasets])
 
@@ -341,10 +905,14 @@ class ConcatDataset:
             sample_idx = idx
         else:
             sample_idx = idx - self.cumulative_sizes[dataset_idx - 1]
-        return self.datasets[dataset_idx][sample_idx]
-    
+        x, y = self.datasets[dataset_idx][sample_idx]
+        if self.to_tensor:
+            x = Tensor(x, requires_grad=False)
+            y = Tensor(y, requires_grad=False)
+        return x, y
 
-class PairedDataset:
+
+class PairedDataset(Dataset):
     """
     Dataset for paired inputs (e.g., (src, tgt), (image, mask)).
 
@@ -354,10 +922,10 @@ class PairedDataset:
         to_tensor (bool): Whether to convert outputs to Tensors.
     """
     def __init__(self, X, Y, to_tensor=True):
+        super().__init__(to_tensor)
         assert len(X) == len(Y), "X and Y must have the same length"
         self.X = X
         self.Y = Y
-        self.to_tensor = to_tensor
 
     def __len__(self):
         return len(self.X)
@@ -372,7 +940,7 @@ class PairedDataset:
         return x, y
     
 
-class MixedDataset:
+class MixedDataset(Dataset):
     """
     Dataset that randomly samples from multiple datasets.
 
@@ -383,7 +951,8 @@ class MixedDataset:
         sampling_probs (list, optional): Probabilities for sampling from each dataset.
                                          If None, uniform sampling is used.
     """
-    def __init__(self, datasets, sampling_probs=None):
+    def __init__(self, datasets, sampling_probs=None, to_tensor=True):
+        super().__init__(to_tensor)
         self.datasets = datasets
         self.n = sum(len(ds) for ds in datasets)
 
@@ -404,4 +973,86 @@ class MixedDataset:
 
         # Pick random sample from that dataset
         sample_idx = random.randint(0, len(dataset) - 1)
-        return dataset[sample_idx]
+        x, y = dataset[sample_idx]
+        if self.to_tensor:
+            x = Tensor(x, requires_grad=False)
+            y = Tensor(y, requires_grad=False)
+        return x, y
+
+
+class SubsetDataset(Dataset):
+    """
+    Wraps a dataset and exposes only selected indices.
+    Works with any sample type (tuple/dict/etc.).
+    """
+    def __init__(self, dataset, indices, to_tensor=None):
+        # If to_tensor is None: follow base dataset behavior.
+        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", True))
+        self.dataset = dataset
+        self.indices = list(indices)
+
+    def __len__(self):
+        return len(self.indices)
+
+    def __getitem__(self, idx):
+        sample = self.dataset[self.indices[idx]]
+        # If underlying dataset already returned tensors, leave them.
+        if self.to_tensor and not getattr(self.dataset, "to_tensor", False):
+            sample = _to_tensor_tree(sample)
+        return sample
+    
+
+class CacheDataset(Dataset):
+    """
+    Wraps a map-style dataset and caches __getitem__ results.
+
+    Useful for:
+      - ImageDataset decoding/resizing
+      - tokenization-heavy text datasets
+      - expensive synthetic rendering (if deterministic per index)
+
+    Params:
+      max_size: None -> unbounded cache, else LRU with max entries
+      copy: if True, attempts shallow copies of dict/list to avoid accidental mutation
+    """
+    def __init__(self, dataset, max_size=10000, copy=False, to_tensor=None):
+        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", True))
+        self.dataset = dataset
+        self.max_size = max_size
+        self.copy = copy
+        self.cache = OrderedDict()
+
+        if isinstance(dataset, IterableDataset):
+            raise TypeError("CacheDataset requires a map-style Dataset (iterable datasets can't be indexed).")
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def _maybe_copy(self, x):
+        if not self.copy:
+            return x
+        if isinstance(x, dict):
+            return dict(x)
+        if isinstance(x, list):
+            return list(x)
+        if isinstance(x, tuple):
+            return tuple(x)
+        return x
+
+    def __getitem__(self, idx):
+        idx = int(idx)
+        if idx in self.cache:
+            v = self.cache.pop(idx)
+            self.cache[idx] = v  # mark as most recently used
+            return self._maybe_copy(v)
+
+        v = self.dataset[idx]
+        # If the base dataset returns arrays but this wrapper wants tensors:
+        if self.to_tensor and not getattr(self.dataset, "to_tensor", False):
+            v = _to_tensor_tree(v)
+
+        # store
+        self.cache[idx] = v
+        if self.max_size is not None and len(self.cache) > int(self.max_size):
+            self.cache.popitem(last=False)  # evict LRU
+        return self._maybe_copy(v)

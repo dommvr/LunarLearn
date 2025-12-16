@@ -1,6 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.data.dataloader import IterableDataset
-from LunarLearn.core import Tensor
+from LunarLearn.data.dataloader.utils import _to_tensor_tree
+from LunarLearn.data.dataloader.collate import _collate
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -8,98 +9,65 @@ DTYPE = backend.DTYPE
 
 class DataLoader:
     """
-    Unified mini-batch data loader supporting both static and iterable datasets.
-
-    Works seamlessly with standard array-based datasets or custom IterableDatasets,
-    automatically batching, shuffling, and optionally converting data to Tensors.
-    Designed for compatibility with both CPU and GPU backends.
-
-    Attributes:
-        dataset (Dataset or IterableDataset): The dataset providing (X, y) pairs.
-        batch_size (int): Number of samples per mini-batch.
-        shuffle (bool): Whether to shuffle dataset indices each epoch.
-        to_tensor (bool): Whether to automatically wrap outputs as `Tensor` objects.
-        is_iterable (bool): True if dataset is an instance of `IterableDataset`.
-        m (int): Total number of samples (only for non-iterable datasets).
-        n_batches (int): Number of mini-batches per epoch (only for non-iterable datasets).
-
-    Methods:
-        __len__():
-            Returns the total number of batches per epoch (if defined).
-            Raises an error if dataset length is undefined.
-
-        _get_indices():
-            Generates shuffled or sequential sample indices for the current epoch.
-
-        __iter__():
-            Iterates over dataset samples in mini-batches.
-            Supports both standard and streaming datasets.
-            Yields (X_batch, Y_batch) tuples — optionally as Tensors.
+    Unified mini-batch data loader supporting both map-style and iterable datasets,
+    plus arbitrary sample structures via collate_fn.
     """
-    def __init__(self, dataset, batch_size=32, shuffle=True, to_tensor=True):
+    def __init__(self, dataset, batch_size=32, shuffle=True, to_tensor=True, collate_fn=None):
         self.dataset = dataset
-        self.batch_size = batch_size
+        self.batch_size = int(batch_size)
         self.shuffle = shuffle
         self.to_tensor = to_tensor
+        self.collate_fn = collate_fn if collate_fn is not None else _collate
 
-        # Detect dataset type
         self.is_iterable = isinstance(dataset, IterableDataset)
 
         if not self.is_iterable:
             self.m = len(dataset)
-            if self.m % batch_size != 0:
-                self.n_batches = (self.m // batch_size) + 1
-            else:
-                self.n_batches = self.m // batch_size
+            self.n_batches = (self.m + self.batch_size - 1) // self.batch_size
 
     def __len__(self):
-        """
-        Return the total number of batches per epoch.
+        if self.is_iterable:
+            # Only valid if dataset provides a real length
+            try:
+                m = len(self.dataset)
+            except Exception:
+                raise TypeError("Iterable dataset length is unknown; __len__ is not available.")
+            return (m + self.batch_size - 1) // self.batch_size
 
-        Returns:
-            int: Number of batches in the dataset.
-        """
-        if hasattr(self, "dataset") and hasattr(self.dataset, "__len__"):
-            # Dataset-based loader
-            return (len(self.dataset) + self.batch_size - 1) // self.batch_size
-        elif hasattr(self, "X"):
-            # Array-based loader (old style)
-            return (self.X.shape[0] + self.batch_size - 1) // self.batch_size
-        else:
-            raise AttributeError("Cannot determine dataset length — no dataset or X attribute found.")
+        return (len(self.dataset) + self.batch_size - 1) // self.batch_size
 
-    def _get_indices(self):        
+    def _get_indices(self):
         if self.shuffle:
             return xp.random.permutation(self.m)
         return xp.arange(self.m, dtype=xp.int64)
 
     def __iter__(self):
         if self.is_iterable:
-            # Stream samples until exhausted
             batch = []
             for sample in self.dataset:
                 batch.append(sample)
                 if len(batch) == self.batch_size:
-                    x, y = zip(*batch)
+                    out = self.collate_fn(batch)
                     if self.to_tensor:
-                        x = Tensor(x, requires_grad=False)
-                        y = Tensor(y, requires_grad=False)
-                    yield x, y
+                        out = _to_tensor_tree(out)
+                    yield out
                     batch = []
-            if batch:  # leftover
-                x, y = zip(*batch)
+            if batch:
+                out = self.collate_fn(batch)
                 if self.to_tensor:
-                    x = Tensor(x, requires_grad=False)
-                    y = Tensor(y, requires_grad=False)
-                yield x, y
+                    out = _to_tensor_tree(out)
+                yield out
+
         else:
             indices = self._get_indices()
             for start in range(0, self.m, self.batch_size):
                 end = min(start + self.batch_size, self.m)
                 batch_idx = indices[start:end]
-                batch = [self.dataset[i] for i in batch_idx]
-                x, y = zip(*batch)
+
+                # IMPORTANT: cupy scalars aren't python ints
+                batch = [self.dataset[int(i)] for i in batch_idx]
+
+                out = self.collate_fn(batch)
                 if self.to_tensor:
-                    x = Tensor(x, requires_grad=False)
-                    y = Tensor(y, requires_grad=False)
-                yield x, y
+                    out = _to_tensor_tree(out)
+                yield out
