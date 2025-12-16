@@ -808,54 +808,53 @@ class TextFileDataset(Dataset):
 
 class AugmentedDataset(Dataset):
     """
-    Wraps another dataset and applies a transform to each sample.
-
-    Args:
-        dataset (Dataset): Base dataset.
-        transform (callable): Function applied to (x, y).
+    Wraps a dataset and applies transform(sample) -> sample.
+    Works for samples that are tuples, dicts, etc.
     """
-    def __init__(self, dataset, transform=None, to_tensor=True):
-        super().__init__(to_tensor)
+    def __init__(self, dataset, transform=None, to_tensor=None):
+        # If to_tensor is None: follow base dataset behavior.
+        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", True))
         self.dataset = dataset
         self.transform = transform
+        self._base_to_tensor = getattr(dataset, "to_tensor", False)
 
     def __len__(self):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        x, y = self.dataset[idx]
+        sample = self.dataset[idx]  # can be anything
         if self.transform is not None:
-            x, y = self.transform(x, y)
-        if self.to_tensor:
-            x = Tensor(x, requires_grad=False)
-            y = Tensor(y, requires_grad=False)
-        return x, y
+            sample = self.transform(sample)
+
+        # Only tensorify here if:
+        # - wrapper wants tensors AND
+        # - base dataset didn't already tensorify
+        if self.to_tensor and not self._base_to_tensor:
+            sample = _to_tensor_tree(sample)
+        return sample
     
 
 class AugmentedIterableDataset(IterableDataset):
     """
-    Wraps another dataset and applies a transform to each sample.
-
-    Args:
-        dataset (Dataset): Base dataset.
-        transform (callable): Function applied to (x, y).
+    Iterable version: applies transform(sample)->sample.
     """
-    def __init__(self, dataset, transform=None, to_tensor=True):
-        super().__init__(to_tensor)
+    def __init__(self, dataset, transform=None, to_tensor=None):
+        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", True))
         self.dataset = dataset
         self.transform = transform
+        self._base_to_tensor = getattr(dataset, "to_tensor", False)
 
     def __len__(self):
+        # only valid if underlying has a real __len__
         return len(self.dataset)
 
     def __iter__(self):
-        for x, y in self.dataset:
+        for sample in self.dataset:
             if self.transform is not None:
-                x, y = self.transform(x, y)
-            if self.to_tensor:
-                x = Tensor(x, requires_grad=False)
-                y = Tensor(y, requires_grad=False)
-            yield x, y
+                sample = self.transform(sample)
+            if self.to_tensor and not self._base_to_tensor:
+                sample = _to_tensor_tree(sample)
+            yield sample
 
 
 class LazyDataset(Dataset):
