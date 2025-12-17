@@ -77,7 +77,10 @@ def _grid_sample_chw(img, grid_y, grid_x, mode="bilinear", padding="zeros"):
     out = Ia * wa[None, :, :] + Ib * wb[None, :, :] + Ic * wc[None, :, :] + Id * wd[None, :, :]
 
     if padding != "border":
-        va = va.astype(out.dtype); vb = vb.astype(out.dtype); vc = vc.astype(out.dtype); vd = vd.astype(out.dtype)
+        va = va.astype(out.dtype)
+        vb = vb.astype(out.dtype)
+        vc = vc.astype(out.dtype)
+        vd = vd.astype(out.dtype)
         out = out * (va[None]*wa[None] + vb[None]*wb[None] + vc[None]*wc[None] + vd[None]*wd[None] > 0).astype(out.dtype)
 
     return out
@@ -119,8 +122,10 @@ def affine_chw(img, M, out_h=None, out_w=None, mode="bilinear", padding="zeros")
     """
     img = _as_float_img(img)
     C, H, W = img.shape
-    if out_h is None: out_h = H
-    if out_w is None: out_w = W
+    if out_h is None:
+        out_h = H
+    if out_w is None:
+        out_w = W
 
     ys = xp.arange(int(out_h), dtype=img.dtype)
     xs = xp.arange(int(out_w), dtype=img.dtype)
@@ -137,8 +142,10 @@ def perspective_chw(img, Hm, out_h=None, out_w=None, mode="bilinear", padding="z
     """
     img = _as_float_img(img)
     C, H, W = img.shape
-    if out_h is None: out_h = H
-    if out_w is None: out_w = W
+    if out_h is None:
+        out_h = H
+    if out_w is None:
+        out_w = W
 
     ys = xp.arange(int(out_h), dtype=img.dtype)
     xs = xp.arange(int(out_w), dtype=img.dtype)
@@ -456,3 +463,75 @@ def _knn_indices(A, k=5):
     d2 = d2 + xp.eye(M, dtype=d2.dtype) * inf
     nn = xp.argsort(d2, axis=1)[:, :int(k)]
     return nn
+
+
+# ----------------------------
+# Time Helpers
+# ----------------------------
+
+def _ensure_ct(x):
+    """
+    Accepts (T,), (C,T). Returns (C,T).
+    """
+    x = xp.asarray(x)
+    if x.ndim == 1:
+        return x[None, :]
+    if x.ndim == 2:
+        return x
+    raise ValueError("Expected time series x to have shape (T,) or (C,T)")
+
+
+def _restore_shape(x_ct, original_ndim):
+    if original_ndim == 1:
+        return x_ct[0]
+    return x_ct
+
+
+def _linspace(dtype, start, stop, num):
+    return xp.linspace(dtype(type(start))(start), dtype(type(stop))(stop), int(num), dtype=dtype)
+
+
+def _interp1d_ct(x_ct, t_src, mode="linear"):
+    """
+    x_ct: (C,T)
+    t_src: (Tout,) float indices in [0, T-1]
+    Returns: (C,Tout) sampled from x_ct
+    """
+    C, T = x_ct.shape
+    Tout = int(t_src.shape[0])
+
+    if mode == "nearest":
+        idx = xp.rint(t_src).astype(xp.int64)
+        idx = xp.clip(idx, 0, T - 1)
+        return x_ct[:, idx]
+
+    # linear interpolation
+    t0 = xp.floor(t_src).astype(xp.int64)
+    t1 = xp.clip(t0 + 1, 0, T - 1)
+    t0 = xp.clip(t0, 0, T - 1)
+
+    w = (t_src - t0.astype(t_src.dtype))[None, :]  # (1,Tout)
+
+    x0 = x_ct[:, t0]  # (C,Tout)
+    x1 = x_ct[:, t1]
+    return (1.0 - w) * x0 + w * x1
+
+
+def _smooth1d(v, k=9):
+    """
+    Simple box smoothing. v: (T,) float
+    """
+    T = int(v.shape[0])
+    k = int(k)
+    if k <= 1 or T < 2:
+        return v
+    r = k // 2
+    # pad by reflection
+    left = v[1:r+1][::-1] if r > 0 else v[:0]
+    right = v[-r-1:-1][::-1] if r > 0 else v[:0]
+    p = xp.concatenate([left, v, right], axis=0)
+    # box filter
+    c = xp.cumsum(p, axis=0)
+    out = (c[k:] - c[:-k]) / float(k)
+    # out length: len(p)-k = T + 2r - k + 1 = T
+    return out.astype(v.dtype)
