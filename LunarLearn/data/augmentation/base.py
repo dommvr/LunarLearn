@@ -33,6 +33,25 @@ class RandomChoice:
         return self.transforms[i](sample)
 
 
+class ApplyToXY:
+    """
+    Apply a transform to x only or (x,y) together for tuple samples.
+    """
+    def __init__(self, x_transform=None, xy_transform=None):
+        self.x_t = x_transform
+        self.xy_t = xy_transform
+
+    def __call__(self, sample):
+        if not isinstance(sample, (tuple, list)) or len(sample) < 2:
+            raise TypeError("ApplyToXY expects (x,y) sample")
+        x, y = sample[0], sample[1]
+        if self.xy_t is not None:
+            x, y = self.xy_t(x, y)
+        elif self.x_t is not None:
+            x = self.x_t(x)
+        return (x, y) if len(sample) == 2 else (x, y, *sample[2:])
+
+
 class ApplyToKey:
     """
     Apply an image transform to a specific dict key (e.g. "image").

@@ -316,14 +316,17 @@ def _resolve_synonyms(synonyms):
 def _rand():
     return float(xp.random.rand())
 
+
 def _randint(low, high=None):
     # xp.random.randint matches numpy/cupy
     return int(xp.random.randint(int(low), int(high) if high is not None else None))
+
 
 def _choice(seq):
     if len(seq) == 0:
         raise ValueError("cannot choose from empty sequence")
     return seq[_randint(0, len(seq))]
+
 
 def _permutation(n):
     # returns list of python ints; may transfer from GPU, but that's fine for token ops
@@ -334,8 +337,10 @@ def _permutation(n):
         # fallback: iterate
         return [int(p[i]) for i in range(int(n))]
 
+
 def simple_word_tokenize(text):
     return _WORD_RE.findall(text)
+
 
 def simple_word_detokenize(tokens):
     # minimal detok: no space before punctuation
@@ -350,8 +355,10 @@ def simple_word_detokenize(tokens):
             out.append(" " + t)
     return "".join(out)
 
+
 def _is_word(tok):
     return bool(re.match(r"^\w+$", tok))
+
 
 def _normalize_whitespace(s):
     s = re.sub(r"[ \t]+", " ", s)
@@ -367,3 +374,85 @@ def _typo_char(c):
         rep = neigh[_randint(0, len(neigh))]
         return rep.upper() if c.isupper() else rep
     return c
+
+
+# ----------------------------
+# Tabular Helpers
+# ----------------------------
+
+def _is_xp_array(x):
+    return hasattr(x, "shape") and hasattr(x, "dtype")
+
+
+def _as_xp(x, dtype=None):
+    if dtype is None:
+        dtype = DTYPE
+    return xp.asarray(x, dtype=dtype)
+
+
+def _ensure_2d(X):
+    X = xp.asarray(X)
+    if X.ndim == 1:
+        X = X[None, :]
+    if X.ndim != 2:
+        raise ValueError("Expected X to have shape (N,F)")
+    return X
+
+
+def _one_hot_if_needed(y, num_classes=None, dtype=None):
+    if dtype is None:
+        dtype = DTYPE
+    y = xp.asarray(y)
+    if y.ndim == 1:
+        if num_classes is None:
+            num_classes = int(y.max()) + 1
+        oh = xp.eye(int(num_classes), dtype=dtype)[y.astype(xp.int64)]
+        return oh
+    return y.astype(dtype)
+
+
+def _safe_std(X, axis=0, eps=1e-8):
+    s = xp.std(X, axis=axis)
+    return xp.maximum(s, xp.asarray(eps, dtype=X.dtype))
+
+
+def _unique_counts_1d(a):
+    # works for ints/strings not supported; for categorical use encoded ints
+    a = xp.asarray(a)
+    u = xp.unique(a)
+    counts = xp.zeros((u.shape[0],), dtype=xp.int64)
+    for i in range(int(u.shape[0])):
+        counts[i] = xp.sum(a == u[i])
+    return u, counts
+
+
+def _sample_indices_weighted(weights, n):
+    # weights: (N,) nonnegative
+    w = xp.asarray(weights, dtype=DTYPE)
+    w = xp.maximum(w, 0)
+    s = float(w.sum())
+    if s <= 0:
+        # fallback uniform
+        return xp.random.randint(0, int(w.shape[0]), size=(int(n),))
+    p = w / s
+    # xp.random.choice supports p for numpy; cupy supports too in most builds
+    return xp.random.choice(int(w.shape[0]), size=(int(n),), replace=True, p=p)
+
+
+def _knn_indices(A, k=5):
+    """
+    KNN within A itself (A: (M,F)) using brute-force L2.
+    Returns neighbor indices (M,k) excluding self.
+    Playground-friendly, not speed-champion.
+    """
+    A = _ensure_2d(A)
+    M = int(A.shape[0])
+    # distances squared: (M,M)
+    # d(i,j) = ||Ai - Aj||^2
+    dif = A[:, None, :] - A[None, :, :]
+    d2 = xp.sum(dif * dif, axis=2)
+    # exclude self by setting diag to +inf
+    inf = xp.asarray(1e30, dtype=d2.dtype)
+    d2 = d2 + xp.eye(M, dtype=d2.dtype) * inf
+    nn = xp.argsort(d2, axis=1)[:, :int(k)]
+    return nn
