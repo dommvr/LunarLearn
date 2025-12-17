@@ -1,8 +1,12 @@
 import LunarLearn.core.backend.backend as backend
+import re
 
 xp = backend.xp
 DTYPE = backend.xp
 
+# ----------------------------
+# Image Helpers
+# ----------------------------
 
 def _as_float_img(x, dtype=None):
     if dtype is None:
@@ -10,8 +14,10 @@ def _as_float_img(x, dtype=None):
     x = xp.asarray(x, dtype=dtype)
     return x
 
+
 def _clamp01(x):
     return xp.clip(x, 0.0, 1.0)
+
 
 def _grid_sample_chw(img, grid_y, grid_x, mode="bilinear", padding="zeros"):
     """
@@ -193,3 +199,171 @@ def _conv1d_v(img, k):
         window = pad[:, i:i+2*r+1, :]  # (C,K,W)
         out[:, i, :] = xp.sum(window * k[None, :, None], axis=1)
     return out
+
+
+# ----------------------------
+# Text Helpers
+# ----------------------------
+
+_WORD_RE = re.compile(r"\w+|[^\w\s]", re.UNICODE)  # words + punctuation tokens
+
+_KEY_NEIGHBORS = {
+    "a": "qwsz", "s": "awedxz", "d": "serfcx", "f": "drtgvc", "g": "ftyhbv",
+    "h": "gyujbn", "j": "huikmn", "k": "jiolm", "l": "kop",
+    "q": "wa", "w": "qase", "e": "wsdr", "r": "edft", "t": "rfgy",
+    "y": "tghu", "u": "yhjik", "i": "ujklo", "o": "iklp", "p": "ol",
+    "z": "asx", "x": "zsdc", "c": "xdfv", "v": "cfgb", "b": "vghn", "n": "bhjm", "m": "njk",
+}
+
+# Synonym providers
+_DEFAULT_SYNONYMS = {
+    # tiny built-in map (extend as you want)
+    "good": ["great", "nice", "solid", "decent"],
+    "bad": ["awful", "poor", "terrible"],
+    "small": ["tiny", "little", "compact"],
+    "big": ["large", "huge", "massive"],
+    "fast": ["quick", "rapid", "speedy"],
+    "slow": ["sluggish", "lazy", "gradual"],
+    "happy": ["glad", "cheerful", "pleased"],
+    "sad": ["unhappy", "down", "upset"],
+    "angry": ["mad", "furious", "irritated"],
+    "smart": ["clever", "bright", "sharp"],
+    "hard": ["difficult", "tough", "challenging"],
+    "easy": ["simple", "trivial", "effortless"],
+    "buy": ["purchase", "acquire"],
+    "sell": ["trade", "vendor"],
+    "make": ["create", "build", "produce"],
+    "use": ["utilize", "apply"],
+    "help": ["assist", "aid", "support"],
+    "important": ["critical", "key", "essential"],
+}
+
+
+class SynonymProvider:
+    def get(self, word_lower):
+        raise NotImplementedError
+
+
+class SmallSynonyms(SynonymProvider):
+    def __init__(self, mapping=None):
+        self.map = mapping if mapping is not None else _DEFAULT_SYNONYMS
+
+    def get(self, word_lower):
+        return self.map.get(word_lower, [])
+
+
+class WordNetSynonyms(SynonymProvider):
+    """
+    Optional WordNet synonyms via NLTK.
+    This does NOT download anything. If WordNet isn't available, raises a clear error.
+    """
+    def __init__(self, max_synonyms=8, keep_single_word=True):
+        self.max_synonyms = int(max_synonyms)
+        self.keep_single_word = bool(keep_single_word)
+        self._cache = {}
+        try:
+            from nltk.corpus import wordnet as wn  # optional dependency
+        except Exception as e:
+            raise ImportError(
+                "WordNetSynonyms requires nltk and the WordNet corpus.\n"
+                "Install nltk and ensure wordnet data is available, or use synonyms='small'."
+            ) from e
+        self.wn = wn
+
+    def get(self, word_lower):
+        if word_lower in self._cache:
+            return self._cache[word_lower]
+
+        out = []
+        seen = set([word_lower])
+
+        for syn in self.wn.synsets(word_lower):
+            for lemma in syn.lemmas():
+                w = lemma.name().replace("_", " ").lower()
+                if self.keep_single_word and (" " in w):
+                    continue
+                if w not in seen:
+                    seen.add(w)
+                    out.append(w)
+                    if len(out) >= self.max_synonyms:
+                        break
+            if len(out) >= self.max_synonyms:
+                break
+
+        self._cache[word_lower] = out
+        return out
+
+
+def _resolve_synonyms(synonyms):
+    """
+    synonyms can be:
+      - "small" / "wordnet"
+      - dict mapping str->list[str]
+      - SynonymProvider
+      - None (defaults to "small")
+    """
+    if synonyms is None or synonyms == "small":
+        return SmallSynonyms()
+    if synonyms == "wordnet":
+        return WordNetSynonyms()
+    if isinstance(synonyms, dict):
+        return SmallSynonyms(mapping=synonyms)
+    if isinstance(synonyms, SynonymProvider):
+        return synonyms
+    raise TypeError("synonyms must be 'small', 'wordnet', a dict, or a SynonymProvider")
+
+
+def _rand():
+    return float(xp.random.rand())
+
+def _randint(low, high=None):
+    # xp.random.randint matches numpy/cupy
+    return int(xp.random.randint(int(low), int(high) if high is not None else None))
+
+def _choice(seq):
+    if len(seq) == 0:
+        raise ValueError("cannot choose from empty sequence")
+    return seq[_randint(0, len(seq))]
+
+def _permutation(n):
+    # returns list of python ints; may transfer from GPU, but that's fine for token ops
+    p = xp.random.permutation(int(n))
+    try:
+        return [int(i) for i in p.tolist()]
+    except Exception:
+        # fallback: iterate
+        return [int(p[i]) for i in range(int(n))]
+
+def simple_word_tokenize(text):
+    return _WORD_RE.findall(text)
+
+def simple_word_detokenize(tokens):
+    # minimal detok: no space before punctuation
+    out = []
+    for t in tokens:
+        if not out:
+            out.append(t)
+            continue
+        if re.match(r"[^\w\s]", t):  # punctuation token
+            out[-1] = out[-1] + t
+        else:
+            out.append(" " + t)
+    return "".join(out)
+
+def _is_word(tok):
+    return bool(re.match(r"^\w+$", tok))
+
+def _normalize_whitespace(s):
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r"\s+\n", "\n", s)
+    s = re.sub(r"\n\s+", "\n", s)
+    return s.strip()
+
+
+def _typo_char(c):
+    lo = c.lower()
+    neigh = _KEY_NEIGHBORS.get(lo, "")
+    if neigh:
+        rep = neigh[_randint(0, len(neigh))]
+        return rep.upper() if c.isupper() else rep
+    return c

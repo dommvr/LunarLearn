@@ -35,6 +35,20 @@ from .image import (RandomCropPadResize,
                     RandomChannelDropout,
                     mixup_batch,
                     cutmix_batch)
+from .text import (SynonymReplacement,
+                   RandomDeletion,
+                   RandomSwap,
+                   RandomInsertion,
+                   CharTypos,
+                   RandomCharDeleteInsert,
+                   RandomCasing,
+                   PunctWhitespaceNoise,
+                   BackTranslation,
+                   Paraphrase,
+                   WordDropout,
+                   TokenDropoutIds,
+                   SpanMaskingIds,
+                   TextAugmentViaTokenizer)
 
 __all__ = [
     "Compose",
