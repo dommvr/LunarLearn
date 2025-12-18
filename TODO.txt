@@ -1,4 +1,4 @@
-ML:    
+ML:
     # Linear / logistic regression
     # Regularized linear models
     Perceptron / Linear SVM
@@ -18,7 +18,10 @@ ML:
     -add ensure_tensor to model funcs
     -check add.at/scatter_add (recommender/utils)
     -add preprocessing/features/LabelEncoder to ml models that use it (instead of utils/_encode_labels)
+    -implement model_search/split to general dataloaders and datasets
+    -preprocessing and model_selecting maybe should be moved from ml folder
 DL:
+    -add helper func to tokenizer that creates regex patter based on true/false flags
     -check if freez params need requires_grad=False or just skip in optim
     -crop2d, cnnlstm1/2/3d, bidirectional
     -correct init_weights in cells
@@ -47,4 +50,67 @@ DL:
     if a.skip_grad:
         a.grad = out.grad
 
+
 Datasets:
+    ML:
+        -Iris (m class)
+        -Wine (m class)
+        -Breast Cancer Wisconsin (b class)
+        -Digits 8x8 (m class)
+        -Titanic (b class)
+        -Adult/Census Income (b class)
+        -California Housing (regression)
+        -Diabetes (regression)
+        -Ames Housing (regression)
+        -20 Newsgroup (text m class)
+        -SMS Spam (b class)
+        -IMDb Reviews (sentiment (binary))
+        -MNIST (m class)
+        -Fashion MNIST (m class)
+        -Olivetti Faces (unsupervised/semi-supervised/class)
+        -MovieLens 100k/1M (MatrixFactorization/BiasedMF)
+        -GoodBooks-10k
+
+    
+    DL:
+        -ImageNet-1k/Tiny
+        -CIFAR-10/100
+        -STL-10
+        -Pascal VOC 2007 + 2012
+        -COCO 2017
+        -WIDER FACE 
+        -CrowdHuman
+        -OpenImages 
+        -Pascal VOC Segmentation
+        -Cityscapes
+        -ADE20K
+        -COCO-Stuff
+        -CamVid
+        -CelebA/CelebA-HQ
+        -LSUN Bedrooms/churches/towers
+        -FFHQ
+        -WikiText-2/WikiText-103
+        -OpenWebText
+        -BookCorpus
+        -C4
+        -text finetuning (one generic TextClassificationDataset with task-specific configs is enough)
+            -GLUE
+            -SQuAD v1.1/v2
+            -CoNLL-2003
+            -XNLI/MultiNLI
+        -COCO CAptions
+        -Flickr30k
+        -Conceptual CAptions
+        -LAION
+        -Moving MNIST
+        -UCF101
+        -Kinetics-400
+        -Something-Something v2
+
+    Recommender-specific augmentations
+        For MF/BiasedMF, “augmentation” is mostly about sampling.
+        Negative sampling (uniform, popularity-weighted, “hard negatives”)
+        User or item dropout (randomly remove a fraction of interactions)
+        Interaction noise (small rating noise for explicit ratings)
+        Temporal splitting helpers (train on past, test on future)
+        Random exposure bias simulation (optional)

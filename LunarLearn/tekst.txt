@@ -1251,30 +1251,29 @@ I finished my models zoo. Thats what i get:
 -Segmentation: deeplab, unet
 -Vision: alexnet, convnext, deit, dino, efficientnet, mobilenet, regnet, resnet, vgg, vit, swin, googlenet
 
-LunarLearn/
-  ml/
-    __init__.py
-
-    base.py          # BaseEstimator, ClassifierMixin, RegressorMixin...
-
-    linear.py        # LinearRegression, Ridge, Lasso, ElasticNet, LogisticRegression
-    neighbors.py     # KNNClassifier, KNNRegressor
-    naive_bayes.py   # GaussianNB, MultinomialNB, BernoulliNB
-    tree.py          # DecisionTreeClassifier/Regressor
-    ensemble.py      # RandomForest*, GradientBoosting*, AdaBoost
-    cluster.py       # KMeans, MiniBatchKMeans, GMM, etc (if you add them later)
-    decomp.py        # PCA, IncrementalPCA, LDA (later)
-    recommender.py   # MatrixFactorization, BiasedMF
-
-    preprocessing/
-        __init__.py
-        scaling.py   # StandardScaler, MinMaxScaler
-        features.py  # PolynomialFeatures, maybe encoders
-
-    model_selection/
-        __init__.py
-        split.py     # train_test_split, KFold, StratifiedKFold
-        search.py    # GridSearchCV / simple tuner (if you feel like it)
 
 
-tensor.view (reshape?)
+
+
+
+img_aug = Compose([
+    RandomCropPadResize((32, 32), pad=4),
+    RandomHorizontalFlip(0.5),
+    ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.8),
+    RandomErasing(p=0.2),
+])
+
+ds = AugmentedDataset(base_ds, transform=lambda sample: (img_aug(sample[0]), sample[1]))
+
+
+img_only = ApplyToKey("image", Compose([
+    RandomAffine(),
+    GaussianBlur(),
+]))
+
+ds = AugmentedDataset(det_ds, transform=img_only)
+
+
+for batch in loader:
+    X, Y = batch  # or batch["images"], batch["labels"]
+    X, Y = mixup_batch(X, Y, alpha=0.2)
