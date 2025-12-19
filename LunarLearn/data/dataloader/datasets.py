@@ -5,6 +5,7 @@ import csv
 import json
 import random
 from collections import OrderedDict
+from dataclasses import dataclass
 
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.core import Tensor
@@ -13,6 +14,15 @@ from LunarLearn.data.dataloader.utils import _to_tensor_tree, _is_xp_array, _pad
 xp = backend.xp
 DTYPE = backend.DTYPE
 USING = backend.USING
+
+
+@dataclass
+class DatasetBundle:
+    X: object
+    y: object
+    feature_names: list | None = None
+    target_names: list | None = None
+    description: str | None = None
 
 
 class Dataset:

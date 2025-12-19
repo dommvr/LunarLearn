@@ -12,6 +12,7 @@ from .collate import (
 )
 from .dataloader import DataLoader
 from .datasets import (
+    DatasetBundle,
     Dataset,
     IterableDataset,
     ArrayDataset,
@@ -48,6 +49,7 @@ __all__ = [
     "collate_tracking",
     "collate_video",
     "DataLoader",
+    "DatasetBundle",
     "Dataset",
     "IterableDataset",
     "ArrayDataset",
