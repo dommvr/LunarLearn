@@ -44,6 +44,8 @@ DL:
     -change epsilon to eps
     -conv1d/2d/3d
     -change inception blocks to match inceptionv1
+    -change dataloader/datasets to match imagedataset and csvimagedataset.
+    -move some func from datasets to utils
 
     spectralnorm (stop_grad)
 
@@ -107,10 +109,33 @@ Datasets:
         -Kinetics-400
         -Something-Something v2
 
-    Recommender-specific augmentations
-        For MF/BiasedMF, “augmentation” is mostly about sampling.
-        Negative sampling (uniform, popularity-weighted, “hard negatives”)
-        User or item dropout (randomly remove a fraction of interactions)
-        Interaction noise (small rating noise for explicit ratings)
-        Temporal splitting helpers (train on past, test on future)
-        Random exposure bias simulation (optional)
+Vision: detection / instance seg / tracking
+
+Pascal VOC (07/12 unified)
+COCO 2017
+WIDER FACE
+CrowdHuman
+MOT17 (tracking)
+
+Vision: semantic segmentation
+
+Cityscapes
+ADE20K
+COCO-Stuff
+CamVid (optional if you want a “small Cityscapes-like”)
+Generative / faces
+CelebA (attributes)
+FFHQ (high-quality faces)
+LSUN (Bedrooms/Churches as classic unconditional gen)
+
+NLP: LM + finetuning benchmarks
+WikiText-103 (keep WikiText-2 as a tiny debug variant)
+OpenWebText or C4 (pick one as “large LM text”; make the other optional)
+GLUE (covers a bunch of standard classification-style tasks)
+SQuAD (QA)
+CoNLL-2003 (NER)
+XNLI (cross-lingual)
+Multimodal (if you want it in-core; otherwise make it optional)
+
+Swap in 1–2 of these by removing the least-used above:
+COCO Captions

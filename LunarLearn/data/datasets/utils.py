@@ -7,6 +7,7 @@ import tarfile
 import numpy as np
 import gzip
 import zipfile
+import pickle
 
 import LunarLearn.core.backend.backend as backend
 
@@ -29,6 +30,17 @@ def _sha256(path: str) -> str:
     return h.hexdigest()
 
 
+def _md5(path, chunk=1 << 20):
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        while True:
+            b = f.read(chunk)
+            if not b:
+                break
+            h.update(b)
+    return h.hexdigest()
+
+
 def _download(url: str, dst_path: str, *, overwrite=False, timeout=30):
     os.makedirs(os.path.dirname(dst_path), exist_ok=True)
     if (not overwrite) and os.path.exists(dst_path) and os.path.getsize(dst_path) > 0:
@@ -42,6 +54,38 @@ def _download(url: str, dst_path: str, *, overwrite=False, timeout=30):
                 break
             f.write(chunk)
     os.replace(tmp, dst_path)
+
+
+"""
+def _download(url, fpath, *, overwrite=False, expected_md5=None):
+    import urllib.request
+    os.makedirs(os.path.dirname(fpath), exist_ok=True)
+
+    if (not overwrite) and os.path.exists(fpath) and os.path.getsize(fpath) > 0:
+        if expected_md5 is None or _md5(fpath) == expected_md5:
+            return fpath
+
+    tmp = fpath + ".tmp"
+    with urllib.request.urlopen(url) as r, open(tmp, "wb") as w:
+        w.write(r.read())
+    os.replace(tmp, fpath)
+
+    if expected_md5 is not None:
+        got = _md5(fpath)
+        if got != expected_md5:
+            raise RuntimeError(f"MD5 mismatch for {fpath}: got {got}, expected {expected_md5}")
+    return fpath
+
+def _download_from_mirrors(mirrors, filename, fpath, *, expected_md5=None):
+    last_err = None
+    for base in mirrors:
+        url = base.rstrip("/") + "/" + filename
+        try:
+            return _download(url, fpath, overwrite=True, expected_md5=expected_md5)
+        except Exception as e:
+            last_err = e
+    raise RuntimeError(f"Failed to download {filename} from mirrors. Last error: {last_err}")
+"""
 
 
 def _download_from_mirrors(mirrors, filename, fpath, *, timeout=30):
@@ -143,3 +187,8 @@ def _parse_idx_gz_labels(gz_path):
     arr = np.frombuffer(data, dtype=np.uint8, offset=8)
     arr = arr.reshape(n,)
     return arr
+
+
+def _unpickle(path):
+    with open(path, "rb") as f:
+        return pickle.load(f, encoding="bytes")

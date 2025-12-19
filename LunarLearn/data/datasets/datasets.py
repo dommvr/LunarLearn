@@ -17,7 +17,8 @@ from LunarLearn.data.datasets.utils import (get_data_home,
                                             _extract_zip,
                                             _parse_idx_gz_images,
                                             _parse_idx_gz_labels,
-                                            _download_from_mirrors)
+                                            _download_from_mirrors,
+                                            _unpickle)
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -1073,6 +1074,7 @@ def load_olivetti_faces(
     _download(url, fpath)
 
     try:
+        import scipy.io
         from scipy.io import loadmat
     except Exception as e:
         raise RuntimeError(
@@ -1246,6 +1248,346 @@ def load_goodbooks_10k(
     return DatasetBundle(X=X, y=y, description="GoodBook-10k ratings")
 
 
+def load_cifar10(
+    *,
+    subset="train",            # "train" | "test" | "all"
+    return_X_y=True,
+    as_dataset=False,
+    dtype=None,
+    shuffle=False,
+    random_state=None,
+    data_home=None,
+    normalize=True,            # scale to [0,1]
+):
+    """
+    CIFAR-10 (python version). Returns X as (N,3,32,32) float in NCHW.
+    y: xp.int64 in [0..9].
+    """
+    if dtype is None:
+        dtype = DTYPE
+    if subset not in ("train", "test", "all"):
+        raise ValueError("subset must be 'train', 'test', or 'all'")
+
+    home = get_data_home(data_home)
+    ddir = os.path.join(home, "cifar10")
+    os.makedirs(ddir, exist_ok=True)
+
+    url = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+    tgz = os.path.join(ddir, "cifar-10-python.tar.gz")
+    expected_md5 = "c58f30108f718f92721af3b95e74349a"  # official
+    if (not os.path.exists(tgz)) or (_md5(tgz) != expected_md5):
+        _download(url, tgz)
+
+    extracted_root = os.path.join(ddir, "cifar-10-batches-py")
+    if not os.path.isdir(extracted_root):
+        _extract_tgz(tgz, ddir)
+
+    # class names
+    meta = _unpickle(os.path.join(extracted_root, "batches.meta"))
+    target_names = [n.decode("utf-8") for n in meta[b"label_names"]]
+
+    def _load_batches(paths):
+        Xs, ys = [], []
+        for p in paths:
+            d = _unpickle(p)
+            Xs.append(d[b"data"])               # (N, 3072) uint8
+            ys.extend(d[b"labels"])            # list[int]
+        X = np.concatenate(Xs, axis=0)
+        y = np.asarray(ys, dtype=np.int64)
+        # data layout: R(1024) G(1024) B(1024) per row (documented)
+        X = X.reshape(-1, 3, 32, 32).astype(np.float32)
+        if normalize:
+            X /= 255.0
+        return X, y
+
+    if subset == "train":
+        batch_paths = [os.path.join(extracted_root, f"data_batch_{i}") for i in range(1, 6)]
+        X, y = _load_batches(batch_paths)
+    elif subset == "test":
+        X, y = _load_batches([os.path.join(extracted_root, "test_batch")])
+    else:
+        train_paths = [os.path.join(extracted_root, f"data_batch_{i}") for i in range(1, 6)]
+        test_path = [os.path.join(extracted_root, "test_batch")]
+        Xtr, ytr = _load_batches(train_paths)
+        Xte, yte = _load_batches(test_path)
+        X = np.concatenate([Xtr, Xte], axis=0)
+        y = np.concatenate([ytr, yte], axis=0)
+
+    X = xp.asarray(X, dtype=dtype)
+    y = xp.asarray(y, dtype=xp.int64)
+    X, y = _maybe_shuffle(X, y, shuffle, random_state)
+
+    if as_dataset:
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+    if return_X_y:
+        return X, y
+    return DatasetBundle(X=X, y=y, target_names=target_names, description="CIFAR-10 (python version)")
+
+
+def load_cifar100(
+    *,
+    subset="train",            # "train" | "test" | "all"
+    label_mode="fine",         # "fine" | "coarse"
+    return_X_y=True,
+    as_dataset=False,
+    dtype=None,
+    shuffle=False,
+    random_state=None,
+    data_home=None,
+    normalize=True,            # scale to [0,1]
+):
+    """
+    CIFAR-100 (python version). Returns X as (N,3,32,32) float in NCHW.
+    y: xp.int64 in [0..99] if fine, or [0..19] if coarse.
+    """
+    if dtype is None:
+        dtype = DTYPE
+    if subset not in ("train", "test", "all"):
+        raise ValueError("subset must be 'train', 'test', or 'all'")
+    if label_mode not in ("fine", "coarse"):
+        raise ValueError("label_mode must be 'fine' or 'coarse'")
+
+    home = get_data_home(data_home)
+    ddir = os.path.join(home, "cifar100")
+    os.makedirs(ddir, exist_ok=True)
+
+    url = "https://www.cs.toronto.edu/~kriz/cifar-100-python.tar.gz"
+    tgz = os.path.join(ddir, "cifar-100-python.tar.gz")
+    expected_md5 = "eb9058c3a382ffc7106e4002c42a8d85"  # official
+    if (not os.path.exists(tgz)) or (_md5(tgz) != expected_md5):
+        _download(url, tgz)
+
+    extracted_root = os.path.join(ddir, "cifar-100-python")
+    if not os.path.isdir(extracted_root):
+        _extract_tgz(tgz, ddir)
+
+    meta = _unpickle(os.path.join(extracted_root, "meta"))
+    fine_names = [n.decode("utf-8") for n in meta[b"fine_label_names"]]
+    coarse_names = [n.decode("utf-8") for n in meta[b"coarse_label_names"]]
+
+    def _load_split(name):
+        d = _unpickle(os.path.join(extracted_root, name))
+        X = d[b"data"]  # (N, 3072)
+        if label_mode == "fine":
+            y = np.asarray(d[b"fine_labels"], dtype=np.int64)
+            tnames = fine_names
+        else:
+            y = np.asarray(d[b"coarse_labels"], dtype=np.int64)
+            tnames = coarse_names
+
+        X = X.reshape(-1, 3, 32, 32).astype(np.float32)
+        if normalize:
+            X /= 255.0
+        return X, y, tnames
+
+    if subset == "train":
+        X, y, target_names = _load_split("train")
+    elif subset == "test":
+        X, y, target_names = _load_split("test")
+    else:
+        Xtr, ytr, target_names = _load_split("train")
+        Xte, yte, _ = _load_split("test")
+        X = np.concatenate([Xtr, Xte], axis=0)
+        y = np.concatenate([ytr, yte], axis=0)
+
+    X = xp.asarray(X, dtype=dtype)
+    y = xp.asarray(y, dtype=xp.int64)
+    X, y = _maybe_shuffle(X, y, shuffle, random_state)
+
+    desc = f"CIFAR-100 (python version, label_mode={label_mode})"
+    if as_dataset:
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+    if return_X_y:
+        return X, y
+    return DatasetBundle(X=X, y=y, target_names=target_names, description=desc)
+
+
+def load_svhn(
+    *,
+    subset="train",            # "train" | "test" | "all"
+    include_extra=False,       # if True, add 'extra' to train/all
+    return_X_y=True,
+    as_dataset=False,
+    dtype=None,
+    shuffle=False,
+    random_state=None,
+    data_home=None,
+    normalize=True,            # scale to [0,1]
+):
+    """
+    SVHN (cropped digits). Returns X as (N,3,32,32) float in NCHW.
+    y: xp.int64 in [0..9] with original '10' remapped to 0.
+    """
+    if dtype is None:
+        dtype = DTYPE
+    if subset not in ("train", "test", "all"):
+        raise ValueError("subset must be 'train', 'test', or 'all'")
+
+    try:
+        import scipy.io  # noqa: F401
+        from scipy.io import loadmat
+    except Exception as e:
+        raise ImportError("SVHN loader requires scipy (pip install scipy).") from e
+
+    home = get_data_home(data_home)
+    ddir = os.path.join(home, "svhn")
+    os.makedirs(ddir, exist_ok=True)
+
+    base = "http://ufldl.stanford.edu/housenumbers"
+    files = {
+        "train": ("train_32x32.mat", os.path.join(ddir, "train_32x32.mat")),
+        "test":  ("test_32x32.mat",  os.path.join(ddir, "test_32x32.mat")),
+        "extra": ("extra_32x32.mat", os.path.join(ddir, "extra_32x32.mat")),
+    }
+
+    def _get(split):
+        fn, fpath = files[split]
+        if not os.path.exists(fpath):
+            _download(f"{base}/{fn}", fpath)
+        return fpath
+
+    def _load_split(split):
+        m = loadmat(_get(split))
+        X = m["X"]  # (32, 32, 3, N)
+        y = m["y"].astype(np.int64).reshape(-1)  # (N,)
+        # label '10' means digit 0
+        y[y == 10] = 0
+        # to NCHW
+        X = np.transpose(X, (3, 2, 0, 1)).astype(np.float32)  # (N,3,32,32)
+        if normalize:
+            X /= 255.0
+        return X, y
+
+    Xs, ys = [], []
+    if subset in ("train", "all"):
+        Xtr, ytr = _load_split("train")
+        Xs.append(Xtr); ys.append(ytr)
+        if include_extra:
+            Xe, ye = _load_split("extra")
+            Xs.append(Xe); ys.append(ye)
+    if subset in ("test", "all"):
+        Xte, yte = _load_split("test")
+        Xs.append(Xte); ys.append(yte)
+
+    X = np.concatenate(Xs, axis=0)
+    y = np.concatenate(ys, axis=0)
+
+    X = xp.asarray(X, dtype=dtype)
+    y = xp.asarray(y, dtype=xp.int64)
+    X, y = _maybe_shuffle(X, y, shuffle, random_state)
+
+    target_names = [str(i) for i in range(10)]
+    if as_dataset:
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+    if return_X_y:
+        return X, y
+    return DatasetBundle(X=X, y=y, target_names=target_names, description="SVHN (cropped digits)")
+
+
+def load_stl10(
+    *,
+    subset="train",            # "train" | "test" | "all"
+    include_unlabeled=False,   # add unlabeled to train/all with y=-1
+    return_X_y=True,
+    as_dataset=False,
+    dtype=None,
+    shuffle=False,
+    random_state=None,
+    data_home=None,
+    normalize=True,            # scale to [0,1]
+):
+    """
+    STL-10 (binary). Returns X as (N,3,96,96) float in NCHW.
+    y: xp.int64 in [0..9], unlabeled (if included) uses -1.
+    """
+    if dtype is None:
+        dtype = DTYPE
+    if subset not in ("train", "test", "all"):
+        raise ValueError("subset must be 'train', 'test', or 'all'")
+
+    home = get_data_home(data_home)
+    ddir = os.path.join(home, "stl10")
+    os.makedirs(ddir, exist_ok=True)
+
+    url = "http://ai.stanford.edu/~acoates/stl10/stl10_binary.tar.gz"
+    tgz = os.path.join(ddir, "stl10_binary.tar.gz")
+    if not os.path.exists(tgz):
+        _download(url, tgz)
+
+    extracted_root = os.path.join(ddir, "stl10_binary")
+    if not os.path.isdir(extracted_root):
+        _extract_tgz(tgz, ddir)
+
+    def _read_images_bin(path, n_expected=None):
+        raw = np.fromfile(path, dtype=np.uint8)
+        img_sz = 3 * 96 * 96
+        if raw.size % img_sz != 0:
+            raise ValueError(f"Corrupt STL-10 image file: {path}")
+        n = raw.size // img_sz
+        if (n_expected is not None) and (n != n_expected):
+            # not fatal, but a nice sanity check
+            pass
+
+        flat = raw.reshape(n, 3, 96 * 96)  # channel-major blocks
+        X = np.empty((n, 3, 96, 96), dtype=np.uint8)
+        # pixels inside each channel are column-major
+        for c in range(3):
+            X[:, c] = flat[:, c].reshape(n, 96, 96, order="F")
+
+        X = X.astype(np.float32)
+        if normalize:
+            X /= 255.0
+        return X
+
+    def _read_labels_bin(path):
+        y = np.fromfile(path, dtype=np.uint8).astype(np.int64)
+        # labels are 1..10 -> map to 0..9
+        y = y - 1
+        return y
+
+    def _load_split(split):
+        if split == "train":
+            X = _read_images_bin(os.path.join(extracted_root, "train_X.bin"))
+            y = _read_labels_bin(os.path.join(extracted_root, "train_y.bin"))
+            return X, y
+        if split == "test":
+            X = _read_images_bin(os.path.join(extracted_root, "test_X.bin"))
+            y = _read_labels_bin(os.path.join(extracted_root, "test_y.bin"))
+            return X, y
+        if split == "unlabeled":
+            X = _read_images_bin(os.path.join(extracted_root, "unlabeled_X.bin"))
+            y = -np.ones((X.shape[0],), dtype=np.int64)
+            return X, y
+        raise ValueError(split)
+
+    Xs, ys = [], []
+    if subset in ("train", "all"):
+        Xtr, ytr = _load_split("train")
+        Xs.append(Xtr); ys.append(ytr)
+        if include_unlabeled:
+            Xu, yu = _load_split("unlabeled")
+            Xs.append(Xu); ys.append(yu)
+    if subset in ("test", "all"):
+        Xte, yte = _load_split("test")
+        Xs.append(Xte); ys.append(yte)
+
+    X = np.concatenate(Xs, axis=0)
+    y = np.concatenate(ys, axis=0)
+
+    X = xp.asarray(X, dtype=dtype)
+    y = xp.asarray(y, dtype=xp.int64)
+    X, y = _maybe_shuffle(X, y, shuffle, random_state)
+
+    target_names = [
+        "airplane","bird","car","cat","deer","dog","horse","monkey","ship","truck"
+    ]
+    if as_dataset:
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+    if return_X_y:
+        return X, y
+    return DatasetBundle(X=X, y=y, target_names=target_names, description="STL-10 (binary)")
+
+
 # ----------------------------
 # Registry 
 # ----------------------------
@@ -1266,7 +1608,11 @@ _DATASETS = {
     "fashion_mnist": load_fashion_mnist,
     "olivetti_faces": load_olivetti_faces,
     "movielens": load_movielens,
-    "goodbooks_10k": load_goodbooks_10k
+    "goodbooks_10k": load_goodbooks_10k,
+    "cifar10": load_cifar10,
+    "cifar100": load_cifar100,
+    "svhn": load_svhn,
+    "stl10": load_stl10
 }
 
 def list_datasets():

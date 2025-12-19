@@ -298,35 +298,42 @@ class PackedSequenceDataset(Dataset):
 
 
 class ImageDataset(Dataset):
-    def __init__(self, path, size=(64, 64), to_tensor=True, one_hot=True):
-        """
-        Image dataset loader compatible with DataLoader.
-
-        Args:
-            path (str): Root folder containing class subfolders.
-            size (tuple): (H, W) resize target for images.
-            to_tensor (bool): If True, return Tensors. If False, return xp.arrays.
-            one_hot (bool): If True, labels are one-hot encoded.
-        """
+    def __init__(
+        self,
+        path,
+        size=(64, 64),
+        to_tensor=True,
+        one_hot=False,          # better default
+        transform=None,
+        target_transform=None,
+        return_path=False,
+        label_dtype=xp.int64,   # int labels by default
+        x_dtype=None,           # defaults to DTYPE
+    ):
         super().__init__(to_tensor)
         self.folder_path = path
         self.size = size
         self.to_tensor = to_tensor
         self.one_hot = one_hot
+        self.transform = transform
+        self.target_transform = target_transform
+        self.return_path = return_path
+        self.label_dtype = label_dtype
+        self.x_dtype = DTYPE if x_dtype is None else x_dtype
 
-        # Collect class names and map to indices
-        self.class_names = sorted([
+        self.class_names = sorted(
             d for d in os.listdir(self.folder_path)
             if os.path.isdir(os.path.join(self.folder_path, d))
-        ])
-        self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.class_names)}
+        )
+        self.class_to_idx = {c: i for i, c in enumerate(self.class_names)}
 
-        # Collect samples
         self.samples = []
         for cls_name in self.class_names:
             cls_folder = os.path.join(self.folder_path, cls_name)
-            files = [f for f in os.listdir(cls_folder)
-                     if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            files = sorted(
+                f for f in os.listdir(cls_folder)
+                if f.lower().endswith((".jpg", ".jpeg", ".png"))
+            )
             for f in files:
                 self.samples.append((os.path.join(cls_folder, f), self.class_to_idx[cls_name]))
 
@@ -336,60 +343,83 @@ class ImageDataset(Dataset):
     def __getitem__(self, idx):
         img_path, label = self.samples[idx]
 
-        # Load + preprocess image
-        img = Image.open(img_path).convert('RGB')
+        img = Image.open(img_path).convert("RGB")
         img = img.resize(self.size, Image.Resampling.LANCZOS)
-        img_array = np.array(img, dtype=np.float32) / 255.0
-        img_array = np.transpose(img_array, (2, 0, 1))  # (C, H, W)
 
-        # Convert to xp
-        x = xp.asarray(img_array, dtype=DTYPE)
+        x = np.asarray(img, dtype=np.float32) / 255.0
+        x = np.transpose(x, (2, 0, 1))  # (C,H,W)
+
+        # optional transform on numpy/CPU
+        if self.transform is not None:
+            x = self.transform(x)
+
+        # labels
         if self.one_hot:
-            y = xp.eye(len(self.class_to_idx), dtype=DTYPE)[label]
+            y = np.zeros((len(self.class_names),), dtype=np.float32)
+            y[label] = 1.0
+            if self.target_transform is not None:
+                y = self.target_transform(y)
+            y = xp.asarray(y, dtype=self.x_dtype)  # one-hot is float
         else:
-            y = xp.array(label, dtype=DTYPE)
+            y = label
+            if self.target_transform is not None:
+                y = self.target_transform(y)
+            y = xp.asarray(y, dtype=self.label_dtype)
 
-        # Wrap in Tensor if requested
+        # move x to xp at the end (still per-sample, but at least consistent)
+        x = xp.asarray(x, dtype=self.x_dtype)
+
         if self.to_tensor:
             x = Tensor(x, requires_grad=False)
             y = Tensor(y, requires_grad=False)
 
+        if self.return_path:
+            return x, y, img_path
         return x, y
     
 
 class CSVImageDataset(Dataset):
-    def __init__(self, csv_file, img_root="", size=(64, 64),
-                 to_tensor=True, one_hot=True, delimiter=","):
-        """
-        Dataset that loads images from paths listed in a CSV file.
-
-        Args:
-            csv_file (str): Path to CSV file with columns [path,label].
-            img_root (str): Optional root folder prefix for image paths.
-            size (tuple): (H, W) resize target for images.
-            to_tensor (bool): If True, return Tensors. If False, return xp.arrays.
-            one_hot (bool): If True, labels are one-hot encoded.
-            delimiter (str): CSV delimiter (default ',').
-        """
+    def __init__(
+        self,
+        csv_file,
+        img_root="",
+        size=(64, 64),
+        to_tensor=True,
+        one_hot=False,
+        delimiter=",",
+        num_classes=None,
+        transform=None,
+        target_transform=None,
+        return_path=False,
+        label_dtype=xp.int64,
+        x_dtype=None,
+    ):
         super().__init__(to_tensor)
         self.csv_file = csv_file
         self.img_root = img_root
         self.size = size
         self.to_tensor = to_tensor
         self.one_hot = one_hot
+        self.transform = transform
+        self.target_transform = target_transform
+        self.return_path = return_path
+        self.label_dtype = label_dtype
+        self.x_dtype = DTYPE if x_dtype is None else x_dtype
 
-        # Read CSV rows
         self.samples = []
         with open(csv_file, "r", newline="") as f:
             reader = csv.DictReader(f, delimiter=delimiter)
             for row in reader:
-                path = os.path.join(img_root, row["path"])
+                p = row["path"]
+                path = p if os.path.isabs(p) else os.path.join(img_root, p)
                 label = int(row["label"])
                 self.samples.append((path, label))
 
-        # Infer number of classes
-        labels = [lbl for _, lbl in self.samples]
-        self.num_classes = max(labels) + 1
+        if num_classes is not None:
+            self.num_classes = int(num_classes)
+        else:
+            labels = [lbl for _, lbl in self.samples]
+            self.num_classes = (max(labels) + 1) if labels else 0
 
     def __len__(self):
         return len(self.samples)
@@ -397,24 +427,35 @@ class CSVImageDataset(Dataset):
     def __getitem__(self, idx):
         img_path, label = self.samples[idx]
 
-        # Load + preprocess
         img = Image.open(img_path).convert("RGB")
         img = img.resize(self.size, Image.Resampling.LANCZOS)
-        img_array = np.array(img, dtype=np.float32) / 255.0
-        img_array = np.transpose(img_array, (2, 0, 1))  # (C, H, W)
 
-        # Convert to xp
-        x = xp.asarray(img_array, dtype=DTYPE)
+        x = np.asarray(img, dtype=np.float32) / 255.0
+        x = np.transpose(x, (2, 0, 1))
+
+        if self.transform is not None:
+            x = self.transform(x)
+
         if self.one_hot:
-            y = xp.eye(self.num_classes, dtype=DTYPE)[label]
+            y = np.zeros((self.num_classes,), dtype=np.float32)
+            y[label] = 1.0
+            if self.target_transform is not None:
+                y = self.target_transform(y)
+            y = xp.asarray(y, dtype=self.x_dtype)
         else:
-            y = xp.array(label, dtype=DTYPE)
+            y = label
+            if self.target_transform is not None:
+                y = self.target_transform(y)
+            y = xp.asarray(y, dtype=self.label_dtype)
 
-        # Wrap in Tensor if requested
+        x = xp.asarray(x, dtype=self.x_dtype)
+
         if self.to_tensor:
             x = Tensor(x, requires_grad=False)
             y = Tensor(y, requires_grad=False)
 
+        if self.return_path:
+            return x, y, img_path
         return x, y
 
 
@@ -814,6 +855,23 @@ class TextFileDataset(Dataset):
             sample = {"input_ids": chunk}
 
         return _to_tensor_tree(sample) if self.to_tensor else sample
+
+
+class TextLabelDataset(Dataset):
+    """
+    Map-style dataset for text classification.
+    Returns dict samples: {"text": <str>, "label": <int>}
+    """
+    def __init__(self, texts, labels, to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
+        self.texts = list(texts)
+        self.labels = xp.asarray(labels, dtype=xp.int64)
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        return {"text": self.texts[idx], "label": int(self.labels[idx])}
 
 
 class AugmentedDataset(Dataset):
