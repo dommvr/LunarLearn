@@ -151,6 +151,7 @@ def _extract_zip(zpath, out_dir):
     os.makedirs(out_dir, exist_ok=True)
     with zipfile.ZipFile(zpath, "r") as z:
         z.extractall(out_dir)
+    return out_dir
 
 
 def _loadtxt_flexible(path):

@@ -1,11 +1,12 @@
 import os
+import xml.etree.ElementTree as ET
 import math
 import csv
 import numpy as np
 import gzip
 
 import LunarLearn.core.backend.backend as backend
-from LunarLearn.data.dataloader import DatasetBundle, ArrayDataset
+from LunarLearn.data.dataloader import Dataset, DatasetBundle, ArrayDataset, TextLabelDataset
 from LunarLearn.data.datasets.utils import (get_data_home,
                                             _download,
                                             _read_csv_rows,
@@ -18,10 +19,11 @@ from LunarLearn.data.datasets.utils import (get_data_home,
                                             _parse_idx_gz_images,
                                             _parse_idx_gz_labels,
                                             _download_from_mirrors,
-                                            _unpickle)
+                                            _unpickle,
+                                            _md5)
 
 xp = backend.xp
-DTYPE = backend.DTYPE
+DTYPE = np.dtype(backend.DTYPE)
 
 
 def load_iris(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False, random_state=None, data_home=None):
@@ -50,8 +52,8 @@ def load_iris(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False, r
         X_list.append(feats)
         y_list.append(label_map[label])
 
-    X = xp.asarray(X_list, dtype=dtype)
-    y = xp.asarray(y_list, dtype=xp.int64)
+    X = np.asarray(X_list, dtype=dtype)
+    y = np.asarray(y_list, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
@@ -85,8 +87,8 @@ def load_wine(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False, r
         X_list.append(feats)
         y_list.append(cls)
 
-    X = xp.asarray(X_list, dtype=dtype)
-    y = xp.asarray(y_list, dtype=xp.int64)
+    X = np.asarray(X_list, dtype=dtype)
+    y = np.asarray(y_list, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
@@ -120,8 +122,8 @@ def load_breast_cancer_wisconsin(*, return_X_y=True, as_dataset=False, dtype=Non
         feats = row[2:] if drop_id else row[0:1] + row[2:]
         X_list.append([float(v) for v in feats])
 
-    X = xp.asarray(X_list, dtype=dtype)
-    y = xp.asarray(y_list, dtype=xp.int64)
+    X = np.asarray(X_list, dtype=dtype)
+    y = np.asarray(y_list, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
@@ -144,9 +146,9 @@ def load_digits_8x8(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=Fa
     ddir = os.path.join(home, "optdigits")
     base = "https://archive.ics.uci.edu/ml/machine-learning-databases/optdigits/"
     train_url = base + "optdigits.tra"
-    test_url  = base + "optdigits.tes"
+    test_url = base + "optdigits.tes"
     train_path = os.path.join(ddir, "optdigits.tra")
-    test_path  = os.path.join(ddir, "optdigits.tes")
+    test_path = os.path.join(ddir, "optdigits.tes")
     _download(train_url, train_path)
     _download(test_url, test_path)
 
@@ -164,15 +166,17 @@ def load_digits_8x8(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=Fa
     X_list, y_list = [], []
     if split in ("train", "all"):
         a, b = read_file(train_path)
-        X_list += a; y_list += b
+        X_list += a
+        y_list += b
     if split in ("test", "all"):
         a, b = read_file(test_path)
-        X_list += a; y_list += b
+        X_list += a
+        y_list += b
     if split not in ("train", "test", "all"):
         raise ValueError("split must be 'train', 'test', or 'all'")
 
-    X = xp.asarray(X_list, dtype=dtype)
-    y = xp.asarray(y_list, dtype=xp.int64)
+    X = np.asarray(X_list, dtype=dtype)
+    y = np.asarray(y_list, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
@@ -210,8 +214,8 @@ def load_titanic(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False
         rows = list(reader)
 
     # Collect columns
-    sex_vals = sorted({(r.get("sex","") or "").strip() for r in rows if (r.get("sex","") or "").strip() not in ("", "?")})
-    emb_vals = sorted({(r.get("embarked","") or "").strip() for r in rows if (r.get("embarked","") or "").strip() not in ("", "?")})
+    sex_vals = sorted({(r.get("sex", "") or "").strip() for r in rows if (r.get("sex", "") or "").strip() not in ("", "?")})
+    emb_vals = sorted({(r.get("embarked", "") or "").strip() for r in rows if (r.get("embarked", "") or "").strip() not in ("", "?")})
 
     def onehot(val, vocab):
         v = (val or "").strip()
@@ -229,30 +233,30 @@ def load_titanic(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False
 
         feats = []
         # pclass numeric-ish
-        feats.append(_to_float(r.get("pclass","?")))
+        feats.append(_to_float(r.get("pclass", "?")))
         # sex categorical
         if encode == "onehot":
-            feats += onehot(r.get("sex",""), sex_vals)
+            feats += onehot(r.get("sex", ""), sex_vals)
         elif encode == "ordinal":
-            v = (r.get("sex","") or "").strip()
+            v = (r.get("sex", "") or "").strip()
             feats.append(float(sex_vals.index(v)) if v in sex_vals else math.nan)
         else:
-            feats.append((r.get("sex","") or "").strip())
+            feats.append((r.get("sex", "") or "").strip())
 
         # numeric columns
-        feats.append(_to_float(r.get("age","?")))
-        feats.append(_to_float(r.get("sibsp","?")))
-        feats.append(_to_float(r.get("parch","?")))
-        feats.append(_to_float(r.get("fare","?")))
+        feats.append(_to_float(r.get("age", "?")))
+        feats.append(_to_float(r.get("sibsp", "?")))
+        feats.append(_to_float(r.get("parch", "?")))
+        feats.append(_to_float(r.get("fare", "?")))
 
         # embarked categorical
         if encode == "onehot":
-            feats += onehot(r.get("embarked",""), emb_vals)
+            feats += onehot(r.get("embarked", ""), emb_vals)
         elif encode == "ordinal":
-            v = (r.get("embarked","") or "").strip()
+            v = (r.get("embarked", "") or "").strip()
             feats.append(float(emb_vals.index(v)) if v in emb_vals else math.nan)
         else:
-            feats.append((r.get("embarked","") or "").strip())
+            feats.append((r.get("embarked", "") or "").strip())
 
         X_list.append(feats)
 
@@ -260,8 +264,8 @@ def load_titanic(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False
         # Mixed types: return Python objects. If you do this, you *must* handle it downstream.
         X = X_list
     else:
-        X = xp.asarray(X_list, dtype=dtype)
-    y = xp.asarray(y_list, dtype=xp.int64)
+        X = np.asarray(X_list, dtype=dtype)
+    y = np.asarray(y_list, dtype=np.int64)
 
     if encode != "none":
         X, y = _maybe_shuffle(X, y, shuffle, random_state)
@@ -316,9 +320,9 @@ def load_adult(
         raise ValueError("split must be 'train', 'test', or 'all'")
 
     cols = [
-        "age","workclass","fnlwgt","education","education-num","marital-status",
-        "occupation","relationship","race","sex","capital-gain","capital-loss",
-        "hours-per-week","native-country","income"
+        "age", "workclass", "fnlwgt", "education", "education-num", "marital-status",
+        "occupation", "relationship", "race","sex", "capital-gain", "capital-loss",
+        "hours-per-week", "native-country", "income"
     ]
 
     def parse_file(path, is_test=False):
@@ -351,10 +355,11 @@ def load_adult(
 
     # y
     y_list = [1 if r["income"] == ">50K" else 0 for r in rows]
-    y = xp.asarray(y_list, dtype=xp.int64)
+    y = np.asarray(y_list, dtype=np.int64)
 
     # X
-    num_cols = ["age","fnlwgt","education-num","capital-gain","capital-loss","hours-per-week"]
+    num_cols = ["age", "fnlwgt", "education-num", "capital-gain",
+                "capital-loss", "hours-per-week"]
     cat_cols = [c for c in cols if c not in num_cols + ["income"]]
 
     def to_float(s):
@@ -365,7 +370,7 @@ def load_adult(
 
     if not one_hot:
         X_list = [[to_float(r[c]) for c in num_cols] for r in rows]
-        X = xp.asarray(X_list, dtype=dtype)
+        X = np.asarray(X_list, dtype=dtype)
     else:
         # build vocab per categorical col
         vocabs = {}
@@ -378,8 +383,8 @@ def load_adult(
             off += len(vocabs[c])
         total_cat = off
 
-        X_num = xp.asarray([[to_float(r[c]) for c in num_cols] for r in rows], dtype=dtype)
-        X_cat = xp.zeros((X_num.shape[0], total_cat), dtype=dtype)
+        X_num = np.asarray([[to_float(r[c]) for c in num_cols] for r in rows], dtype=dtype)
+        X_cat = np.zeros((X_num.shape[0], total_cat), dtype=dtype)
 
         for i, r in enumerate(rows):
             for c in cat_cols:
@@ -392,7 +397,7 @@ def load_adult(
                     continue
                 X_cat[i, offsets[c] + j] = 1.0
 
-        X = xp.concatenate([X_num, X_cat], axis=1)
+        X = np.concatenate([X_num, X_cat], axis=1)
 
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
@@ -450,8 +455,8 @@ def load_california_housing(
     X_np = _loadtxt_flexible(data_path)
     y_np = _loadtxt_flexible(target_path)
 
-    X = xp.asarray(X_np, dtype=dtype)
-    y = xp.asarray(y_np, dtype=dtype)
+    X = np.asarray(X_np, dtype=dtype)
+    y = np.asarray(y_np, dtype=dtype)
 
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
@@ -502,8 +507,8 @@ def load_diabetes(
         sig[sig == 0] = 1.0
         X_np = (X_np - mu) / sig
 
-    X = xp.asarray(X_np, dtype=dtype)
-    y = xp.asarray(y_np, dtype=dtype)
+    X = np.asarray(X_np, dtype=dtype)
+    y = np.asarray(y_np, dtype=dtype)
 
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
@@ -648,8 +653,8 @@ def load_ames_housing(
 
         X_np = np.concatenate([X_num, X_cat], axis=1)
 
-    X = xp.asarray(X_np, dtype=dtype)
-    y = xp.asarray(y_np, dtype=dtype)
+    X = np.asarray(X_np, dtype=dtype)
+    y = np.asarray(y_np, dtype=dtype)
 
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
@@ -746,7 +751,7 @@ def load_20newsgroups(
         texts.append(s["text"])
         labels.append(int(s["label"]))
 
-    y = xp.asarray(labels, dtype=xp.int64)
+    y = np.asarray(labels, dtype=np.int64)
     if shuffle:
         # shuffle texts + labels together
         perm = _get_rng(random_state).permutation(len(texts))
@@ -819,7 +824,7 @@ def load_sms_spam(
             texts.append(msg)
             labels.append(y)
 
-    y = xp.asarray(labels, dtype=xp.int64)
+    y = np.asarray(labels, dtype=np.int64)
     if shuffle:
         rng = _get_rng(random_state)
         perm = rng.permutation(len(texts))
@@ -884,12 +889,14 @@ def load_imdb_reviews(
     texts, labels = [], []
     if subset in ("train", "all"):
         Xs, ys = _load_split(os.path.join(extracted, "train"))
-        texts += Xs; labels += ys
+        texts += Xs
+        labels += ys
     if subset in ("test", "all"):
         Xs, ys = _load_split(os.path.join(extracted, "test"))
-        texts += Xs; labels += ys
+        texts += Xs
+        labels += ys
 
-    y = xp.asarray(labels, dtype=xp.int64)
+    y = np.asarray(labels, dtype=np.int64)
     if shuffle:
         rng = _get_rng(random_state)
         perm = rng.permutation(len(texts))
@@ -951,11 +958,13 @@ def load_mnist(
     if subset in ("train", "all"):
         Xi = _parse_idx_gz_images(_get("train_images"))
         yi = _parse_idx_gz_labels(_get("train_labels"))
-        Xs.append(Xi); ys.append(yi)
+        Xs.append(Xi)
+        ys.append(yi)
     if subset in ("test", "all"):
         Xi = _parse_idx_gz_images(_get("test_images"))
         yi = _parse_idx_gz_labels(_get("test_labels"))
-        Xs.append(Xi); ys.append(yi)
+        Xs.append(Xi)
+        ys.append(yi)
 
     X = np.concatenate(Xs, axis=0)
     y = np.concatenate(ys, axis=0).astype(np.int64)
@@ -965,8 +974,8 @@ def load_mnist(
     if normalize:
         X /= 255.0
 
-    X = xp.asarray(X, dtype=dtype)
-    y = xp.asarray(y, dtype=xp.int64)
+    X = np.asarray(X, dtype=dtype)
+    y = np.asarray(y, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
@@ -1032,8 +1041,8 @@ def load_fashion_mnist(
     if normalize:
         X /= 255.0
 
-    X = xp.asarray(X, dtype=dtype)
-    y = xp.asarray(y, dtype=xp.int64)
+    X = np.asarray(X, dtype=dtype)
+    y = np.asarray(y, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
@@ -1101,8 +1110,8 @@ def load_olivetti_faces(
         # reshape to (N,1,64,64) NCHW
         X = X.reshape(-1, 1, 64, 64)
 
-    X = xp.asarray(X, dtype=dtype)
-    y = xp.asarray(y, dtype=xp.int64)
+    X = np.asarray(X, dtype=dtype)
+    y = np.asarray(y, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
@@ -1179,8 +1188,8 @@ def load_movielens(
                 r = float(parts[2])
                 rows.append((u, i, r))
 
-    X = xp.asarray([[u, i] for (u, i, _) in rows], dtype=xp.int64)
-    y = xp.asarray([r for (_, _, r) in rows], dtype=dtype)
+    X = np.asarray([[u, i] for (u, i, _) in rows], dtype=np.int64)
+    y = np.asarray([r for (_, _, r) in rows], dtype=dtype)
 
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
@@ -1236,8 +1245,8 @@ def load_goodbooks_10k(
             rows_i.append(b)
             rows_r.append(r)
 
-    X = xp.asarray(np.stack([rows_u, rows_i], axis=1), dtype=xp.int64)
-    y = xp.asarray(np.asarray(rows_r, dtype=np.float32), dtype=dtype)
+    X = np.asarray(np.stack([rows_u, rows_i], axis=1), dtype=np.int64)
+    y = np.asarray(np.asarray(rows_r, dtype=np.float32), dtype=dtype)
 
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
@@ -1313,8 +1322,8 @@ def load_cifar10(
         X = np.concatenate([Xtr, Xte], axis=0)
         y = np.concatenate([ytr, yte], axis=0)
 
-    X = xp.asarray(X, dtype=dtype)
-    y = xp.asarray(y, dtype=xp.int64)
+    X = np.asarray(X, dtype=dtype)
+    y = np.asarray(y, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
@@ -1390,8 +1399,8 @@ def load_cifar100(
         X = np.concatenate([Xtr, Xte], axis=0)
         y = np.concatenate([ytr, yte], axis=0)
 
-    X = xp.asarray(X, dtype=dtype)
-    y = xp.asarray(y, dtype=xp.int64)
+    X = np.asarray(X, dtype=dtype)
+    y = np.asarray(y, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     desc = f"CIFAR-100 (python version, label_mode={label_mode})"
@@ -1461,19 +1470,22 @@ def load_svhn(
     Xs, ys = [], []
     if subset in ("train", "all"):
         Xtr, ytr = _load_split("train")
-        Xs.append(Xtr); ys.append(ytr)
+        Xs.append(Xtr)
+        ys.append(ytr)
         if include_extra:
             Xe, ye = _load_split("extra")
-            Xs.append(Xe); ys.append(ye)
+            Xs.append(Xe)
+            ys.append(ye)
     if subset in ("test", "all"):
         Xte, yte = _load_split("test")
-        Xs.append(Xte); ys.append(yte)
+        Xs.append(Xte)
+        ys.append(yte)
 
     X = np.concatenate(Xs, axis=0)
     y = np.concatenate(ys, axis=0)
 
-    X = xp.asarray(X, dtype=dtype)
-    y = xp.asarray(y, dtype=xp.int64)
+    X = np.asarray(X, dtype=dtype)
+    y = np.asarray(y, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     target_names = [str(i) for i in range(10)]
@@ -1563,29 +1575,519 @@ def load_stl10(
     Xs, ys = [], []
     if subset in ("train", "all"):
         Xtr, ytr = _load_split("train")
-        Xs.append(Xtr); ys.append(ytr)
+        Xs.append(Xtr)
+        ys.append(ytr)
         if include_unlabeled:
             Xu, yu = _load_split("unlabeled")
-            Xs.append(Xu); ys.append(yu)
+            Xs.append(Xu)
+            ys.append(yu)
     if subset in ("test", "all"):
         Xte, yte = _load_split("test")
-        Xs.append(Xte); ys.append(yte)
+        Xs.append(Xte)
+        ys.append(yte)
 
     X = np.concatenate(Xs, axis=0)
     y = np.concatenate(ys, axis=0)
 
-    X = xp.asarray(X, dtype=dtype)
-    y = xp.asarray(y, dtype=xp.int64)
+    X = np.asarray(X, dtype=dtype)
+    y = np.asarray(y, dtype=np.int64)
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     target_names = [
-        "airplane","bird","car","cat","deer","dog","horse","monkey","ship","truck"
+        "airplane", "bird", "car", "cat", "deer",
+        "dog", "horse", "monkey", "ship", "truck"
     ]
     if as_dataset:
         return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, target_names=target_names, description="STL-10 (binary)")
+
+
+
+def load_ag_news(
+    *,
+    subset="train",              # "train" | "test" | "all"
+    return_X_y=True,
+    as_dataset=False,
+    dtype=None,                  # kept for convention
+    shuffle=False,
+    random_state=None,
+    data_home=None,
+    download=True,
+):
+    """
+    AG News (4 classes). CSV format: label,title,description
+    Labels in file are 1..4, we convert to 0..3.
+
+    Note: This uses a widely-used public mirror of the original AG News CSV splits.
+    """
+    if subset not in ("train", "test", "all"):
+        raise ValueError("subset must be 'train', 'test', or 'all'")
+
+    home = get_data_home(data_home)
+    ddir = os.path.join(home, "ag_news")
+    os.makedirs(ddir, exist_ok=True)
+
+    # Mirror used by multiple toolchains (torchtext historically referenced similar splits).
+    urls = {
+        "train": "https://raw.githubusercontent.com/mhjabreel/CharCnn_Keras/master/data/ag_news_csv/train.csv",
+        "test":  "https://raw.githubusercontent.com/mhjabreel/CharCnn_Keras/master/data/ag_news_csv/test.csv",
+    }
+
+    def _load_split(split):
+        fpath = os.path.join(ddir, f"{split}.csv")
+        if download and not os.path.exists(fpath):
+            _download(urls[split], fpath)
+        if not os.path.exists(fpath):
+            raise FileNotFoundError(f"AG News split not found: {fpath} (set download=True or place it manually).")
+
+        texts = []
+        labels = []
+        for row in _read_csv_rows(fpath, delimiter=","):
+            if len(row) < 3:
+                continue
+            y = int(row[0]) - 1
+            title = row[1].strip()
+            desc = row[2].strip()
+            txt = (title + " " + desc).strip()
+            if txt:
+                texts.append(txt)
+                labels.append(y)
+        return texts, np.asarray(labels, dtype=np.int64)
+
+    if subset == "train":
+        X, y = _load_split("train")
+    elif subset == "test":
+        X, y = _load_split("test")
+    else:
+        Xtr, ytr = _load_split("train")
+        Xte, yte = _load_split("test")
+        X = Xtr + Xte
+        y = np.concatenate([ytr, yte], axis=0)
+
+    if shuffle:
+        rng = _get_rng(random_state)
+        perm = rng.permutation(len(X))
+        X = [X[i] for i in perm]
+        y = y[perm]
+
+    if as_dataset:
+        return TextLabelDataset(X, y, to_tensor=False)
+    if return_X_y:
+        return X, y
+    return DatasetBundle(X=X, y=y, target_names=["World", "Sports", "Business", "Sci/Tech"], description="AG News")
+
+
+def load_tiny_shakespeare(
+    *,
+    return_X_y=True,
+    as_dataset=False,
+    dtype=None,                  # dtype for X if you want (token ids usually int64)
+    shuffle=False,
+    random_state=None,
+    data_home=None,
+    download=True,
+    # windowing:
+    block_size=128,
+    stride=128,
+    tokenizer=None,              # optional: must provide encode(text)->list[int]
+    return_text=False,
+):
+    """
+    Tiny Shakespeare raw text -> LM windows.
+
+    If return_text=True: returns raw text string.
+    Else:
+      X: (N, T) int64
+      y: (N, T) int64 (next-token targets)
+
+    If tokenizer is None:
+      builds a simple char-level vocab.
+    """
+    home = get_data_home(data_home)
+    ddir = os.path.join(home, "tiny_shakespeare")
+    os.makedirs(ddir, exist_ok=True)
+
+    url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
+    fpath = os.path.join(ddir, "input.txt")
+
+    if download and not os.path.exists(fpath):
+        _download(url, fpath)
+    if not os.path.exists(fpath):
+        raise FileNotFoundError("Tiny Shakespeare not found in cache. Set download=True or place input.txt manually.")
+
+    with open(fpath, "r", encoding="utf-8", errors="replace") as f:
+        text = f.read()
+
+    if return_text:
+        return text
+
+    if tokenizer is not None:
+        ids = tokenizer.encode(text)
+        ids = np.asarray(ids, dtype=np.int64)
+        vocab_size = int(ids.max()) + 1 if ids.size else 0
+        meta_vocab = None
+    else:
+        chars = sorted(set(text))
+        stoi = {ch: i for i, ch in enumerate(chars)}
+        ids = np.asarray([stoi[ch] for ch in text], dtype=np.int64)
+        vocab_size = len(chars)
+        meta_vocab = {"itos": chars, "stoi": stoi}
+
+    T = int(block_size)
+    S = int(stride)
+    if T < 2:
+        raise ValueError("block_size must be >= 2")
+    if ids.shape[0] < T + 1:
+        raise RuntimeError("Text too short for requested block_size")
+
+    X_list = []
+    Y_list = []
+    n = int(ids.shape[0])
+    for start in range(0, n - (T + 1) + 1, S):
+        chunk = ids[start:start + T + 1]
+        X_list.append(chunk[:-1])
+        Y_list.append(chunk[1:])
+
+    X = np.stack(X_list, axis=0).astype(np.int64, copy=False)
+    y = np.stack(Y_list, axis=0).astype(np.int64, copy=False)
+
+    if shuffle:
+        rng = _get_rng(random_state)
+        perm = rng.permutation(X.shape[0])
+        X = X[perm]
+        y = y[perm]
+
+    # dtype arg is mostly irrelevant for token ids, but keep the convention:
+    if dtype is not None:
+        # only apply if user really wants (e.g., int32); default stays int64
+        X = np.asarray(X, dtype=dtype)
+        y = np.asarray(y, dtype=dtype)
+    else:
+        # enforce int64 by default
+        X = np.asarray(X, dtype=np.int64)
+        y = np.asarray(y, dtype=np.int64)
+
+    if as_dataset:
+        # Dense windows -> ArrayDataset works perfectly
+        return ArrayDataset(X, y, dtype=X.dtype, to_tensor=True)
+
+    if return_X_y:
+        return X, y
+
+    out = DatasetBundle(X=X, y=y, description="Tiny Shakespeare LM windows")
+    #out.vocab_size = vocab_size
+    #out.vocab = meta_vocab
+    return out
+
+
+class OxfordIIITPetDataset(Dataset):
+    """
+    Returns dict sample:
+      {
+        "image_path": str,
+        "label": int64 (0..36)          [if classification]
+        "bin_label": int64 (0=cat,1=dog) [optional]
+        "mask_path": str                [if segmentation]
+        "image_id": str
+      }
+    Keeps images/masks on disk as paths.
+    """
+    def __init__(self, root, *, subset="trainval", task="classification",
+                 include_binary=False, to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
+        self.root = root
+        self.task = task
+        self.include_binary = include_binary
+
+        img_dir = os.path.join(root, "images")
+        ann_dir = os.path.join(root, "annotations")
+        split_path = os.path.join(ann_dir, f"{subset}.txt")
+        if not os.path.exists(split_path):
+            raise FileNotFoundError(f"Missing Pet split file: {split_path}")
+        self.img_dir = img_dir
+        self.trimap_dir = os.path.join(ann_dir, "trimaps")
+
+        self.ids = []
+        self.labels = []
+        self.bin_labels = []
+
+        # format: <image_id> <class_id> <species_id> <breed_id?>
+        # torchvision uses: image, label, binary_label, _ (unused)
+        with open(split_path, "r", encoding="utf-8", errors="replace") as f:
+            for ln in f:
+                ln = ln.strip()
+                if not ln:
+                    continue
+                parts = ln.split()
+                image_id = parts[0]
+                label = int(parts[1]) - 1
+                bin_label = int(parts[2]) - 1  # 1=cat,2=dog in file -> 0,1
+                self.ids.append(image_id)
+                self.labels.append(label)
+                self.bin_labels.append(bin_label)
+
+        self.labels = np.asarray(self.labels, dtype=np.int64)
+        self.bin_labels = np.asarray(self.bin_labels, dtype=np.int64)
+
+    def __len__(self):
+        return len(self.ids)
+
+    def __getitem__(self, idx):
+        image_id = self.ids[idx]
+        img_path = os.path.join(self.img_dir, f"{image_id}.jpg")
+        out = {"image_path": img_path, "image_id": image_id}
+
+        if self.task in ("classification", "both"):
+            out["label"] = np.asarray(int(self.labels[idx]), dtype=np.int64)
+            if self.include_binary:
+                out["bin_label"] = np.asarray(int(self.bin_labels[idx]), dtype=np.int64)
+
+        if self.task in ("segmentation", "both"):
+            # trimaps png: typically values {1,2,3} in file
+            mask_path = os.path.join(self.trimap_dir, f"{image_id}.png")
+            out["mask_path"] = mask_path
+
+        return out
+
+
+def load_oxford_iiit_pet(
+    *,
+    subset="trainval",            # "trainval" | "test"
+    return_X_y=True,
+    as_dataset=False,
+    dtype=None,                   # kept for convention
+    shuffle=False,
+    random_state=None,
+    data_home=None,
+    task="classification",        # "classification" | "segmentation" | "both"
+    include_binary=False,
+    download=True,
+):
+    """
+    Oxford-IIIT Pet.
+    Return types:
+      - return_X_y=True:
+          X = list[str image paths]
+          y = np.int64 labels (classification) OR list mask paths (segmentation) OR dict list (both)
+      - as_dataset=True: OxfordIIITPetDataset (dict samples w/ paths)
+    """
+    if subset not in ("trainval", "test"):
+        raise ValueError("subset must be 'trainval' or 'test'")
+    if task not in ("classification", "segmentation", "both"):
+        raise ValueError("task must be 'classification', 'segmentation', or 'both'")
+
+    home = get_data_home(data_home)
+    ddir = os.path.join(home, "oxford-iiit-pet")
+    os.makedirs(ddir, exist_ok=True)
+
+    url_images = "https://www.robots.ox.ac.uk/~vgg/data/pets/data/images.tar.gz"
+    url_anns   = "https://www.robots.ox.ac.uk/~vgg/data/pets/data/annotations.tar.gz"
+
+    images_tgz = os.path.join(ddir, "images.tar.gz")
+    anns_tgz   = os.path.join(ddir, "annotations.tar.gz")
+
+    img_dir = os.path.join(ddir, "images")
+    ann_dir = os.path.join(ddir, "annotations")
+
+    if download and not (os.path.isdir(img_dir) and os.path.isdir(ann_dir)):
+        if not os.path.exists(images_tgz):
+            _download(url_images, images_tgz)
+        if not os.path.exists(anns_tgz):
+            _download(url_anns, anns_tgz)
+        _extract_tgz(images_tgz, ddir)
+        _extract_tgz(anns_tgz, ddir)
+
+    if not (os.path.isdir(img_dir) and os.path.isdir(ann_dir)):
+        raise FileNotFoundError("Oxford-IIIT Pet not found in cache. Set download=True or extract into <data_home>/oxford-iiit-pet/.")
+
+    if as_dataset:
+        return OxfordIIITPetDataset(ddir, subset=subset, task=task, include_binary=include_binary, to_tensor=False)
+
+    ds = OxfordIIITPetDataset(ddir, subset=subset, task=task, include_binary=include_binary, to_tensor=False)
+
+    # Build X, y in the most useful shapes
+    X = []
+    if task == "classification":
+        y = np.zeros((len(ds),), dtype=np.int64)
+        for i in range(len(ds)):
+            s = ds[i]
+            X.append(s["image_path"])
+            y[i] = int(s["label"])
+        if shuffle:
+            rng = _get_rng(random_state)
+            perm = rng.permutation(len(X))
+            X = [X[i] for i in perm]
+            y = y[perm]
+        if return_X_y:
+            return X, y
+        return DatasetBundle(X=X, y=y, description=f"Oxford-IIIT Pet ({subset}, classification)")
+
+    elif task == "segmentation":
+        y = []
+        for i in range(len(ds)):
+            s = ds[i]
+            X.append(s["image_path"])
+            y.append(s["mask_path"])
+        if shuffle:
+            rng = _get_rng(random_state)
+            perm = rng.permutation(len(X))
+            X = [X[i] for i in perm]
+            y = [y[i] for i in perm]
+        if return_X_y:
+            return X, y
+        return DatasetBundle(X=X, y=y, description=f"Oxford-IIIT Pet ({subset}, segmentation)")
+
+    else:  # both
+        y = []
+        for i in range(len(ds)):
+            s = ds[i]
+            X.append(s["image_path"])
+            tgt = {"label": int(s["label"]), "mask_path": s["mask_path"], "image_id": s["image_id"]}
+            if include_binary and "bin_label" in s:
+                tgt["bin_label"] = int(s["bin_label"])
+            y.append(tgt)
+        if shuffle:
+            rng = _get_rng(random_state)
+            perm = rng.permutation(len(X))
+            X = [X[i] for i in perm]
+            y = [y[i] for i in perm]
+        if return_X_y:
+            return X, y
+        return DatasetBundle(X=X, y=y, description=f"Oxford-IIIT Pet ({subset}, both)")
+
+
+_VOC_CLASSES = [
+    "aeroplane","bicycle","bird","boat","bottle","bus","car","cat","chair","cow",
+    "diningtable","dog","horse","motorbike","person","pottedplant","sheep","sofa","train","tvmonitor"
+]
+_VOC_CLASS_TO_IDX = {c: i for i, c in enumerate(_VOC_CLASSES)}
+
+
+def _parse_voc2007_xml(xml_path):
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    boxes = []
+    labels = []
+    for obj in root.findall("object"):
+        name = obj.findtext("name")
+        if name not in _VOC_CLASS_TO_IDX:
+            continue
+        bnd = obj.find("bndbox")
+        if bnd is None:
+            continue
+        xmin = float(bnd.findtext("xmin"))
+        ymin = float(bnd.findtext("ymin"))
+        xmax = float(bnd.findtext("xmax"))
+        ymax = float(bnd.findtext("ymax"))
+        boxes.append([xmin, ymin, xmax, ymax])
+        labels.append(_VOC_CLASS_TO_IDX[name])
+
+    boxes = np.asarray(boxes, dtype=np.float32) if boxes else np.zeros((0, 4), dtype=np.float32)
+    labels = np.asarray(labels, dtype=np.int64) if labels else np.zeros((0,), dtype=np.int64)
+    return boxes, labels
+
+class VOC2007DetectionDataset(Dataset):
+    """
+    Map-style dataset returning dict samples:
+      {"image_path": str, "boxes": (N,4) float32, "labels": (N,) int64, "image_id": str}
+
+    Note: This keeps images on disk (paths). Load/augment in transforms or collate.
+    """
+    def __init__(self, voc_root, *, subset="trainval", to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
+        base = os.path.join(voc_root, "VOCdevkit", "VOC2007")
+        self.img_dir = os.path.join(base, "JPEGImages")
+        self.ann_dir = os.path.join(base, "Annotations")
+        split_file = os.path.join(base, "ImageSets", "Main", f"{subset}.txt")
+        if not os.path.exists(split_file):
+            raise FileNotFoundError(f"Missing VOC split file: {split_file}")
+
+        with open(split_file, "r", encoding="utf-8", errors="replace") as f:
+            self.ids = [ln.strip() for ln in f if ln.strip()]
+
+    def __len__(self):
+        return len(self.ids)
+
+    def __getitem__(self, idx):
+        image_id = self.ids[idx]
+        img_path = os.path.join(self.img_dir, f"{image_id}.jpg")
+        xml_path = os.path.join(self.ann_dir, f"{image_id}.xml")
+        boxes, labels = _parse_voc2007_xml(xml_path)
+        return {"image_path": img_path, "boxes": boxes, "labels": labels, "image_id": image_id}
+
+
+def load_voc2007_detection(
+    *,
+    subset="trainval",          # "train" | "val" | "trainval" | "test"
+    return_X_y=True,
+    as_dataset=False,
+    dtype=None,                 # kept for convention; boxes are float32, labels int64
+    shuffle=False,
+    random_state=None,
+    data_home=None,
+    download=True,
+):
+    """
+    VOC2007 detection.
+    Return types:
+      - return_X_y=True: X=list[str image paths], y=list[{"boxes","labels","image_id"}]
+      - as_dataset=True: VOC2007DetectionDataset (returns dict samples)
+    """
+    if subset not in ("train", "val", "trainval", "test"):
+        raise ValueError("subset must be 'train', 'val', 'trainval', or 'test'")
+
+    home = get_data_home(data_home)
+    ddir = os.path.join(home, "voc2007")
+    os.makedirs(ddir, exist_ok=True)
+
+    url_trainval = "http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCtrainval_06-Nov-2007.tar"
+    url_test     = "http://host.robots.ox.ac.uk/pascal/VOC/voc2007/VOCtest_06-Nov-2007.tar"
+
+    trainval_tgz = os.path.join(ddir, "VOCtrainval_06-Nov-2007.tar")
+    test_tgz     = os.path.join(ddir, "VOCtest_06-Nov-2007.tar")
+
+    expected_root = os.path.join(ddir, "VOCdevkit", "VOC2007")
+
+    if download and not os.path.isdir(expected_root):
+        # train/val/trainval live in trainval tar
+        if not os.path.exists(trainval_tgz):
+            _download(url_trainval, trainval_tgz)
+        _extract_tgz(trainval_tgz, ddir)
+
+        # test split is separate tar
+        if subset == "test" and not os.path.exists(os.path.join(ddir, "VOCdevkit", "VOC2007", "ImageSets", "Main", "test.txt")):
+            if not os.path.exists(test_tgz):
+                _download(url_test, test_tgz)
+            _extract_tgz(test_tgz, ddir)
+
+    if not os.path.isdir(expected_root):
+        raise FileNotFoundError("VOC2007 not found in cache. Set download=True or extract into <data_home>/voc2007/.")
+
+    if as_dataset:
+        return VOC2007DetectionDataset(ddir, subset=subset, to_tensor=False)
+
+    # Build X, y lists
+    ds = VOC2007DetectionDataset(ddir, subset=subset, to_tensor=False)
+    X = []
+    y = []
+    for i in range(len(ds)):
+        s = ds[i]
+        X.append(s["image_path"])
+        y.append({"boxes": s["boxes"], "labels": s["labels"], "image_id": s["image_id"]})
+
+    if shuffle:
+        rng = _get_rng(random_state)
+        perm = rng.permutation(len(X))
+        X = [X[i] for i in perm]
+        y = [y[i] for i in perm]
+
+    if return_X_y:
+        return X, y
+
+    return DatasetBundle(X=X, y=y, target_names=_VOC_CLASSES, description=f"VOC2007 detection ({subset})")
 
 
 # ----------------------------
@@ -1612,11 +2114,17 @@ _DATASETS = {
     "cifar10": load_cifar10,
     "cifar100": load_cifar100,
     "svhn": load_svhn,
-    "stl10": load_stl10
+    "stl10": load_stl10,
+    "ag_news": load_ag_news,
+    "tiny_shakespeare": load_tiny_shakespeare,
+    "oxford_iiit_pet": load_oxford_iiit_pet,
+    "voc2007_detection": load_voc2007_detection
 }
+
 
 def list_datasets():
     return sorted(_DATASETS.keys())
+
 
 def load(name: str, **kwargs):
     name = name.strip().lower()
