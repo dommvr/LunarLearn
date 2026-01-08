@@ -1,11 +1,33 @@
+import numpy as np
+import cupy as cp
+
 import LunarLearn.core.backend.backend as backend
+from LunarLearn.data.dataloader import SubsetDataset
 from LunarLearn.core import Tensor
 
 xp = backend.xp
 
 
+def _is_np_array(x):
+    return isinstance(x, np.ndarray)
+
+
+def _is_np_scalar(x):
+    return isinstance(x, (np.generic,))
+
+
+def _try_stack_np(batch):
+    """
+    Try to np.stack a list of arrays. If ragged or incompatible, return list(batch).
+    """
+    try:
+        return np.stack(batch, axis=0)
+    except Exception:
+        return list(batch)
+
+
 def _is_xp_array(x):
-    return hasattr(x, "shape") and hasattr(x, "dtype")
+    return isinstance(x, cp.ndarray) or isinstance(x, np.ndarray)
 
 
 def _try_stack(arrs):
@@ -51,7 +73,6 @@ def _to_tensor_tree(obj):
     return obj
 
 
-
 def _read_text_file(path, encoding="utf-8"):
     with open(path, "r", encoding=encoding) as f:
         return f.read()
@@ -65,9 +86,7 @@ def _tokenize_text(text, tokenizer):
       - numpy array
     """
     out = tokenizer.encode(text)
-    if _is_xp_array(out):
-        return out.astype(xp.int64)
-    return xp.asarray(out, dtype=xp.int64)
+    return np.asarray(out, dtype=np.int64)
 
 
 def _pad_1d(ids, max_len, pad_id=0, truncate=True):
@@ -76,19 +95,19 @@ def _pad_1d(ids, max_len, pad_id=0, truncate=True):
     returns (padded_ids, attn_mask, length)
     """
     if not _is_xp_array(ids):
-        ids = xp.asarray(ids, dtype=xp.int64)
-    ids = ids.astype(xp.int64)
+        ids = np.asarray(ids, dtype=np.int64)
+    ids = ids.astype(np.int64)
 
     L = int(ids.shape[0])
     if truncate and L > max_len:
         ids = ids[:max_len]
         L = max_len
 
-    out = xp.full((max_len,), int(pad_id), dtype=xp.int64)
+    out = np.full((max_len,), int(pad_id), dtype=np.int64)
     out[:L] = ids
-    mask = xp.zeros((max_len,), dtype=xp.int64)
+    mask = np.zeros((max_len,), dtype=np.int64)
     mask[:L] = 1
-    return out, mask, xp.asarray(L, dtype=xp.int64)
+    return out, mask, np.asarray(L, dtype=np.int64)
 
 
 def random_split(dataset, lengths, random_state=None):
@@ -116,3 +135,68 @@ def random_split(dataset, lengths, random_state=None):
         out.append(SubsetDataset(dataset, perm[start:start + int(L)]))
         start += int(L)
     return out
+
+
+def to_backend(batch, *, dtype=None, wrap_tensors=False):
+    """
+    Recursively move a collated CPU batch (NumPy / Python structures) to the current backend xp.
+
+    Rules:
+      - np.ndarray -> xp.asarray (one big transfer for stacked arrays)
+      - python scalars / np scalars -> xp.asarray (vector/scalar)
+      - dict/list/tuple -> recurse
+      - str -> keep as-is
+      - None -> keep as-is
+      - Tensor -> leave as-is by default
+      - xp arrays -> leave as-is
+    Args:
+      dtype: if not None, casts numeric arrays to this dtype on backend.
+             (Use carefully: token ids should stay int64.)
+      wrap_tensors: if True, wrap xp arrays into Tensor(requires_grad=False) recursively.
+    """
+    # None
+    if batch is None:
+        return None
+
+    # Strings
+    if isinstance(batch, str):
+        return batch
+
+    # Tensor: keep as-is (assume user knows what they did)
+    if isinstance(batch, Tensor):
+        return batch
+
+    # xp arrays: already on backend
+    if _is_xp_array(batch):
+        out = batch
+        if dtype is not None:
+            out = xp.asarray(out, dtype=dtype)
+        if wrap_tensors:
+            out = Tensor(out, requires_grad=False)
+        return out
+
+    # NumPy arrays -> backend
+    if _is_np_array(batch):
+        out = xp.asarray(batch, dtype=(dtype if dtype is not None else None))
+        if wrap_tensors:
+            out = Tensor(out, requires_grad=False)
+        return out
+
+    # dict
+    if isinstance(batch, dict):
+        return {k: to_backend(v, dtype=dtype, wrap_tensors=wrap_tensors) for k, v in batch.items()}
+
+    # list/tuple
+    if isinstance(batch, (list, tuple)):
+        converted = [to_backend(v, dtype=dtype, wrap_tensors=wrap_tensors) for v in batch]
+        return type(batch)(converted)
+
+    # numpy scalar / python scalar
+    if isinstance(batch, (int, float, bool)) or _is_np_scalar(batch):
+        out = xp.asarray(batch, dtype=(dtype if dtype is not None else None))
+        if wrap_tensors:
+            out = Tensor(out, requires_grad=False)
+        return out
+
+    # Fallback: keep as-is
+    return batch

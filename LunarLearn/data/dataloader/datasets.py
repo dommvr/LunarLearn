@@ -9,10 +9,13 @@ from dataclasses import dataclass
 
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.core import Tensor
-from LunarLearn.data.dataloader.utils import _to_tensor_tree, _is_xp_array, _pad_1d, _read_text_file, _tokenize_text
+from LunarLearn.data.dataloader.utils import (_to_tensor_tree,
+                                              _is_np_scalar,
+                                              _pad_1d,
+                                              _read_text_file,
+                                              _tokenize_text)
 
-xp = backend.xp
-DTYPE = backend.DTYPE
+DTYPE = np.dtype(backend.DTYPE)
 USING = backend.USING
 
 
@@ -58,8 +61,8 @@ class ArrayDataset(Dataset):
     """
     def __init__(self, X, Y, to_tensor=True):
         super().__init__(to_tensor)
-        self.X = xp.asarray(X)
-        self.Y = xp.asarray(Y)
+        self.X = np.asarray(X)
+        self.Y = np.asarray(Y)
         self.m = self.X.shape[0]
 
     def __len__(self):
@@ -133,11 +136,8 @@ class DictDataset(Dataset):
 
         # convert numpy->xp if needed (light-touch)
         for k, v in list(sample.items()):
-            if _is_xp_array(v):
-                continue
-            # allow python scalars, strings, lists, etc.
-            if hasattr(v, "shape") and hasattr(v, "dtype"):  # numpy-ish
-                sample[k] = xp.asarray(v)
+            if _is_np_scalar:
+                sample[k] = np.asarray(v)
         return _to_tensor_tree(sample) if self.to_tensor else sample
 
 
@@ -190,12 +190,12 @@ class SequenceDataset(Dataset):
 
     def __getitem__(self, idx):
         ids = self.sequences[idx]
-        ids = xp.asarray(ids, dtype=xp.int64)
+        ids = np.asarray(ids, dtype=np.int64)
 
         if self.max_len is None:
             sample = {
                 "input_ids": ids,
-                "length": xp.asarray(ids.shape[0], dtype=xp.int64),
+                "length": np.asarray(ids.shape[0], dtype=np.int64),
             }
         else:
             padded, mask, L = _pad_1d(ids, int(self.max_len), pad_id=self.pad_id, truncate=self.truncate)
@@ -208,9 +208,9 @@ class SequenceDataset(Dataset):
         if self.labels is not None:
             lab = self.labels[idx]
             if self.one_hot:
-                y = xp.eye(int(self.num_classes), dtype=DTYPE)[int(lab)]
+                y = np.eye(int(self.num_classes), dtype=DTYPE)[int(lab)]
             else:
-                y = xp.asarray(int(lab), dtype=xp.int64)
+                y = np.asarray(int(lab), dtype=np.int64)
             sample["label"] = y
 
         return _to_tensor_tree(sample) if self.to_tensor else sample
@@ -255,15 +255,15 @@ class PackedSequenceDataset(Dataset):
         # Build one long token stream
         parts = []
         for seq in sequences:
-            ids = xp.asarray(seq, dtype=xp.int64).ravel()
+            ids = np.asarray(seq, dtype=np.int64).ravel()
             parts.append(ids)
             if self.sep_id is not None:
-                parts.append(xp.asarray([self.sep_id], dtype=xp.int64))
+                parts.append(np.asarray([self.sep_id], dtype=np.int64))
 
         if len(parts) == 0:
-            self.stream = xp.asarray([], dtype=xp.int64)
+            self.stream = np.asarray([], dtype=np.int64)
         else:
-            self.stream = xp.concatenate(parts, axis=0).astype(xp.int64)
+            self.stream = np.concatenate(parts, axis=0).astype(np.int64)
 
         L = int(self.stream.shape[0])
 
@@ -307,7 +307,7 @@ class ImageDataset(Dataset):
         transform=None,
         target_transform=None,
         return_path=False,
-        label_dtype=xp.int64,   # int labels by default
+        label_dtype=np.int64,   # int labels by default
         x_dtype=None,           # defaults to DTYPE
     ):
         super().__init__(to_tensor)
@@ -359,15 +359,14 @@ class ImageDataset(Dataset):
             y[label] = 1.0
             if self.target_transform is not None:
                 y = self.target_transform(y)
-            y = xp.asarray(y, dtype=self.x_dtype)  # one-hot is float
+            y = np.asarray(y, dtype=self.x_dtype)  # one-hot is float
         else:
             y = label
             if self.target_transform is not None:
                 y = self.target_transform(y)
-            y = xp.asarray(y, dtype=self.label_dtype)
+            y = np.asarray(y, dtype=self.label_dtype)
 
-        # move x to xp at the end (still per-sample, but at least consistent)
-        x = xp.asarray(x, dtype=self.x_dtype)
+        x = np.asarray(x, dtype=self.x_dtype)
 
         if self.to_tensor:
             x = Tensor(x, requires_grad=False)
@@ -391,7 +390,7 @@ class CSVImageDataset(Dataset):
         transform=None,
         target_transform=None,
         return_path=False,
-        label_dtype=xp.int64,
+        label_dtype=np.int64,
         x_dtype=None,
     ):
         super().__init__(to_tensor)
@@ -441,14 +440,14 @@ class CSVImageDataset(Dataset):
             y[label] = 1.0
             if self.target_transform is not None:
                 y = self.target_transform(y)
-            y = xp.asarray(y, dtype=self.x_dtype)
+            y = np.asarray(y, dtype=self.x_dtype)
         else:
             y = label
             if self.target_transform is not None:
                 y = self.target_transform(y)
-            y = xp.asarray(y, dtype=self.label_dtype)
+            y = np.asarray(y, dtype=self.label_dtype)
 
-        x = xp.asarray(x, dtype=self.x_dtype)
+        x = np.asarray(x, dtype=self.x_dtype)
 
         if self.to_tensor:
             x = Tensor(x, requires_grad=False)
@@ -523,15 +522,15 @@ class TextFolderDataset(Dataset):
         else:
             ids = _tokenize_text(text, self.tokenizer)
             if self.max_len is None:
-                sample = {"input_ids": ids, "length": xp.asarray(ids.shape[0], dtype=xp.int64)}
+                sample = {"input_ids": ids, "length": np.asarray(ids.shape[0], dtype=np.int64)}
             else:
                 padded, mask, L = _pad_1d(ids, int(self.max_len), pad_id=self.pad_id, truncate=self.truncate)
                 sample = {"input_ids": padded, "attention_mask": mask, "length": L}
 
         if self.one_hot:
-            y = xp.eye(self.num_classes, dtype=self.dtype)[int(label)]
+            y = np.eye(self.num_classes, dtype=self.dtype)[int(label)]
         else:
-            y = xp.asarray(int(label), dtype=xp.int64)
+            y = np.asarray(int(label), dtype=np.int64)
         sample["label"] = y
 
         return _to_tensor_tree(sample) if self.to_tensor else sample
@@ -618,7 +617,7 @@ class CSVTextDataset(Dataset):
         else:
             ids = _tokenize_text(text, self.tokenizer)
             if self.max_len is None:
-                sample = {"input_ids": ids, "length": xp.asarray(ids.shape[0], dtype=xp.int64)}
+                sample = {"input_ids": ids, "length": np.asarray(ids.shape[0], dtype=np.int64)}
             else:
                 padded, mask, L = _pad_1d(ids, int(self.max_len), pad_id=self.pad_id, truncate=self.truncate)
                 sample = {"input_ids": padded, "attention_mask": mask, "length": L}
@@ -626,9 +625,9 @@ class CSVTextDataset(Dataset):
         if self.label_col is not None:
             lab = int(row[self.label_col])
             if self.one_hot:
-                y = xp.eye(int(self.num_classes), dtype=self.dtype)[lab]
+                y = np.eye(int(self.num_classes), dtype=self.dtype)[lab]
             else:
-                y = xp.asarray(lab, dtype=xp.int64)
+                y = np.asarray(lab, dtype=np.int64)
             sample["label"] = y
 
         return _to_tensor_tree(sample) if self.to_tensor else sample
@@ -701,7 +700,7 @@ class JSONLTextDataset(Dataset):
             text = it[self.text_key]
             ids = _tokenize_text(text, self.tokenizer)
             if self.max_len is None:
-                out = {"input_ids": ids, "length": xp.asarray(ids.shape[0], dtype=xp.int64)}
+                out = {"input_ids": ids, "length": np.asarray(ids.shape[0], dtype=np.int64)}
             else:
                 padded, mask, L = _pad_1d(ids, int(self.max_len), pad_id=self.pad_id, truncate=self.truncate)
                 out = {"input_ids": padded, "attention_mask": mask, "length": L}
@@ -713,9 +712,9 @@ class JSONLTextDataset(Dataset):
             if self.label_key is not None and self.label_key in it:
                 lab = int(it[self.label_key])
                 if self.one_hot:
-                    y = xp.eye(int(self.num_classes), dtype=self.dtype)[lab]
+                    y = np.eye(int(self.num_classes), dtype=DTYPE)[lab]
                 else:
-                    y = xp.asarray(lab, dtype=xp.int64)
+                    y = np.asarray(lab, dtype=np.int64)
                 out["label"] = y
 
             # keep extra fields (context/question/answer, ids, etc.)
@@ -799,7 +798,7 @@ class TextFileDataset(Dataset):
         else:
             text = _read_text_file(path, encoding=encoding)
             self.tokens = _tokenize_text(text, tokenizer)  # (L,)
-            self.tokens = self.tokens.astype(xp.int64)
+            self.tokens = self.tokens.astype(np.int64)
             self.block_size = int(block_size)
             self.stride = int(stride) if stride is not None else int(block_size)
 
@@ -824,7 +823,7 @@ class TextFileDataset(Dataset):
                 sample = {"text": text}
                 return _to_tensor_tree(sample) if self.to_tensor else sample
 
-            ids = _tokenize_text(text, self.tokenizer).astype(xp.int64)
+            ids = _tokenize_text(text, self.tokenizer).astype(np.int64)
 
             # optional per-line pad/truncate
             if self.max_len is not None:
@@ -833,13 +832,13 @@ class TextFileDataset(Dataset):
                 if self.truncate and L > T:
                     ids = ids[:T]
                     L = T
-                out = xp.full((T,), self.pad_id, dtype=xp.int64)
+                out = np.full((T,), self.pad_id, dtype=np.int64)
                 out[:L] = ids
-                mask = xp.zeros((T,), dtype=xp.int64)
+                mask = np.zeros((T,), dtype=np.int64)
                 mask[:L] = 1
-                sample = {"input_ids": out, "attention_mask": mask, "length": xp.asarray(L, dtype=xp.int64)}
+                sample = {"input_ids": out, "attention_mask": mask, "length": np.asarray(L, dtype=np.int64)}
             else:
-                sample = {"input_ids": ids, "length": xp.asarray(ids.shape[0], dtype=xp.int64)}
+                sample = {"input_ids": ids, "length": np.asarray(ids.shape[0], dtype=np.int64)}
 
             return _to_tensor_tree(sample) if self.to_tensor else sample
 
@@ -865,7 +864,7 @@ class TextLabelDataset(Dataset):
     def __init__(self, texts, labels, to_tensor=False):
         super().__init__(to_tensor=to_tensor)
         self.texts = list(texts)
-        self.labels = xp.asarray(labels, dtype=xp.int64)
+        self.labels = np.asarray(labels, dtype=np.int64)
 
     def __len__(self):
         return len(self.texts)

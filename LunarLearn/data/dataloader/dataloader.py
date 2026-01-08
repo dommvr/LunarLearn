@@ -1,6 +1,6 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.data.dataloader import IterableDataset
-from LunarLearn.data.dataloader.utils import _to_tensor_tree
+from LunarLearn.data.dataloader.utils import _to_tensor_tree, to_backend
 from LunarLearn.data.dataloader.collate import _collate
 
 xp = backend.xp
@@ -48,12 +48,14 @@ class DataLoader:
                 batch.append(sample)
                 if len(batch) == self.batch_size:
                     out = self.collate_fn(batch)
+                    out = to_backend(out)
                     if self.to_tensor:
                         out = _to_tensor_tree(out)
                     yield out
                     batch = []
             if batch:
                 out = self.collate_fn(batch)
+                out = to_backend(out)
                 if self.to_tensor:
                     out = _to_tensor_tree(out)
                 yield out
@@ -68,6 +70,7 @@ class DataLoader:
                 batch = [self.dataset[int(i)] for i in batch_idx]
 
                 out = self.collate_fn(batch)
+                out = to_backend(out)
                 if self.to_tensor:
                     out = _to_tensor_tree(out)
                 yield out

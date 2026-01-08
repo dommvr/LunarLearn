@@ -1,5 +1,11 @@
+import numpy as np
+
 import LunarLearn.core.backend.backend as backend
-from LunarLearn.data.dataloader.utils import _is_xp_array, _try_stack_any
+from LunarLearn.data.dataloader.utils import (_is_np_array,
+                                              _try_stack_np,
+                                              _is_np_scalar, 
+                                              _is_xp_array, 
+                                              _try_stack_any)
 from LunarLearn.core import Tensor
 
 xp = backend.xp
@@ -7,28 +13,35 @@ xp = backend.xp
 
 def _collate(batch):
     """
-    Collate a list of samples into a batched structure.
-    Supports:
-      - (x,y) tuples or any tuple/list
-      - dict samples (detection, QA, CLIP, etc.)
-      - xp arrays (stack if possible)
-      - scalars
-      - strings (keep list)
+    CPU-first collate:
+      - dict: collate per key
+      - tuple/list: collate per field
+      - strings: keep list
+      - Tensor: keep list (don't guess how to stack your Tensor safely)
+      - np.ndarray: np.stack if possible
+      - scalars (python or np scalar): np.asarray
+      - None: keep list (optional fields)
+      - fallback: keep list
     """
     if len(batch) == 0:
         return batch
 
-    # If any element is None, keep as list (optional fields)
-    if any(b is None for b in batch):
-        return list(batch)
-
     first = batch[0]
+
+    # If any element is None, keep as list (optional fields)
+    # (do NOT early-return for whole batch; only for the field we're collating)
+    if first is None:
+        return list(batch)
 
     # Dict samples
     if isinstance(first, dict):
         out = {}
-        for k in first.keys():
-            out[k] = _collate([b.get(k, None) for b in batch])
+        keys = set()
+        for b in batch:
+            if isinstance(b, dict):
+                keys.update(b.keys())
+        for k in keys:
+            out[k] = _collate([b.get(k, None) if isinstance(b, dict) else None for b in batch])
         return out
 
     # Tuple/list samples (zip fields)
@@ -40,133 +53,215 @@ def _collate(batch):
     if isinstance(first, str):
         return list(batch)
 
-    # Tensors: keep as-is (avoid breaking)
-    if isinstance(first, Tensor) or _is_xp_array(first):
+    # Tensors: keep as list by default (safe, avoids breaking your Tensor semantics)
+    if isinstance(first, Tensor):
+        return list(batch)
+
+    # NumPy arrays -> stack if possible
+    if _is_np_array(first):
+        return _try_stack_np(batch)
+
+    # xp arrays (already backend arrays) -> try stack via xp
+    if _is_xp_array(first):
         return _try_stack_any(batch)
 
-    # Numeric scalars -> vector
-    if isinstance(first, (int, float, bool)):
-        return xp.asarray(batch)
+    # Numeric scalars (python or numpy scalar) -> CPU vector
+    if isinstance(first, (int, float, bool)) or _is_np_scalar(first):
+        return np.asarray(batch)
 
     # Fallback: keep list
     return list(batch)
 
 
 def collate_xy_stack(batch):
+    """
+    CPU-first (NumPy) collate for classic (x,y) datasets.
+    Returns:
+      X: np.ndarray stacked if possible else list
+      Y: np.ndarray stacked if possible else list
+    Then you run: batch = to_backend((X,Y), wrap_tensors=...)
+    """
     xs, ys = zip(*batch)
 
-    # allow Tensor inputs
-    if isinstance(xs[0], Tensor):
-        xs_data = [x.data for x in xs]
-        X = Tensor(xp.stack(xs_data, axis=0), requires_grad=False)
-    else:
-        X = xp.stack([xp.asarray(x) for x in xs], axis=0)
+    # If tensors slipped in, treat them as already-decided objects: keep list
+    if isinstance(xs[0], Tensor) or isinstance(ys[0], Tensor):
+        return list(xs), list(ys)
 
-    # y might be scalar or vector
-    if isinstance(ys[0], Tensor):
-        ys_data = [y.data for y in ys]
-        try:
-            Y = Tensor(xp.stack(ys_data, axis=0), requires_grad=False)
-        except Exception:
-            Y = list(ys)
-    else:
-        ys_arr = [xp.asarray(y) for y in ys]
-        try:
-            Y = xp.stack(ys_arr, axis=0)
-        except Exception:
-            # if truly ragged, keep list
-            Y = ys_arr
+    # X: try stack (fast path)
+    try:
+        X = np.stack([np.asarray(x) for x in xs], axis=0)
+    except Exception:
+        X = [np.asarray(x) for x in xs]
+
+    # Y: stack if possible, else list (ragged)
+    try:
+        Y = np.stack([np.asarray(y) for y in ys], axis=0)
+    except Exception:
+        Y = [np.asarray(y) for y in ys]
 
     return X, Y
 
 
 def collate_detection(batch):
-    # accept either "image" or "images"
-    key_img = "image" if "image" in batch[0] else "images"
-    images = xp.stack([b[key_img] if not isinstance(b[key_img], Tensor) else b[key_img].data for b in batch], 0)
-    images = Tensor(images, requires_grad=False) if isinstance(batch[0][key_img], Tensor) else images
+    if len(batch) == 0:
+        return {"images": [], "targets": []}
 
+    # accept either "image" or "images"
+    key_img = "image" if ("image" in batch[0]) else "images"
+
+    first_img = batch[0][key_img]
+
+    # Images
+    if isinstance(first_img, Tensor):
+        images = [b[key_img] for b in batch]  # keep list of Tensors
+    else:
+        try:
+            images = np.stack([np.asarray(b[key_img]) for b in batch], axis=0)
+        except Exception:
+            images = [np.asarray(b[key_img]) for b in batch]
+
+    # Targets (ragged -> list of dicts)
     targets = []
     for b in batch:
-        t = {"boxes": b["boxes"], "labels": b["labels"]}
+        t = {
+            "boxes": np.asarray(b["boxes"], dtype=np.float32),
+            "labels": np.asarray(b["labels"], dtype=np.int64),
+        }
         # keep optional extra fields per target if present
-        for k in b.keys():
+        for k, v in b.items():
             if k not in (key_img, "boxes", "labels"):
-                t[k] = b[k]
+                t[k] = v
         targets.append(t)
 
     return {"images": images, "targets": targets}
 
 
-def collate_segmentation(batch):
-    imgs = [b["image"].data if isinstance(b["image"], Tensor) else b["image"] for b in batch]
-    msks = [b["mask"].data if isinstance(b["mask"], Tensor) else b["mask"] for b in batch]
+def collate_segmentation(batch, image_key="image", mask_key="mask"):
+    """
+    CPU-first segmentation collate.
+    Returns:
+      {"images": (B,C,H,W) np or list, "masks": (B,H,W) np or list}
+    """
+    if len(batch) == 0:
+        return {"images": [], "masks": []}
 
-    images = xp.stack(imgs, 0)
-    masks = xp.stack(msks, 0)
+    first_img = batch[0][image_key]
+    first_msk = batch[0][mask_key]
 
-    # preserve tensor-ness if inputs were tensors
-    if isinstance(batch[0]["image"], Tensor):
-        images = Tensor(images, requires_grad=False)
-    if isinstance(batch[0]["mask"], Tensor):
-        masks = Tensor(masks, requires_grad=False)
+    # If tensors appear, keep lists (don't guess stacking)
+    if isinstance(first_img, Tensor):
+        images = [b[image_key] for b in batch]
+    else:
+        imgs = [np.asarray(b[image_key]) for b in batch]
+        try:
+            images = np.stack(imgs, axis=0)
+        except Exception:
+            images = imgs  # ragged fallback
+
+    if isinstance(first_msk, Tensor):
+        masks = [b[mask_key] for b in batch]
+    else:
+        msks = [np.asarray(b[mask_key]) for b in batch]
+        try:
+            masks = np.stack(msks, axis=0)
+        except Exception:
+            masks = msks
 
     return {"images": images, "masks": masks}
 
 
 def collate_pad_tokens(batch, pad_id=0, label_key="label", ids_key="input_ids"):
-    # input_ids can be list or xp array or Tensor
+    """
+    CPU-first token padding collate.
+    Returns:
+      {
+        "input_ids": (B,T) np.int64,
+        "lengths": (B,) np.int64,
+        "attention_mask": (B,T) np.int64,
+        "labels": ... optional
+      }
+    """
+    if len(batch) == 0:
+        return {"input_ids": np.zeros((0, 0), dtype=np.int64),
+                "lengths": np.zeros((0,), dtype=np.int64),
+                "attention_mask": np.zeros((0, 0), dtype=np.int64)}
+
+    # Gather ids as np.int64 vectors
     ids_list = []
     for b in batch:
         ids = b[ids_key]
         if isinstance(ids, Tensor):
-            ids = ids.data
-        ids_list.append(xp.asarray(ids, dtype=xp.int64))
+            # keep tensor as-is: cannot safely pad without assuming tensor is CPU/contiguous
+            # fallback: keep list of tensors
+            ids_list.append(ids)
+        else:
+            arr = np.asarray(ids, dtype=np.int64).reshape(-1)
+            ids_list.append(arr)
 
-    lengths = xp.asarray([int(x.shape[0]) for x in ids_list], dtype=xp.int64)
-    T = int(lengths.max())
-    X = xp.full((len(batch), T), int(pad_id), dtype=xp.int64)
+    # If token ids are tensors, return a safe ragged batch
+    if isinstance(ids_list[0], Tensor):
+        out = {"input_ids": ids_list}
+        if label_key is not None and label_key in batch[0]:
+            out["labels"] = [b.get(label_key, None) for b in batch]
+        return out
 
+    lengths = np.asarray([int(x.shape[0]) for x in ids_list], dtype=np.int64)
+    T = int(lengths.max()) if lengths.size else 0
+
+    X = np.full((len(batch), T), int(pad_id), dtype=np.int64)
     for i, ids in enumerate(ids_list):
-        X[i, :ids.shape[0]] = ids
+        L = int(ids.shape[0])
+        if L:
+            X[i, :L] = ids
 
-    out = {"input_ids": X, "lengths": lengths}
-
-    # optional attention mask
-    mask = xp.zeros((len(batch), T), dtype=xp.int64)
+    attention_mask = np.zeros((len(batch), T), dtype=np.int64)
     for i, L in enumerate(lengths.tolist()):
-        mask[i, :int(L)] = 1
-    out["attention_mask"] = mask
+        if L:
+            attention_mask[i, :int(L)] = 1
 
-    # optional labels
+    out = {"input_ids": X, "lengths": lengths, "attention_mask": attention_mask}
+
+    # Optional labels
     if label_key is not None and label_key in batch[0]:
         labs = [b.get(label_key, None) for b in batch]
         if any(l is None for l in labs):
             out["labels"] = labs
         else:
-            # if labels are arrays (one-hot), stack; if scalars, vectorize
             l0 = labs[0]
             if isinstance(l0, Tensor):
-                labs_data = [l.data for l in labs]
-                try:
-                    out["labels"] = Tensor(xp.stack(labs_data, 0), requires_grad=False)
-                except Exception:
-                    out["labels"] = labs
+                out["labels"] = labs  # safe: keep as list
             else:
-                l0a = xp.asarray(l0)
+                l0a = np.asarray(l0)
                 if l0a.ndim == 0:
-                    out["labels"] = xp.asarray([int(l) for l in labs], dtype=xp.int64)
+                    out["labels"] = np.asarray([int(l) for l in labs], dtype=np.int64)
                 else:
-                    out["labels"] = xp.stack([xp.asarray(l) for l in labs], 0)
+                    # one-hot or multi-target
+                    try:
+                        out["labels"] = np.stack([np.asarray(l) for l in labs], axis=0)
+                    except Exception:
+                        out["labels"] = [np.asarray(l) for l in labs]
 
     return out
 
 
-def collate_clip(batch):
-    imgs = [b["image"].data if isinstance(b["image"], Tensor) else b["image"] for b in batch]
-    images = xp.stack(imgs, 0)
-    if isinstance(batch[0]["image"], Tensor):
-        images = Tensor(images, requires_grad=False)
+def collate_clip(batch, image_key="image"):
+    """
+    CPU-first CLIP-style collate.
+    Returns:
+      {"images": (B,C,H,W) np or list, "text": list[str]}  OR pos/neg lists.
+    """
+    if len(batch) == 0:
+        return {"images": [], "text": []}
+
+    first_img = batch[0][image_key]
+    if isinstance(first_img, Tensor):
+        images = [b[image_key] for b in batch]
+    else:
+        imgs = [np.asarray(b[image_key]) for b in batch]
+        try:
+            images = np.stack(imgs, axis=0)
+        except Exception:
+            images = imgs
 
     out = {"images": images}
 
@@ -181,103 +276,175 @@ def collate_clip(batch):
 
 def collate_pad_fields(batch, pad_id=0, keys=("input_ids",), return_mask=True):
     """
-    Pads multiple 1D token fields to max length in batch.
+    CPU-first: pads multiple 1D token fields to max length in batch.
     Returns dict with padded fields, lengths, and optional attention_mask.
 
-    Example:
-      collate_pad_fields(batch, keys=("input_ids","labels"))
+    Notes:
+      - If a particular key is missing or None in any sample, that field is returned as a list.
+      - If the first sample's field is a Tensor, that field is returned as a list (safe).
+      - All padded fields are np.int64.
     """
     out = {}
-    lens = None
+    lengths_ref = None
+    maxT_ref = None
 
     for key in keys:
+        # gather sequences
         seqs = []
+        missing = False
+
         for b in batch:
             v = b.get(key, None)
             if v is None:
-                seqs = None
+                missing = True
                 break
             if isinstance(v, Tensor):
-                v = v.data
-            seqs.append(xp.asarray(v, dtype=xp.int64))
+                # safest: don't try to pad/stack tensors in CPU collate
+                missing = True
+                break
+            seqs.append(np.asarray(v, dtype=np.int64).reshape(-1))
 
-        if seqs is None:
+        if missing:
             out[key] = [b.get(key, None) for b in batch]
             continue
 
-        lengths = xp.asarray([int(s.shape[0]) for s in seqs], dtype=xp.int64)
-        T = int(lengths.max())
-        X = xp.full((len(batch), T), int(pad_id), dtype=xp.int64)
+        lengths = np.asarray([int(s.shape[0]) for s in seqs], dtype=np.int64)
+        T = int(lengths.max()) if lengths.size else 0
+
+        X = np.full((len(batch), T), int(pad_id), dtype=np.int64)
         for i, s in enumerate(seqs):
-            X[i, :s.shape[0]] = s
+            L = int(s.shape[0])
+            if L:
+                X[i, :L] = s
+
         out[key] = X
 
-        if lens is None:
-            lens = lengths
+        # Use the first successfully padded key as the reference for lengths/mask
+        if lengths_ref is None:
+            lengths_ref = lengths
+            maxT_ref = T
             if return_mask:
-                mask = xp.zeros((len(batch), T), dtype=xp.int64)
+                mask = np.zeros((len(batch), T), dtype=np.int64)
                 for i, L in enumerate(lengths.tolist()):
-                    mask[i, :int(L)] = 1
+                    if L:
+                        mask[i, :int(L)] = 1
                 out["attention_mask"] = mask
 
-    if lens is not None:
-        out["lengths"] = lens
+    if lengths_ref is not None:
+        out["lengths"] = lengths_ref
 
-    # keep other non-token fields as lists (strings, metadata)
-    for k in batch[0].keys():
+    # keep other non-token fields as lists (strings, metadata, etc.)
+    # use union of keys to be robust
+    keys_all = set()
+    for b in batch:
+        if isinstance(b, dict):
+            keys_all.update(b.keys())
+
+    for k in keys_all:
         if k in keys or k in ("attention_mask", "lengths"):
             continue
-        out[k] = [b.get(k, None) for b in batch]
+        out[k] = [b.get(k, None) if isinstance(b, dict) else None for b in batch]
 
     return out
 
 
-def collate_lm_next_token(batch):
+def collate_lm_next_token(batch, ids_key="input_ids", labels_key="labels"):
     """
-    Expects each sample to have xp arrays:
-      {"input_ids": (T,), "labels": (T,)}  or Tensors with .data
-    Returns stacked:
-      input_ids: (N,T)
-      labels: (N,T)
+    CPU-first LM next-token collate.
+    Expects each sample:
+      {ids_key: (T,), labels_key: (T,)} as list/np arrays.
+    Returns:
+      {"input_ids": (B,T) np.int64, "labels": (B,T) np.int64}
+    If tensors appear, returns lists (safe).
     """
-    xs = [b["input_ids"].data if isinstance(b["input_ids"], Tensor) else b["input_ids"] for b in batch]
-    ys = [b["labels"].data if isinstance(b["labels"], Tensor) else b["labels"] for b in batch]
-    X = xp.stack(xs, 0).astype(xp.int64)
-    Y = xp.stack(ys, 0).astype(xp.int64)
+    if len(batch) == 0:
+        return {"input_ids": np.zeros((0, 0), dtype=np.int64),
+                "labels": np.zeros((0, 0), dtype=np.int64)}
+
+    x0 = batch[0].get(ids_key)
+    y0 = batch[0].get(labels_key)
+
+    if isinstance(x0, Tensor) or isinstance(y0, Tensor):
+        return {
+            "input_ids": [b.get(ids_key, None) for b in batch],
+            "labels": [b.get(labels_key, None) for b in batch],
+        }
+
+    xs = [np.asarray(b[ids_key], dtype=np.int64).reshape(-1) for b in batch]
+    ys = [np.asarray(b[labels_key], dtype=np.int64).reshape(-1) for b in batch]
+
+    try:
+        X = np.stack(xs, axis=0)
+    except Exception:
+        X = xs
+    try:
+        Y = np.stack(ys, axis=0)
+    except Exception:
+        Y = ys
+
     return {"input_ids": X, "labels": Y}
 
 
 def collate_seq2seq_pad(batch, pad_id=0, src_key="src", tgt_key="tgt"):
     """
-    Expects each sample:
+    CPU-first seq2seq padding collate.
+
+    Expects each sample dict:
       {src_key: 1D ids, tgt_key: 1D ids}
+
     Returns:
-      src_ids: (N, Ts), src_lengths
-      tgt_ids: (N, Tt), tgt_lengths
-      plus carries any extra fields as lists.
+      {
+        "src_ids": (B,Ts) np.int64,
+        "src_lengths": (B,) np.int64,
+        "tgt_ids": (B,Tt) np.int64,
+        "tgt_lengths": (B,) np.int64,
+        ...extra fields as lists
+      }
+
+    If tensors appear in src/tgt, returns lists for those fields (safe).
     """
-    def get_ids(b, key):
-        v = b[key]
-        if isinstance(v, Tensor):
-            v = v.data
-        return xp.asarray(v, dtype=xp.int64)
+    if len(batch) == 0:
+        return {"src_ids": np.zeros((0, 0), dtype=np.int64),
+                "src_lengths": np.zeros((0,), dtype=np.int64),
+                "tgt_ids": np.zeros((0, 0), dtype=np.int64),
+                "tgt_lengths": np.zeros((0,), dtype=np.int64)}
 
-    srcs = [get_ids(b, src_key) for b in batch]
-    tgts = [get_ids(b, tgt_key) for b in batch]
+    # Detect tensor inputs
+    if isinstance(batch[0].get(src_key), Tensor) or isinstance(batch[0].get(tgt_key), Tensor):
+        out = {
+            "src_ids": [b.get(src_key, None) for b in batch],
+            "tgt_ids": [b.get(tgt_key, None) for b in batch],
+        }
+        # keep extra fields
+        keys_all = set()
+        for b in batch:
+            keys_all.update(b.keys())
+        for k in keys_all:
+            if k in (src_key, tgt_key):
+                continue
+            out[k] = [b.get(k, None) for b in batch]
+        return out
 
-    src_len = xp.asarray([int(s.shape[0]) for s in srcs], dtype=xp.int64)
-    tgt_len = xp.asarray([int(s.shape[0]) for s in tgts], dtype=xp.int64)
+    srcs = [np.asarray(b[src_key], dtype=np.int64).reshape(-1) for b in batch]
+    tgts = [np.asarray(b[tgt_key], dtype=np.int64).reshape(-1) for b in batch]
 
-    Ts = int(src_len.max())
-    Tt = int(tgt_len.max())
+    src_len = np.asarray([int(s.shape[0]) for s in srcs], dtype=np.int64)
+    tgt_len = np.asarray([int(t.shape[0]) for t in tgts], dtype=np.int64)
 
-    src_ids = xp.full((len(batch), Ts), int(pad_id), dtype=xp.int64)
-    tgt_ids = xp.full((len(batch), Tt), int(pad_id), dtype=xp.int64)
+    Ts = int(src_len.max()) if src_len.size else 0
+    Tt = int(tgt_len.max()) if tgt_len.size else 0
+
+    src_ids = np.full((len(batch), Ts), int(pad_id), dtype=np.int64)
+    tgt_ids = np.full((len(batch), Tt), int(pad_id), dtype=np.int64)
 
     for i, s in enumerate(srcs):
-        src_ids[i, :s.shape[0]] = s
+        L = int(s.shape[0])
+        if L:
+            src_ids[i, :L] = s
     for i, t in enumerate(tgts):
-        tgt_ids[i, :t.shape[0]] = t
+        L = int(t.shape[0])
+        if L:
+            tgt_ids[i, :L] = t
 
     out = {
         "src_ids": src_ids,
@@ -287,7 +454,10 @@ def collate_seq2seq_pad(batch, pad_id=0, src_key="src", tgt_key="tgt"):
     }
 
     # keep extra fields
-    for k in batch[0].keys():
+    keys_all = set()
+    for b in batch:
+        keys_all.update(b.keys())
+    for k in keys_all:
         if k in (src_key, tgt_key):
             continue
         out[k] = [b.get(k, None) for b in batch]
@@ -297,53 +467,121 @@ def collate_seq2seq_pad(batch, pad_id=0, src_key="src", tgt_key="tgt"):
 
 def collate_video(batch, key="video"):
     """
+    CPU-first video collate.
     Accepts either:
-      - samples as xp arrays (T,C,H,W)
+      - samples as np arrays (T,C,H,W) or list-like
       - samples as dicts with video at `key`
+
     Returns:
-      {"video": (N,T,C,H,W)} or just xp array depending on input type.
+      - if dict samples: {"video": (B,T,C,H,W) np or list, ...other fields collated with _collate}
+      - else: (B,T,C,H,W) np or list
     """
+    if len(batch) == 0:
+        return {"video": []} if isinstance(batch, list) else []
+
     if isinstance(batch[0], dict):
-        vids = [b[key].data if isinstance(b[key], Tensor) else b[key] for b in batch]
-        V = xp.stack(vids, 0)
+        v0 = batch[0].get(key, None)
+
+        if isinstance(v0, Tensor):
+            vids = [b.get(key, None) for b in batch]
+            V = vids
+        else:
+            vids = [np.asarray(b[key]) for b in batch]
+            try:
+                V = np.stack(vids, axis=0)
+            except Exception:
+                V = vids
+
         out = {"video": V}
-        for k in batch[0].keys():
+
+        keys_all = set()
+        for b in batch:
+            keys_all.update(b.keys())
+
+        for k in keys_all:
             if k == key:
                 continue
             out[k] = _collate([b.get(k, None) for b in batch])
+
         return out
 
-    vids = [v.data if isinstance(v, Tensor) else v for v in batch]
-    return xp.stack(vids, 0)
+    # non-dict samples
+    if isinstance(batch[0], Tensor):
+        return list(batch)
+
+    vids = [np.asarray(v) for v in batch]
+    try:
+        return np.stack(vids, axis=0)
+    except Exception:
+        return vids
 
 
 def collate_tracking(batch):
     """
+    CPU-first tracking collate.
+
     Expects samples dict with:
       "video": (T,C,H,W)
       "boxes": (T,K,4)  (fixed K)
       "track_ids": (K,) or list length K
       optional "visible": (T,K)
 
-    Returns stacked video/boxes/visible, and a single track_ids (from first).
-    """
-    vids = [b["video"].data if isinstance(b["video"], Tensor) else b["video"] for b in batch]
-    boxes = [b["boxes"].data if isinstance(b["boxes"], Tensor) else b["boxes"] for b in batch]
+    Returns:
+      {
+        "video": (B,T,C,H,W) np or list,
+        "boxes": (B,T,K,4) np or list,
+        "visible": (B,T,K) np or list (if present),
+        "track_ids": from first sample,
+        ... extra fields collated
+      }
 
-    V = xp.stack(vids, 0)
-    B = xp.stack(boxes, 0)
+    If tensors appear in video/boxes/visible, returns lists for those fields (safe).
+    """
+    if len(batch) == 0:
+        return {"video": [], "boxes": [], "track_ids": None}
+
+    v0 = batch[0].get("video")
+    b0 = batch[0].get("boxes")
+
+    tensor_mode = isinstance(v0, Tensor) or isinstance(b0, Tensor)
+
+    if tensor_mode:
+        V = [b.get("video", None) for b in batch]
+        B = [b.get("boxes", None) for b in batch]
+    else:
+        vids = [np.asarray(b["video"]) for b in batch]
+        boxes = [np.asarray(b["boxes"]) for b in batch]
+        try:
+            V = np.stack(vids, axis=0)
+        except Exception:
+            V = vids
+        try:
+            B = np.stack(boxes, axis=0)
+        except Exception:
+            B = boxes
 
     out = {"video": V, "boxes": B}
 
     if "visible" in batch[0]:
-        vis = [b["visible"].data if isinstance(b["visible"], Tensor) else b["visible"] for b in batch]
-        out["visible"] = xp.stack(vis, 0)
+        vis0 = batch[0].get("visible")
+        if isinstance(vis0, Tensor):
+            out["visible"] = [b.get("visible", None) for b in batch]
+        else:
+            vis = [np.asarray(b["visible"]) for b in batch]
+            try:
+                out["visible"] = np.stack(vis, axis=0)
+            except Exception:
+                out["visible"] = vis
 
-    # Usually same for all samples, so take first
-    out["track_ids"] = batch[0]["track_ids"]
+    # Usually same for all samples; keep from first
+    out["track_ids"] = batch[0].get("track_ids", None)
 
     # keep any extra metadata
-    for k in batch[0].keys():
+    keys_all = set()
+    for b in batch:
+        keys_all.update(b.keys())
+
+    for k in keys_all:
         if k in ("video", "boxes", "visible", "track_ids"):
             continue
         out[k] = _collate([b.get(k, None) for b in batch])
