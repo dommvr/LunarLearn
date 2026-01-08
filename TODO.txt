@@ -21,6 +21,7 @@ ML:
     -implement model_search/split to general dataloaders and datasets
     -preprocessing and model_selecting maybe should be moved from ml folder
 DL:
+    -change dataset to_tensor=False as default
     -add helper func to tokenizer that creates regex patter based on true/false flags
     -check if freez params need requires_grad=False or just skip in optim
     -crop2d, cnnlstm1/2/3d, bidirectional
@@ -32,7 +33,6 @@ DL:
     -zero_grad() optimization to dont pass zero grads
     -gradientchecker
     -save/load model
-    -dataloaders and dataset
     -ops.expand_dims
     -bias on/off during layers init
     -spectralnorm layer
@@ -44,8 +44,6 @@ DL:
     -change epsilon to eps
     -conv1d/2d/3d
     -change inception blocks to match inceptionv1
-    -change dataloader/datasets to match imagedataset and csvimagedataset.
-    -move some func from datasets to utils
 
     spectralnorm (stop_grad)
 
@@ -139,3 +137,22 @@ Multimodal (if you want it in-core; otherwise make it optional)
 
 Swap in 1–2 of these by removing the least-used above:
 COCO Captions
+
+
+-keep only realisticly usable datasets
+-finish ml segment
+-finish split set funcs
+-finish quantization
+-add save/load
+
+
+VOC2007 detection
+Oxford-IIIT Pet
+AG News
+tiny shekespear
+
+
+dataset:
+    -remove dtype
+    -change xp -> np in load_*
+    -(class) change DTYPE

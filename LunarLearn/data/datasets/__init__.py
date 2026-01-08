@@ -1,4 +1,55 @@
-from LunarLearn.datasets.MNIST import MNIST
-from LunarLearn.datasets.FashionMNIST import FashionMNIST
-from LunarLearn.datasets.CIFAR10 import CIFAR10
-from LunarLearn.datasets.CIFAR100 import CIFAR100
+from .datasets import (
+    load_iris,
+    load_wine,
+    load_breast_cancer_wisconsin,
+    load_digits,
+    load_titanic,
+    load_adult,
+    load_california_housing,
+    load_diabetes,
+    load_ames_housing,
+    load_20newsgroups,
+    load_sms_spam,
+    load_imdb_reviews,
+    load_mnist,
+    load_fashion_mnist,
+    load_olivetti_faces,
+    load_movielens,
+    load_goodbooks_10k,
+    load_cifar10,
+    load_cifar100,
+    load_svhn,
+    load_stl10,
+    load_ag_news,
+    load_tiny_shakespeare,
+    load_oxford_iiit_pet,
+    load_voc2007_detection
+)
+
+__all__ = [
+    "load_iris",
+    "load_wine",
+    "load_breast_cancer_wisconsin",
+    "load_digits",
+    "load_titanic",
+    "load_adult",
+    "load_california_housing",
+    "load_diabetes",
+    "load_ames_housing",
+    "load_20newsgroups",
+    "load_sms_spam",
+    "load_imdb_reviews",
+    "load_mnist",
+    "load_fashion_mnist",
+    "load_olivetti_faces",
+    "load_movielens",
+    "load_goodbooks_10k",
+    "load_cifar10",
+    "load_cifar100",
+    "load_svhn",
+    "load_stl10",
+    "load_ag_news",
+    "load_tiny_shakespeare",
+    "load_oxford_iiit_pet",
+    "load_voc2007_detection"
+]

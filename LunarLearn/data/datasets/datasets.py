@@ -133,7 +133,7 @@ def load_breast_cancer_wisconsin(*, return_X_y=True, as_dataset=False, dtype=Non
     return DatasetBundle(X=X, y=y, target_names=["benign", "malignant"], description="WDBC (UCI)")
 
 
-def load_digits_8x8(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False,
+def load_digits(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False,
                     random_state=None, data_home=None, split="all"):
     """
     Optical Recognition of Handwritten Digits (UCI): 8x8 block features (64) + label.
@@ -2097,7 +2097,7 @@ _DATASETS = {
     "iris": load_iris,
     "wine": load_wine,
     "breast_cancer_wisconsin": load_breast_cancer_wisconsin,
-    "digits": load_digits_8x8,
+    "digits": load_digits,
     "titanic": load_titanic,
     "adult": load_adult,
     "california_housing": load_california_housing,
