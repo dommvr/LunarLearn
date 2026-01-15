@@ -57,7 +57,7 @@ def load_iris(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False, r
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y,
@@ -92,7 +92,7 @@ def load_wine(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False, r
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description="Wine (UCI)")
@@ -127,7 +127,7 @@ def load_breast_cancer_wisconsin(*, return_X_y=True, as_dataset=False, dtype=Non
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, target_names=["benign", "malignant"], description="WDBC (UCI)")
@@ -180,7 +180,7 @@ def load_digits(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False,
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description="Optdigits (UCI)")
@@ -273,7 +273,7 @@ def load_titanic(*, return_X_y=True, as_dataset=False, dtype=None, shuffle=False
     if as_dataset:
         if encode == "none":
             raise ValueError("as_dataset=True requires encode != 'none' (ArrayDataset expects numeric arrays).")
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, target_names=["died", "survived"], description="Titanic (OpenML CSV export)")
@@ -402,7 +402,7 @@ def load_adult(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description="Adult / Census Income (UCI)")
@@ -461,7 +461,7 @@ def load_california_housing(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description="California Housing (regression)")
@@ -513,7 +513,7 @@ def load_diabetes(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description="Diabetes (regression)")
@@ -659,7 +659,7 @@ def load_ames_housing(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description=f"Ames Housing (regression), target={target_col}")
@@ -979,7 +979,7 @@ def load_mnist(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, target_names=[str(i) for i in range(10)], description="MNIST")
@@ -1046,7 +1046,7 @@ def load_fashion_mnist(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description="Fashion-MNIST")
@@ -1115,7 +1115,7 @@ def load_olivetti_faces(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description="Olivetti Faces")
@@ -1194,7 +1194,7 @@ def load_movielens(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description=f"MovieLens {version}")
@@ -1251,7 +1251,7 @@ def load_goodbooks_10k(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, description="GoodBook-10k ratings")
@@ -1327,7 +1327,7 @@ def load_cifar10(
     X, y = _maybe_shuffle(X, y, shuffle, random_state)
 
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, target_names=target_names, description="CIFAR-10 (python version)")
@@ -1405,7 +1405,7 @@ def load_cifar100(
 
     desc = f"CIFAR-100 (python version, label_mode={label_mode})"
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, target_names=target_names, description=desc)
@@ -1490,7 +1490,7 @@ def load_svhn(
 
     target_names = [str(i) for i in range(10)]
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, target_names=target_names, description="SVHN (cropped digits)")
@@ -1598,7 +1598,7 @@ def load_stl10(
         "dog", "horse", "monkey", "ship", "truck"
     ]
     if as_dataset:
-        return ArrayDataset(X, y, dtype=dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=dtype, to_tensor=False)
     if return_X_y:
         return X, y
     return DatasetBundle(X=X, y=y, target_names=target_names, description="STL-10 (binary)")
@@ -1771,7 +1771,7 @@ def load_tiny_shakespeare(
 
     if as_dataset:
         # Dense windows -> ArrayDataset works perfectly
-        return ArrayDataset(X, y, dtype=X.dtype, to_tensor=True)
+        return ArrayDataset(X, y, dtype=X.dtype, to_tensor=False)
 
     if return_X_y:
         return X, y

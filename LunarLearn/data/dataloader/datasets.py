@@ -33,7 +33,7 @@ class Dataset:
     Base Dataset (map-style).
     Must implement __len__ and __getitem__.
     """
-    def __init__(self, to_tensor=True):
+    def __init__(self, to_tensor=False):
         self.to_tensor = to_tensor
 
     def __len__(self):
@@ -48,7 +48,7 @@ class IterableDataset:
     Base class for streaming datasets (iterable-style).
     Must implement __iter__, returning samples one by one.
     """
-    def __init__(self, to_tensor=True):
+    def __init__(self, to_tensor=False):
         self.to_tensor = to_tensor
 
     def __iter__(self):
@@ -59,8 +59,8 @@ class ArrayDataset(Dataset):
     """
     Simple Dataset for in-memory arrays.
     """
-    def __init__(self, X, Y, to_tensor=True):
-        super().__init__(to_tensor)
+    def __init__(self, X, Y, to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
         self.X = np.asarray(X)
         self.Y = np.asarray(Y)
         self.m = self.X.shape[0]
@@ -83,8 +83,8 @@ class GeneratorDataset(IterableDataset):
     generator_fn should return an iterator/generator yielding samples.
     Samples can be (x,y), tuples, dicts, etc.
     """
-    def __init__(self, generator_fn, length=None, to_tensor=True):
-        super().__init__(to_tensor)
+    def __init__(self, generator_fn, length=None, to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
         self.generator_fn = generator_fn
         self.length = length
 
@@ -109,8 +109,8 @@ class DictDataset(Dataset):
       - list[dict] (most common)
       - dict of arrays/lists (columnar): {"image": X, "boxes": B, ...}
     """
-    def __init__(self, data, to_tensor=True):
-        super().__init__(to_tensor)
+    def __init__(self, data, to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
         if isinstance(data, dict):
             # columnar storage
             self._columnar = True
@@ -165,9 +165,9 @@ class SequenceDataset(Dataset):
         truncate=True,
         one_hot=False,
         num_classes=None,
-        to_tensor=True,
+        to_tensor=False,
     ):
-        super().__init__(to_tensor)
+        super().__init__(to_tensor=to_tensor)
         self.sequences = sequences
         self.labels = labels
         self.max_len = max_len
@@ -242,9 +242,9 @@ class PackedSequenceDataset(Dataset):
         sep_id=None,
         next_token=True,
         drop_last=True,
-        to_tensor=True,
+        to_tensor=False,
     ):
-        super().__init__(to_tensor)
+        super().__init__(to_tensor=to_tensor)
 
         self.block_size = int(block_size)
         self.stride = int(stride) if stride is not None else int(block_size)
@@ -302,7 +302,7 @@ class ImageDataset(Dataset):
         self,
         path,
         size=(64, 64),
-        to_tensor=True,
+        to_tensor=False,
         one_hot=False,          # better default
         transform=None,
         target_transform=None,
@@ -310,7 +310,7 @@ class ImageDataset(Dataset):
         label_dtype=np.int64,   # int labels by default
         x_dtype=None,           # defaults to DTYPE
     ):
-        super().__init__(to_tensor)
+        super().__init__(to_tensor=to_tensor)
         self.folder_path = path
         self.size = size
         self.to_tensor = to_tensor
@@ -383,7 +383,7 @@ class CSVImageDataset(Dataset):
         csv_file,
         img_root="",
         size=(64, 64),
-        to_tensor=True,
+        to_tensor=False,
         one_hot=False,
         delimiter=",",
         num_classes=None,
@@ -393,7 +393,7 @@ class CSVImageDataset(Dataset):
         label_dtype=np.int64,
         x_dtype=None,
     ):
-        super().__init__(to_tensor)
+        super().__init__(to_tensor=to_tensor)
         self.csv_file = csv_file
         self.img_root = img_root
         self.size = size
@@ -479,10 +479,10 @@ class TextFolderDataset(Dataset):
         one_hot=True,
         encoding="utf-8",
         extensions=(".txt",),
-        to_tensor=True,
+        to_tensor=False,
         dtype=None,
     ):
-        super().__init__(to_tensor)
+        super().__init__(to_tensor=to_tensor)
         if dtype is None:
             dtype = DTYPE
 
@@ -564,10 +564,10 @@ class CSVTextDataset(Dataset):
         one_hot=False,
         num_classes=None,
         encoding="utf-8",
-        to_tensor=True,
+        to_tensor=False,
         dtype=None,
     ):
-        super().__init__(to_tensor)
+        super().__init__(to_tensor=to_tensor)
         if dtype is None:
             dtype = DTYPE
 
@@ -657,10 +657,10 @@ class JSONLTextDataset(Dataset):
         one_hot=False,
         num_classes=None,
         encoding="utf-8",
-        to_tensor=True,
+        to_tensor=False,
         dtype=None,
     ):
-        super().__init__(to_tensor)
+        super().__init__(to_tensor=to_tensor)
         if dtype is None:
             dtype = DTYPE
 
@@ -750,20 +750,16 @@ class TextFileDataset(Dataset):
         encoding="utf-8",
         line_mode=True,
         strip_lines=True,
-
-        # token stream options
         block_size=None,
         stride=None,          # if None: stride=block_size
         drop_last=True,
         next_token=False,
-
         pad_id=0,             # only used in line_mode with max_len
         max_len=None,         # optional per-line padding/truncation
         truncate=True,
-
-        to_tensor=True,
+        to_tensor=False,
     ):
-        super().__init__(to_tensor)
+        super().__init__(to_tensor=to_tensor)
         self.path = path
         self.tokenizer = tokenizer
         self.encoding = encoding
@@ -880,7 +876,7 @@ class AugmentedDataset(Dataset):
     """
     def __init__(self, dataset, transform=None, to_tensor=None):
         # If to_tensor is None: follow base dataset behavior.
-        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", True))
+        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", False))
         self.dataset = dataset
         self.transform = transform
         self._base_to_tensor = getattr(dataset, "to_tensor", False)
@@ -906,7 +902,7 @@ class AugmentedIterableDataset(IterableDataset):
     Iterable version: applies transform(sample)->sample.
     """
     def __init__(self, dataset, transform=None, to_tensor=None):
-        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", True))
+        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", False))
         self.dataset = dataset
         self.transform = transform
         self._base_to_tensor = getattr(dataset, "to_tensor", False)
@@ -933,8 +929,8 @@ class LazyDataset(Dataset):
         length (int): Total number of samples.
         to_tensor (bool): Convert output to Tensors.
     """
-    def __init__(self, loader_fn, length, to_tensor=True):
-        super().__init__(to_tensor)
+    def __init__(self, loader_fn, length, to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
         self.loader_fn = loader_fn
         self.length = length
         self.to_tensor = to_tensor
@@ -957,8 +953,8 @@ class ConcatDataset(Dataset):
     Args:
         datasets (list): List of Dataset objects.
     """
-    def __init__(self, datasets, to_tensor=True):
-        super().__init__(to_tensor)
+    def __init__(self, datasets, to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
         self.datasets = datasets
         self.cumulative_sizes = np.cumsum([len(d) for d in datasets])
 
@@ -987,8 +983,8 @@ class PairedDataset(Dataset):
         Y (array-like or list): Target samples (must be same length as X).
         to_tensor (bool): Whether to convert outputs to Tensors.
     """
-    def __init__(self, X, Y, to_tensor=True):
-        super().__init__(to_tensor)
+    def __init__(self, X, Y, to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
         assert len(X) == len(Y), "X and Y must have the same length"
         self.X = X
         self.Y = Y
@@ -1017,8 +1013,8 @@ class MixedDataset(Dataset):
         sampling_probs (list, optional): Probabilities for sampling from each dataset.
                                          If None, uniform sampling is used.
     """
-    def __init__(self, datasets, sampling_probs=None, to_tensor=True):
-        super().__init__(to_tensor)
+    def __init__(self, datasets, sampling_probs=None, to_tensor=False):
+        super().__init__(to_tensor=to_tensor)
         self.datasets = datasets
         self.n = sum(len(ds) for ds in datasets)
 
@@ -1053,7 +1049,7 @@ class SubsetDataset(Dataset):
     """
     def __init__(self, dataset, indices, to_tensor=None):
         # If to_tensor is None: follow base dataset behavior.
-        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", True))
+        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", False))
         self.dataset = dataset
         self.indices = list(indices)
 
@@ -1082,7 +1078,7 @@ class CacheDataset(Dataset):
       copy: if True, attempts shallow copies of dict/list to avoid accidental mutation
     """
     def __init__(self, dataset, max_size=10000, copy=False, to_tensor=None):
-        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", True))
+        super().__init__(to_tensor if to_tensor is not None else getattr(dataset, "to_tensor", False))
         self.dataset = dataset
         self.max_size = max_size
         self.copy = copy
