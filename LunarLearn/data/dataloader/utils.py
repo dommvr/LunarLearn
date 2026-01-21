@@ -2,7 +2,7 @@ import numpy as np
 import cupy as cp
 
 import LunarLearn.core.backend.backend as backend
-from LunarLearn.data.dataloader import SubsetDataset
+from LunarLearn.data.dataloader import DataLoader, SubsetDataset
 from LunarLearn.core import Tensor
 
 xp = backend.xp
@@ -135,6 +135,106 @@ def random_split(dataset, lengths, random_state=None):
         out.append(SubsetDataset(dataset, perm[start:start + int(L)]))
         start += int(L)
     return out
+
+
+def compute_channel_mean_std(
+    dataset,
+    channel_dim=0,
+    eps=1e-8,
+    max_samples=None,
+    get_x=None,
+):
+    """
+    Compute per-channel mean/std over a map-style dataset by iterating dataset[i].
+
+    Assumptions:
+      - Each sample x is an image-like array with shape (C,H,W) or (H,W,C) etc.
+      - You choose channel_dim relative to the SAMPLE (not batched) array.
+        Examples:
+          channel-first sample: (C,H,W) -> channel_dim=0
+          channel-last  sample: (H,W,C) -> channel_dim=-1
+
+    Args:
+      dataset: supports __len__ and __getitem__.
+      channel_dim: channel axis in the sample x.
+      eps: numerical stability for std.
+      max_samples: optional cap for faster estimation (uses first N samples).
+      get_x: optional function(sample)->x to extract x from arbitrary structures.
+             If None, tries: dict["x"], tuple/list[0], else sample itself.
+
+    Returns:
+      mean: xp.ndarray shape (C,)
+      std:  xp.ndarray shape (C,)
+    """
+    m = len(dataset)
+    if max_samples is not None:
+        m = min(m, int(max_samples))
+
+    sum_c = None
+    sumsq_c = None
+    n_total = 0  # total number of pixels per channel accumulated
+
+    def _default_get_x(sample):
+        if isinstance(sample, dict):
+            if "x" in sample:
+                return sample["x"]
+            # fall back to first value if you insist on chaos
+            return next(iter(sample.values()))
+        if isinstance(sample, (tuple, list)):
+            return sample[0]
+        return sample
+
+    extractor = get_x if get_x is not None else _default_get_x
+
+    for i in range(m):
+        sample = dataset[i]
+        x = extractor(sample)
+
+        # Move to backend array
+        x = xp.asarray(x)
+
+        # Cast to float for meaningful statistics (uint8 will betray you)
+        x = x.astype(xp.float32, copy=False)
+
+        if x.ndim < 2:
+            raise ValueError(f"Expected image-like sample with ndim>=2, got shape {x.shape} at index {i}")
+
+        cd = channel_dim if channel_dim >= 0 else (x.ndim + channel_dim)
+        if cd < 0 or cd >= x.ndim:
+            raise ValueError(f"channel_dim={channel_dim} invalid for sample shape {x.shape} at index {i}")
+
+        C = x.shape[cd]
+
+        # Sum over all axes except channel axis
+        axes = tuple(ax for ax in range(x.ndim) if ax != cd)
+
+        s = x.sum(axis=axes)          # (C,)
+        ss = (x * x).sum(axis=axes)   # (C,)
+        count = 1
+        for ax in axes:
+            count *= x.shape[ax]      # pixels per channel for this sample
+
+        if sum_c is None:
+            sum_c = xp.zeros((C,), dtype=xp.float32)
+            sumsq_c = xp.zeros((C,), dtype=xp.float32)
+
+        # Safety: ensure consistent channel count across samples
+        if s.shape[0] != sum_c.shape[0]:
+            raise ValueError(
+                f"Inconsistent channel count: expected {sum_c.shape[0]}, got {s.shape[0]} "
+                f"for sample shape {x.shape} at index {i}"
+            )
+
+        sum_c += s
+        sumsq_c += ss
+        n_total += count
+
+    mean = sum_c / max(n_total, 1)
+    var = sumsq_c / max(n_total, 1) - mean * mean
+    var = xp.maximum(var, 0.0)
+    std = xp.sqrt(var + eps)
+
+    return mean, std
 
 
 def to_backend(batch, *, dtype=None, wrap_tensors=False):
