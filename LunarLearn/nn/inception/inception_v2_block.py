@@ -1,5 +1,5 @@
+from LunarLearn.nn import ModuleList
 from LunarLearn.nn.inception import Inception
-from LunarLearn.nn.inception import InceptionBranch
 from LunarLearn.nn.layers import BatchNorm2D, Conv2D, MaxPool2D, AveragePool2D
 
 class InceptionV2Block(Inception):
@@ -24,14 +24,14 @@ class InceptionV2Block(Inception):
 
         # Branch 1: 1×1 conv
         branches.append(
-            InceptionBranch(self._make_conv_layers([
+            ModuleList(self._make_conv_layers([
                 Conv2D(f_1x1, kernel_size=1, padding="same")
             ]))
         )
 
         # Branch 2: 1×1 -> (1×3) -> (3×1)
         branches.append(
-            InceptionBranch(self._make_conv_layers([
+            ModuleList(self._make_conv_layers([
                 Conv2D(f_3x3_reduce, kernel_size=1, padding="same"),
                 Conv2D(f_3x3_1, kernel_size=(1, 3), padding="same"),
                 Conv2D(f_3x3_2, kernel_size=(3, 1), padding="same")
@@ -40,7 +40,7 @@ class InceptionV2Block(Inception):
 
         # Branch 3: 1×1 -> (1×5) -> (5×1)
         branches.append(
-            InceptionBranch(self._make_conv_layers([
+            ModuleList(self._make_conv_layers([
                 Conv2D(f_5x5_reduce, kernel_size=1, padding="same"),
                 Conv2D(f_5x5_1, kernel_size=(1, 5), padding="same"),
                 Conv2D(f_5x5_2, kernel_size=(5, 1), padding="same")
@@ -54,6 +54,6 @@ class InceptionV2Block(Inception):
         pool_branch_layers.extend(self._make_conv_layers([
             Conv2D(f_pool_proj, kernel_size=1, padding="same")
         ]))
-        branches.append(InceptionBranch(pool_branch_layers))
+        branches.append(ModuleList(pool_branch_layers))
 
         super().__init__(branches, norm_layer=norm_layer, activation=activation)
