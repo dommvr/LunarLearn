@@ -3,9 +3,7 @@ from LunarLearn.nn.layers import BaseLayer
 from LunarLearn.core import Tensor, Parameter, ops
 
 xp = backend.xp
-DTYPE = backend.DTYPE
-C_DTYPE = backend.C_DTYPE
-MIXED_PRECISION = backend.MIXED_PRECISION
+
 
 class Conv2D(BaseLayer):
     """
