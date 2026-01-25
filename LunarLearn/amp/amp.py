@@ -29,9 +29,7 @@ class _AmpState:
         "concatenate", "stack", "split", "slice", "flatten",
         "flip", "roll", "gather", "scatter",
         "expand", "repeat", "tile", "pad",
-        "im2col", "col2im", "im2col_transpose", "col2im_transpose",
-        "im2col_grouped", "col2im_grouped", 
-        "im2col_transpose_grouped", "col2im_transpose_grouped",
+        "im2col", "col2im", "im2col_transpose_flat", "col2im_transpose_gather",
         "dropout", "upsample", "avg_pool2d", "sort", "cumsum",
         "multinomial", "searchsorted", "bbox_iou"
     }

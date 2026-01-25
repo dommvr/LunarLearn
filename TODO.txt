@@ -1,17 +1,4 @@
 ML:
-    # Linear / logistic regression
-    # Regularized linear models
-    Perceptron / Linear SVM
-    Naive Bayes
-    KNN
-    Decision trees
-    Random forests
-    Simple GBT
-    KMeans
-    PCA
-    Matrix factorization
-    Basic utilities (scaler, train/test split)
-
     -add metrics to ml/base.py
     -If you later add label remapping (classes not 0..K−1), predict_proba stays the same, and you only need to map indices back to original labels in predict
     -add markov chain and HiddenMarkovModel (forward-backward, viterbi, em (baum-welch)) to probabilistic/stochastic
@@ -26,7 +13,6 @@ DL:
     -crop2d, cnnlstm1/2/3d, bidirectional
     -correct init_weights in cells
     -add freezemanager to trainer
-    -input level normalization to dataloaders (per chanell mean/std)
     -skip_grad for tensors
     -compute hooks
     -zero_grad() optimization to dont pass zero grads
@@ -37,12 +23,9 @@ DL:
     -spectralnorm layer
     -add metrics to trainer, bar, callbacks
     -inception_score
-    -add dilation to other im2col/col2im if needed
     -dropconnect
     -add init to loss
     -change epsilon to eps
-    -conv1d/2d/3d
-    -change inception blocks to match inceptionv1
 
     spectralnorm (stop_grad)
 

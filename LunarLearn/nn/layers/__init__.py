@@ -9,8 +9,12 @@ from .batchnorm3d import BatchNorm3D
 from .checkpoint_block import CheckpointBlock
 from .class_encoding import ClassEncoding
 from .conv_patch_embedding import ConvPatchEmbedding
-from .conv2d_transpose import Conv2DTranspose
-from .conv2d import Conv2D
+from .conv_transpose_nd import Conv1DTranspose
+from .conv_transpose_nd import Conv2DTranspose
+from .conv_transpose_nd import Conv3DTranspose
+from .conv_nd import Conv1D
+from .conv_nd import Conv2D
+from .conv_nd import Conv3D
 from .dense import Dense
 from .depthwise_separable_conv2d_transpose import DepthwiseSeparableConv2DTranspose
 from .dropout import Dropout
@@ -53,8 +57,12 @@ __all__ = [
     "CheckpointBlock",
     "ClassEncoding",
     "ConvPatchEmbedding",
+    "Conv1DTranspose",
     "Conv2DTranspose",
+    "Conv3DTranspose",
+    "Conv1D",
     "Conv2D",
+    "Conv3D",
     "Dense",
     "DepthwiseSeparableConv2DTranspose",
     "Dropout",

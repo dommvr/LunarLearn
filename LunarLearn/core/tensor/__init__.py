@@ -13,10 +13,7 @@ from .utils import im2col
 from .utils import col2im
 from .utils import im2col_transpose
 from .utils import col2im_transpose
-from .utils import im2col_transpose_grouped
-from .utils import col2im_transpose_grouped
-from .utils import im2col_grouped
-from .utils import col2im_grouped
+from .utils import upsample
 
 __all__ = [
     "Tensor",
@@ -33,8 +30,5 @@ __all__ = [
     "col2im",
     "im2col_transpose",
     "col2im_transpose",
-    "im2col_transpose_grouped",
-    "col2im_transpose_grouped",
-    "im2col_grouped",
-    "col2im_grouped"
+    "upsample"
 ]

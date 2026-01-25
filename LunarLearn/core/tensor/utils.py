@@ -188,6 +188,29 @@ def checkpoint(fn, *args, **kwargs):
     return out_cp
 
 
+def _to_tuple(x, dim):
+    if isinstance(x, int):
+        return (x,) * dim
+    if isinstance(x, (tuple, list)) and len(x) == dim:
+        return tuple(int(v) for v in x)
+    raise ValueError(f"Expected int or tuple/list of length {dim}, got {x!r}")
+
+
+def _prod(xs):
+    p = 1
+    for v in xs:
+        p *= int(v)
+    return int(p)
+
+
+def _scatter_add_flat(dst_flat, flat_idx, vals):
+    # dst_flat: 1D
+    if xp.__name__ == "cupy":
+        scatter_add(dst_flat, flat_idx, vals)
+    else:
+        xp.add.at(dst_flat, flat_idx, vals)
+
+
 def _safe_batch_size(X_shape, kernel_size, s, dilation=1, safety_factor=SAFE_FACTOR):
     """
     Estimate safe batch size based on free GPU memory for im2col.
@@ -214,13 +237,6 @@ def _safe_batch_size(X_shape, kernel_size, s, dilation=1, safety_factor=SAFE_FAC
     C = int(X_shape[1])
     spatial = tuple(int(v) for v in X_shape[2:])
     dim = len(spatial)
-
-    def _to_tuple(x, dim):
-        if isinstance(x, int):
-            return (x,) * dim
-        if isinstance(x, (tuple, list)) and len(x) == dim:
-            return tuple(int(v) for v in x)
-        raise ValueError(f"Expected int or tuple/list of length {dim}, got {x!r}")
 
     k = _to_tuple(kernel_size, dim)
     s = _to_tuple(s, dim)
@@ -262,14 +278,6 @@ def _safe_batch_size(X_shape, kernel_size, s, dilation=1, safety_factor=SAFE_FAC
 
     batch_size = max(1, min(m, avail // bytes_per_image))
     return int(batch_size)
-
-
-def _to_tuple(x, dim):
-    if isinstance(x, int):
-        return (x,) * dim
-    if isinstance(x, (tuple, list)) and len(x) == dim:
-        return tuple(int(v) for v in x)
-    raise ValueError(f"Expected int or tuple/list of length {dim}, got {x!r}")
 
 
 # -------------------------
@@ -335,6 +343,221 @@ def im2col1d_grouped(X, kernel_size, s, groups, dilation=1):
         Xg = X[:, start:end, :]
         cols_list.append(im2col1d(Xg, kernel_size, s, dilation))
     return xp.concatenate(cols_list, axis=0)
+
+
+def _col2im1d_vectorized(cols, X_shape, kernel_size, s, dilation=1):
+    """
+    Channel-first col2im1d: X_shape = (m, C, L)
+    cols shape (C*kL, outL*m)
+    """
+    m, C, L = X_shape
+    kL = int(kernel_size)
+    (sL,) = _to_tuple(s, 1)
+    (dL,) = _to_tuple(dilation, 1)
+
+    eff_kL = dL * (kL - 1) + 1
+    outL = (L - eff_kL) // sL + 1
+
+    # indices like im2col1d
+    i0 = xp.tile(xp.arange(kL) * dL, C)                  # (C*kL,)
+    i1 = sL * xp.arange(outL)                             # (outL,)
+    i = i0.reshape(-1, 1) + i1.reshape(1, -1)            # (C*kL, outL)
+    k = xp.repeat(xp.arange(C), kL).reshape(-1, 1)        # (C*kL, 1)
+
+    # reshape cols to (m, C*kL, outL)
+    cols_r = cols.reshape(C * kL, outL, m).transpose(2, 0, 1)  # (m, C*kL, outL)
+
+    # Flatten scatter indices into X_flat
+    batch_idx = xp.repeat(xp.arange(m), i.size)           # m * (C*kL*outL)
+
+    k_idx = xp.tile(xp.tile(k, (1, outL)).ravel(), m)     # repeated per batch
+    i_idx = xp.tile(i, (m, 1)).ravel()
+
+    batch_idx = batch_idx.astype(xp.int32)
+    k_idx = k_idx.astype(xp.int32)
+    i_idx = i_idx.astype(xp.int32)
+
+    vals = cols_r.ravel()
+    flat_idx = xp.ravel_multi_index((batch_idx, k_idx, i_idx), X_shape)
+
+    X_flat = xp.zeros(m * C * L, dtype=cols.dtype)
+    _scatter_add_flat(X_flat, flat_idx, vals)
+
+    return X_flat.reshape(X_shape)
+
+
+def _col2im1d_safe_batch(cols, X_shape, kernel_size, s, dilation=1):
+    m, C, L = X_shape
+    kL = int(kernel_size)
+
+    batch = _safe_batch_size(X_shape, kernel_size=kL, s=s, dilation=dilation)
+    (sL,) = _to_tuple(s, 1)
+    (dL,) = _to_tuple(dilation, 1)
+
+    eff_kL = dL * (kL - 1) + 1
+    outL = (L - eff_kL) // sL + 1
+    patches = outL
+
+    X = xp.zeros(X_shape, dtype=cols.dtype)
+    for start in range(0, m, batch):
+        end = min(start + batch, m)
+        cols_batch = cols[:, start * patches:end * patches]
+        X_batch = _col2im1d_vectorized(cols_batch, (end - start, C, L), kL, s, dilation)
+        X[start:end] = X_batch
+    return X
+
+
+def col2im1d(cols, X_shape, kernel_size, s, dilation=1):
+    try:
+        return _col2im1d_vectorized(cols, X_shape, kernel_size, s, dilation)
+    except Exception:
+        return _col2im1d_safe_batch(cols, X_shape, kernel_size, s, dilation)
+    
+
+def col2im1d_grouped(cols, X_shape, kernel_size, s, groups, dilation=1):
+    m, C, L = X_shape
+    if C % groups != 0:
+        raise ValueError(f"Number of channels ({C}) must be divisible by groups ({groups})")
+
+    gc = C // groups
+    rows_per_group = cols.shape[0] // groups
+
+    X = xp.zeros(X_shape, dtype=cols.dtype)
+    for g in range(groups):
+        rs = g * rows_per_group
+        re = (g + 1) * rows_per_group
+        cs = g * gc
+        ce = (g + 1) * gc
+        cols_g = cols[rs:re, :]
+        X[:, cs:ce, :] += col2im1d(cols_g, (m, gc, L), kernel_size, s, dilation)
+    return X
+
+
+def _im2col_transpose1d_vectorized(X, kernel_size, s, output_shape, padding=0, dilation=1):
+    # X: (m, C, L) -> (C, L*m) with batch last (consistent with your reshape conventions)
+    m, C, L = X.shape
+    cols = X.transpose(1, 2, 0).reshape(C, -1)
+    return cols
+
+
+def im2col_transpose1d(X, kernel_size, s, output_shape, padding=0, dilation=1):
+    return _im2col_transpose1d_vectorized(X, kernel_size, s, output_shape, padding, dilation)
+
+
+def im2col_transpose1d_grouped(X, kernel_size, s, output_shape, groups, padding=0, dilation=1):
+    m, C, L = X.shape
+    if C % groups != 0:
+        raise ValueError(f"Number of channels ({C}) must be divisible by groups ({groups})")
+    gc = C // groups
+    cols_list = []
+    for g in range(groups):
+        cs, ce = g * gc, (g + 1) * gc
+        cols_list.append(im2col_transpose1d(X[:, cs:ce, :], kernel_size, s, output_shape, padding, dilation))
+    return xp.concatenate(cols_list, axis=0)
+
+
+def _col2im_transpose1d_vectorized(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
+    """
+    input_shape : (m, C_in, L_in)   (only m and L_in are used)
+    output_shape: (m, C_out, L_out)
+    cols shape  : (C_out*kL, L_in*m)
+    returns     : (m, C_out, L_out)
+    """
+    m, _, L_in = input_shape
+    m2, C_out, L_out = output_shape
+    if m2 != m:
+        raise ValueError("output_shape batch must match input_shape batch")
+
+    kL = int(kernel_size)
+    (sL,) = _to_tuple(s, 1)
+    (pL,) = _to_tuple(padding, 1)
+    (dL,) = _to_tuple(dilation, 1)
+
+    # indices
+    # kernel offsets
+    i0 = xp.arange(kL) * dL                                # (kL,)
+    # input positions
+    x1 = xp.arange(L_in) * sL - pL                         # (L_in,)
+    i = i0.reshape(-1, 1) + x1.reshape(1, -1)              # (kL, L_in)
+
+    # replicate for channels
+    i_full = xp.tile(i, (C_out, 1))                        # (C_out*kL, L_in)
+    c = xp.repeat(xp.arange(C_out), kL).reshape(-1, 1)      # (C_out*kL, 1)
+
+    rows = C_out * kL
+    patches = L_in
+
+    cols_r = cols.reshape(rows, patches, m).transpose(2, 0, 1)  # (m, rows, patches)
+    vals = cols_r.ravel()
+
+    # build indices in the same ravel order: batch -> row -> patch
+    row_patch = xp.tile(c, (1, patches)).ravel()            # (rows*patches,)
+    c_idx = xp.tile(row_patch, m)                           # (m*rows*patches,)
+
+    i_idx = xp.tile(i_full.ravel(), m)                      # (m*rows*patches,)
+    b_idx = xp.repeat(xp.arange(m), rows * patches)
+
+    # mask valid
+    valid = (i_idx >= 0) & (i_idx < L_out)
+    if valid.ndim != 0:
+        b_idx = b_idx[valid]
+        c_idx = c_idx[valid]
+        i_idx = i_idx[valid]
+        vals  = vals[valid]
+
+    b_idx = b_idx.astype(xp.int32)
+    c_idx = c_idx.astype(xp.int32)
+    i_idx = i_idx.astype(xp.int32)
+
+    flat_idx = xp.ravel_multi_index((b_idx, c_idx, i_idx), output_shape)
+
+    out_flat = xp.zeros(_prod(output_shape), dtype=cols.dtype)
+    _scatter_add_flat(out_flat, flat_idx, vals)
+    return out_flat.reshape(output_shape)
+
+
+def _col2im_transpose1d_safe_batch(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
+    m, _, L_in = input_shape
+    patches = L_in
+    batch = _safe_batch_size(input_shape, kernel_size=1, s=1, dilation=1)  # conservative, cheap op
+
+    out = xp.zeros(output_shape, dtype=cols.dtype)
+    for start in range(0, m, batch):
+        end = min(start + batch, m)
+        cols_batch = cols[:, start * patches:end * patches]
+        out_batch = _col2im_transpose1d_vectorized(
+            cols_batch,
+            (end - start, input_shape[1], L_in),
+            kernel_size, s,
+            (end - start, output_shape[1], output_shape[2]),
+            padding, dilation
+        )
+        out[start:end] = out_batch
+    return out
+
+
+def col2im_transpose1d(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
+    try:
+        return _col2im_transpose1d_vectorized(cols, input_shape, kernel_size, s, output_shape, padding, dilation)
+    except Exception:
+        return _col2im_transpose1d_safe_batch(cols, input_shape, kernel_size, s, output_shape, padding, dilation)
+    
+
+def col2im_transpose1d_grouped(cols, input_shape, kernel_size, s, output_shape, groups, padding=0, dilation=1):
+    m, C_out, L_out = output_shape
+    if C_out % groups != 0:
+        raise ValueError(f"Output channels ({C_out}) must be divisible by groups ({groups})")
+    kL = int(kernel_size)
+    Cout_g = C_out // groups
+    rows_per_group = Cout_g * kL
+
+    out = xp.zeros(output_shape, dtype=cols.dtype)
+    for g in range(groups):
+        rs, re = g * rows_per_group, (g + 1) * rows_per_group
+        cs, ce = g * Cout_g, (g + 1) * Cout_g
+        cols_g = cols[rs:re, :]
+        out[:, cs:ce, :] = col2im_transpose1d(cols_g, input_shape, kernel_size, s, (m, Cout_g, L_out), padding, dilation)
+    return out
 
 
 # -------------------------
@@ -427,6 +650,273 @@ def im2col2d_grouped(X, kernel_size, s, groups, dilation=1):
     return cols
 
 
+def _col2im2d_vectorized(cols, X_shape, kernel_size, s, dilation=1):
+    """
+    Channel-first col2im2d: X_shape = (m, C, H, W)
+    cols shape: (C*kH*kW, H_out*W_out*m)
+    Consistent with col2im1d/col2im3d:
+      - supports tuple/int stride
+      - supports tuple/int dilation
+      - uses effective kernel sizes
+      - clean scatter-add indexing
+    """
+    m, C, H, W = X_shape
+    kH, kW = _to_tuple(kernel_size, 2)
+    sH, sW = _to_tuple(s, 2)
+    dH, dW = _to_tuple(dilation, 2)
+
+    eff_kH = dH * (kH - 1) + 1
+    eff_kW = dW * (kW - 1) + 1
+
+    H_out = (H - eff_kH) // sH + 1
+    W_out = (W - eff_kW) // sW + 1
+    outN = H_out * W_out
+
+    # Same index generation scheme as im2col (generalized for tuple stride)
+    i0 = xp.repeat(xp.arange(kH) * dH, kW)             # (kH*kW,)
+    i0 = xp.tile(i0, C)                                # (C*kH*kW,)
+    i1 = sH * xp.repeat(xp.arange(H_out), W_out)        # (outN,)
+
+    j0 = xp.tile(xp.arange(kW) * dW, kH * C)            # (C*kH*kW,)
+    j1 = sW * xp.tile(xp.arange(W_out), H_out)          # (outN,)
+
+    i = i0.reshape(-1, 1) + i1.reshape(1, -1)           # (C*kH*kW, outN)
+    j = j0.reshape(-1, 1) + j1.reshape(1, -1)           # (C*kH*kW, outN)
+    k = xp.repeat(xp.arange(C), kH * kW).reshape(-1, 1)  # (C*kH*kW, 1)
+
+    # Reshape cols -> (m, rows, outN)
+    rows = C * kH * kW
+    cols_r = cols.reshape(rows, outN, m).transpose(2, 0, 1)  # (m, rows, outN)
+
+    # Build flat scatter indices
+    batch_idx = xp.repeat(xp.arange(m), i.size)               # m * (rows*outN)
+
+    k_idx = xp.tile(xp.tile(k, (1, outN)).ravel(), m)         # (m*rows*outN,)
+    i_idx = xp.tile(i, (m, 1)).ravel()
+    j_idx = xp.tile(j, (m, 1)).ravel()
+
+    batch_idx = batch_idx.astype(xp.int32)
+    k_idx = k_idx.astype(xp.int32)
+    i_idx = i_idx.astype(xp.int32)
+    j_idx = j_idx.astype(xp.int32)
+
+    vals = cols_r.ravel()
+    flat_idx = xp.ravel_multi_index((batch_idx, k_idx, i_idx, j_idx), X_shape)
+
+    X_flat = xp.zeros(m * C * H * W, dtype=cols.dtype)
+    _scatter_add_flat(X_flat, flat_idx, vals)
+    return X_flat.reshape(X_shape)
+
+
+def _col2im2d_safe_batch(cols, X_shape, kernel_size, s, dilation=1):
+    m, C, H, W = X_shape
+
+    # normalize kernel/stride/dilation like 1d/3d
+    kH, kW = _to_tuple(kernel_size, 2)
+    sH, sW = _to_tuple(s, 2)
+    dH, dW = _to_tuple(dilation, 2)
+
+    # IMPORTANT: include dilation in safe batch estimate
+    batch = _safe_batch_size(X_shape, kernel_size=(kH, kW), s=(sH, sW), dilation=(dH, dW))
+
+    # effective kernel sizes
+    eff_kH = dH * (kH - 1) + 1
+    eff_kW = dW * (kW - 1) + 1
+
+    # output spatial sizes
+    H_out = (H - eff_kH) // sH + 1
+    W_out = (W - eff_kW) // sW + 1
+    patches = H_out * W_out
+
+    X = xp.zeros(X_shape, dtype=cols.dtype)
+    for start in range(0, m, batch):
+        end = min(start + batch, m)
+        cols_batch = cols[:, start * patches:end * patches]
+        X_batch = _col2im2d_vectorized(cols_batch, (end - start, C, H, W), (kH, kW), (sH, sW), (dH, dW))
+        X[start:end] = X_batch
+    return X
+
+
+def col2im2d(cols, X_shape, kernel_size, s, dilation=1):
+    try:
+        return _col2im2d_vectorized(cols, X_shape, kernel_size, s, dilation)
+    except Exception:
+        return _col2im2d_safe_batch(cols, X_shape, kernel_size, s, dilation)
+
+
+def col2im2d_grouped(cols, X_shape, kernel_size, s, groups, dilation=1):
+    """
+    Group-aware col2im.
+
+    Args:
+        cols: im2col-style matrix from grouped convolution
+        X_shape: original input shape (m, C, H, W)
+        f: kernel size
+        s: stride
+        groups: number of groups
+
+    Returns:
+        X_reconstructed: Reconstructed input tensor (m, C, H, W)
+    """
+    m, C, H, W = X_shape
+    if C % groups != 0:
+        raise ValueError(f"Number of channels ({C}) must be divisible by groups ({groups})")
+
+    group_channels = C // groups
+    cols_per_group = cols.shape[0] // groups
+
+    X_reconstructed = xp.zeros(X_shape, dtype=cols.dtype)
+
+    # Split cols and scatter for each group
+    for g in range(groups):
+        start_cols = g * cols_per_group
+        end_cols = (g + 1) * cols_per_group
+        start_ch = g * group_channels
+        end_ch = (g + 1) * group_channels
+
+        cols_group = cols[start_cols:end_cols, :]
+        X_reconstructed[:, start_ch:end_ch, :, :] += col2im2d(cols_group, (m, group_channels, H, W), kernel_size, s, dilation)
+
+    return X_reconstructed
+
+
+def _im2col_transpose2d_vectorized(X, kernel_size, s, output_shape, padding=0, dilation=1):
+    # X: (m, C, H, W) -> (C, H*W*m)
+    m, C, H, W = X.shape
+    cols = X.transpose(1, 2, 3, 0).reshape(C, -1)
+    return cols
+
+
+def im2col_transpose2d(X, kernel_size, s, output_shape, padding=0, dilation=1):
+    return _im2col_transpose2d_vectorized(X, kernel_size, s, output_shape, padding, dilation)
+    
+
+def im2col_transpose2d_grouped(X, kernel_size, s, output_shape, groups, padding=0, dilation=1):
+    m, C, H, W = X.shape
+    if C % groups != 0:
+        raise ValueError(f"Number of channels ({C}) must be divisible by groups ({groups})")
+    gc = C // groups
+    cols_list = []
+    for g in range(groups):
+        cs, ce = g * gc, (g + 1) * gc
+        cols_list.append(im2col_transpose2d(X[:, cs:ce, :, :], kernel_size, s, output_shape, padding, dilation))
+    return xp.concatenate(cols_list, axis=0)
+
+
+def _col2im_transpose2d_vectorized(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
+    """
+    input_shape : (m, C_in, H_in, W_in)
+    output_shape: (m, C_out, H_out, W_out)
+    cols shape  : (C_out*kH*kW, (H_in*W_in)*m)
+    returns     : (m, C_out, H_out, W_out)
+    """
+    m, _, H_in, W_in = input_shape
+    m2, C_out, H_out, W_out = output_shape
+    if m2 != m:
+        raise ValueError("output_shape batch must match input_shape batch")
+
+    kH, kW = _to_tuple(kernel_size, 2)
+    sH, sW = _to_tuple(s, 2)
+    pH, pW = _to_tuple(padding, 2)
+    dH, dW = _to_tuple(dilation, 2)
+
+    # kernel offsets
+    i0 = xp.repeat(xp.arange(kH) * dH, kW)                  # (kH*kW,)
+    j0 = xp.tile(xp.arange(kW) * dW, kH)                    # (kH*kW,)
+
+    # input positions (flattened)
+    h_in = xp.repeat(xp.arange(H_in), W_in)                 # (H_in*W_in,)
+    w_in = xp.tile(xp.arange(W_in), H_in)                   # (H_in*W_in,)
+
+    i1 = h_in * sH - pH
+    j1 = w_in * sW - pW
+
+    i = i0.reshape(-1, 1) + i1.reshape(1, -1)               # (kH*kW, patches)
+    j = j0.reshape(-1, 1) + j1.reshape(1, -1)               # (kH*kW, patches)
+
+    kK = kH * kW
+    patches = H_in * W_in
+    rows = C_out * kK
+
+    # replicate for channels
+    i_full = xp.tile(i, (C_out, 1))                         # (rows, patches)
+    j_full = xp.tile(j, (C_out, 1))                         # (rows, patches)
+    c = xp.repeat(xp.arange(C_out), kK).reshape(-1, 1)       # (rows, 1)
+
+    cols_r = cols.reshape(rows, patches, m).transpose(2, 0, 1)  # (m, rows, patches)
+    vals = cols_r.ravel()
+
+    row_patch_c = xp.tile(c, (1, patches)).ravel()           # (rows*patches,)
+    c_idx = xp.tile(row_patch_c, m)
+
+    i_idx = xp.tile(i_full.ravel(), m)
+    j_idx = xp.tile(j_full.ravel(), m)
+    b_idx = xp.repeat(xp.arange(m), rows * patches)
+
+    valid = (i_idx >= 0) & (i_idx < H_out) & (j_idx >= 0) & (j_idx < W_out)
+    if valid.ndim != 0:
+        b_idx = b_idx[valid]
+        c_idx = c_idx[valid]
+        i_idx = i_idx[valid]
+        j_idx = j_idx[valid]
+        vals  = vals[valid]
+
+    b_idx = b_idx.astype(xp.int32)
+    c_idx = c_idx.astype(xp.int32)
+    i_idx = i_idx.astype(xp.int32)
+    j_idx = j_idx.astype(xp.int32)
+
+    flat_idx = xp.ravel_multi_index((b_idx, c_idx, i_idx, j_idx), output_shape)
+
+    out_flat = xp.zeros(_prod(output_shape), dtype=cols.dtype)
+    _scatter_add_flat(out_flat, flat_idx, vals)
+    return out_flat.reshape(output_shape)
+
+
+def _col2im_transpose2d_safe_batch(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
+    m, _, H_in, W_in = input_shape
+    patches = H_in * W_in
+    batch = _safe_batch_size(input_shape, kernel_size=(1, 1), s=(1, 1), dilation=(1, 1))  # conservative
+
+    out = xp.zeros(output_shape, dtype=cols.dtype)
+    for start in range(0, m, batch):
+        end = min(start + batch, m)
+        cols_batch = cols[:, start * patches:end * patches]
+        out_batch = _col2im_transpose2d_vectorized(
+            cols_batch,
+            (end - start, input_shape[1], H_in, W_in),
+            kernel_size, s,
+            (end - start, output_shape[1], output_shape[2], output_shape[3]),
+            padding, dilation
+        )
+        out[start:end] = out_batch
+    return out
+
+
+def col2im_transpose2d(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
+    try:
+        return _col2im_transpose2d_vectorized(cols, input_shape, kernel_size, s, output_shape, padding, dilation)
+    except Exception:
+        return _col2im_transpose2d_safe_batch(cols, input_shape, kernel_size, s, output_shape, padding, dilation)
+
+
+def col2im_transpose2d_grouped(cols, input_shape, kernel_size, s, output_shape, groups, padding=0, dilation=1):
+    m, C_out, H_out, W_out = output_shape
+    if C_out % groups != 0:
+        raise ValueError(f"Output channels ({C_out}) must be divisible by groups ({groups})")
+    kH, kW = _to_tuple(kernel_size, 2)
+    Cout_g = C_out // groups
+    rows_per_group = Cout_g * (kH * kW)
+
+    out = xp.zeros(output_shape, dtype=cols.dtype)
+    for g in range(groups):
+        rs, re = g * rows_per_group, (g + 1) * rows_per_group
+        cs, ce = g * Cout_g, (g + 1) * Cout_g
+        cols_g = cols[rs:re, :]
+        out[:, cs:ce, :, :] = col2im_transpose2d(cols_g, input_shape, kernel_size, s, (m, Cout_g, H_out, W_out), padding, dilation)
+    return out
+
+
 # -------------------------
 # 3D
 # -------------------------
@@ -515,276 +1005,6 @@ def im2col3d_grouped(X, kernel_size, s, groups, dilation=1):
     return xp.concatenate(cols_list, axis=0)
 
 
-# -------------------------
-# Dispatcher
-# -------------------------
-def im2col(X, kernel_size, s, dilation=1, groups=1):
-    """
-    Dispatch based on X.ndim:
-      3 -> 1D (m,C,L)
-      4 -> 2D (m,C,H,W)
-      5 -> 3D (m,C,D,H,W)
-
-    If groups > 1: slices channels into groups, runs per-group im2col, concatenates along row axis.
-    Output layout matches your 2D convention:
-      rows = C * prod(kernel)
-      cols = m * prod(out_spatial)
-    """
-    if groups < 1 or not isinstance(groups, int):
-        raise ValueError("groups must be a positive integer")
-
-    if X.ndim == 3:
-        if groups == 1:
-            return im2col1d(X, kernel_size, s, dilation)
-        return im2col1d_grouped(X, kernel_size, s, groups, dilation)
-
-    if X.ndim == 4:
-        if groups == 1:
-            return im2col2d(X, kernel_size, s, dilation)
-        return im2col2d_grouped(X, kernel_size, s, groups, dilation)
-
-    if X.ndim == 5:
-        if groups == 1:
-            return im2col3d(X, kernel_size, s, dilation)
-        return im2col3d_grouped(X, kernel_size, s, groups, dilation)
-
-    raise ValueError(f"Unsupported X.ndim={X.ndim}. Expected 3, 4, or 5.")
-
-
-# -------------------------
-# 1D
-# -------------------------
-def _col2im1d_vectorized(cols, X_shape, kernel_size, s, dilation=1):
-    """
-    Channel-first col2im1d: X_shape = (m, C, L)
-    cols shape (C*kL, outL*m)
-    """
-    m, C, L = X_shape
-    kL = int(kernel_size)
-    (sL,) = _to_tuple(s, 1)
-    (dL,) = _to_tuple(dilation, 1)
-
-    eff_kL = dL * (kL - 1) + 1
-    outL = (L - eff_kL) // sL + 1
-
-    # indices like im2col1d
-    i0 = xp.tile(xp.arange(kL) * dL, C)                  # (C*kL,)
-    i1 = sL * xp.arange(outL)                             # (outL,)
-    i = i0.reshape(-1, 1) + i1.reshape(1, -1)            # (C*kL, outL)
-    k = xp.repeat(xp.arange(C), kL).reshape(-1, 1)        # (C*kL, 1)
-
-    # reshape cols to (m, C*kL, outL)
-    cols_r = cols.reshape(C * kL, outL, m).transpose(2, 0, 1)  # (m, C*kL, outL)
-
-    # Flatten scatter indices into X_flat
-    batch_idx = xp.repeat(xp.arange(m), i.size)           # m * (C*kL*outL)
-
-    k_idx = xp.tile(xp.tile(k, (1, outL)).ravel(), m)     # repeated per batch
-    i_idx = xp.tile(i, (m, 1)).ravel()
-
-    batch_idx = batch_idx.astype(xp.int32)
-    k_idx = k_idx.astype(xp.int32)
-    i_idx = i_idx.astype(xp.int32)
-
-    vals = cols_r.ravel()
-    flat_idx = xp.ravel_multi_index((batch_idx, k_idx, i_idx), X_shape)
-
-    X_flat = xp.zeros(m * C * L, dtype=cols.dtype)
-    if xp.__name__ == 'cupy':
-        scatter_add(X_flat, flat_idx, vals)
-    else:
-        xp.add.at(X_flat, flat_idx, vals)
-
-    return X_flat.reshape(X_shape)
-
-
-def _col2im1d_safe_batch(cols, X_shape, kernel_size, s, dilation=1):
-    m, C, L = X_shape
-    kL = int(kernel_size)
-
-    batch = _safe_batch_size(X_shape, kernel_size=kL, s=s, dilation=dilation)
-    (sL,) = _to_tuple(s, 1)
-    (dL,) = _to_tuple(dilation, 1)
-
-    eff_kL = dL * (kL - 1) + 1
-    outL = (L - eff_kL) // sL + 1
-    patches = outL
-
-    X = xp.zeros(X_shape, dtype=cols.dtype)
-    for start in range(0, m, batch):
-        end = min(start + batch, m)
-        cols_batch = cols[:, start * patches:end * patches]
-        X_batch = _col2im1d_vectorized(cols_batch, (end - start, C, L), kL, s, dilation)
-        X[start:end] = X_batch
-    return X
-
-
-def col2im1d(cols, X_shape, kernel_size, s, dilation=1):
-    try:
-        return _col2im1d_vectorized(cols, X_shape, kernel_size, s, dilation)
-    except Exception:
-        return _col2im1d_safe_batch(cols, X_shape, kernel_size, s, dilation)
-    
-
-def col2im1d_grouped(cols, X_shape, kernel_size, s, groups, dilation=1):
-    m, C, L = X_shape
-    if C % groups != 0:
-        raise ValueError(f"Number of channels ({C}) must be divisible by groups ({groups})")
-
-    gc = C // groups
-    rows_per_group = cols.shape[0] // groups
-
-    X = xp.zeros(X_shape, dtype=cols.dtype)
-    for g in range(groups):
-        rs = g * rows_per_group
-        re = (g + 1) * rows_per_group
-        cs = g * gc
-        ce = (g + 1) * gc
-        cols_g = cols[rs:re, :]
-        X[:, cs:ce, :] += col2im1d(cols_g, (m, gc, L), kernel_size, s, dilation)
-    return X
-
-
-# -------------------------
-# 2D
-# -------------------------
-def _col2im2d_vectorized(cols, X_shape, kernel_size, s, dilation=1):
-    """
-    Channel-first col2im2d: X_shape = (m, C, H, W)
-    cols shape: (C*kH*kW, H_out*W_out*m)
-    Consistent with col2im1d/col2im3d:
-      - supports tuple/int stride
-      - supports tuple/int dilation
-      - uses effective kernel sizes
-      - clean scatter-add indexing
-    """
-    m, C, H, W = X_shape
-    kH, kW = _to_tuple(kernel_size, 2)
-    sH, sW = _to_tuple(s, 2)
-    dH, dW = _to_tuple(dilation, 2)
-
-    eff_kH = dH * (kH - 1) + 1
-    eff_kW = dW * (kW - 1) + 1
-
-    H_out = (H - eff_kH) // sH + 1
-    W_out = (W - eff_kW) // sW + 1
-    outN = H_out * W_out
-
-    # Same index generation scheme as im2col (generalized for tuple stride)
-    i0 = xp.repeat(xp.arange(kH) * dH, kW)             # (kH*kW,)
-    i0 = xp.tile(i0, C)                                # (C*kH*kW,)
-    i1 = sH * xp.repeat(xp.arange(H_out), W_out)        # (outN,)
-
-    j0 = xp.tile(xp.arange(kW) * dW, kH * C)            # (C*kH*kW,)
-    j1 = sW * xp.tile(xp.arange(W_out), H_out)          # (outN,)
-
-    i = i0.reshape(-1, 1) + i1.reshape(1, -1)           # (C*kH*kW, outN)
-    j = j0.reshape(-1, 1) + j1.reshape(1, -1)           # (C*kH*kW, outN)
-    k = xp.repeat(xp.arange(C), kH * kW).reshape(-1, 1)  # (C*kH*kW, 1)
-
-    # Reshape cols -> (m, rows, outN)
-    rows = C * kH * kW
-    cols_r = cols.reshape(rows, outN, m).transpose(2, 0, 1)  # (m, rows, outN)
-
-    # Build flat scatter indices
-    batch_idx = xp.repeat(xp.arange(m), i.size)               # m * (rows*outN)
-
-    k_idx = xp.tile(xp.tile(k, (1, outN)).ravel(), m)         # (m*rows*outN,)
-    i_idx = xp.tile(i, (m, 1)).ravel()
-    j_idx = xp.tile(j, (m, 1)).ravel()
-
-    batch_idx = batch_idx.astype(xp.int32)
-    k_idx = k_idx.astype(xp.int32)
-    i_idx = i_idx.astype(xp.int32)
-    j_idx = j_idx.astype(xp.int32)
-
-    vals = cols_r.ravel()
-    flat_idx = xp.ravel_multi_index((batch_idx, k_idx, i_idx, j_idx), X_shape)
-
-    X_flat = xp.zeros(m * C * H * W, dtype=cols.dtype)
-    if xp.__name__ == 'cupy':
-        scatter_add(X_flat, flat_idx, vals)
-    else:
-        xp.add.at(X_flat, flat_idx, vals)
-
-    return X_flat.reshape(X_shape)
-
-
-def _col2im2d_safe_batch(cols, X_shape, kernel_size, s, dilation=1):
-    m, C, H, W = X_shape
-
-    # normalize kernel/stride/dilation like 1d/3d
-    kH, kW = _to_tuple(kernel_size, 2)
-    sH, sW = _to_tuple(s, 2)
-    dH, dW = _to_tuple(dilation, 2)
-
-    # IMPORTANT: include dilation in safe batch estimate
-    batch = _safe_batch_size(X_shape, kernel_size=(kH, kW), s=(sH, sW), dilation=(dH, dW))
-
-    # effective kernel sizes
-    eff_kH = dH * (kH - 1) + 1
-    eff_kW = dW * (kW - 1) + 1
-
-    # output spatial sizes
-    H_out = (H - eff_kH) // sH + 1
-    W_out = (W - eff_kW) // sW + 1
-    patches = H_out * W_out
-
-    X = xp.zeros(X_shape, dtype=cols.dtype)
-    for start in range(0, m, batch):
-        end = min(start + batch, m)
-        cols_batch = cols[:, start * patches:end * patches]
-        X_batch = _col2im2d_vectorized(cols_batch, (end - start, C, H, W), (kH, kW), (sH, sW), (dH, dW))
-        X[start:end] = X_batch
-    return X
-
-
-def col2im2d(cols, X_shape, kernel_size, s, dilation=1):
-    try:
-        return _col2im2d_vectorized(cols, X_shape, kernel_size, s, dilation)
-    except Exception:
-        return _col2im2d_safe_batch(cols, X_shape, kernel_size, s, dilation)
-
-
-def col2im2d_grouped(cols, X_shape, kernel_size, s, groups, dilation=1):
-    """
-    Group-aware col2im.
-
-    Args:
-        cols: im2col-style matrix from grouped convolution
-        X_shape: original input shape (m, C, H, W)
-        f: kernel size
-        s: stride
-        groups: number of groups
-
-    Returns:
-        X_reconstructed: Reconstructed input tensor (m, C, H, W)
-    """
-    m, C, H, W = X_shape
-    if C % groups != 0:
-        raise ValueError(f"Number of channels ({C}) must be divisible by groups ({groups})")
-
-    group_channels = C // groups
-    cols_per_group = cols.shape[0] // groups
-
-    X_reconstructed = xp.zeros(X_shape, dtype=cols.dtype)
-
-    # Split cols and scatter for each group
-    for g in range(groups):
-        start_cols = g * cols_per_group
-        end_cols = (g + 1) * cols_per_group
-        start_ch = g * group_channels
-        end_ch = (g + 1) * group_channels
-
-        cols_group = cols[start_cols:end_cols, :]
-        X_reconstructed[:, start_ch:end_ch, :, :] += col2im2d(cols_group, (m, group_channels, H, W), kernel_size, s, dilation)
-
-    return X_reconstructed
-
-
-# -------------------------
-# 3D
-# -------------------------
 def _col2im3d_vectorized(cols, X_shape, kernel_size, s, dilation=1):
     """
     Channel-first col2im3d: X_shape = (m, C, D, H, W)
@@ -840,11 +1060,7 @@ def _col2im3d_vectorized(cols, X_shape, kernel_size, s, dilation=1):
     flat_idx = xp.ravel_multi_index((batch_idx, k_idx, d_idx, h_idx, w_idx), X_shape)
 
     X_flat = xp.zeros(m * C * D * H * W, dtype=cols.dtype)
-    if xp.__name__ == 'cupy':
-        scatter_add(X_flat, flat_idx, vals)
-    else:
-        xp.add.at(X_flat, flat_idx, vals)
-
+    _scatter_add_flat(X_flat, flat_idx, vals)
     return X_flat.reshape(X_shape)
 
 
@@ -900,9 +1116,191 @@ def col2im3d_grouped(cols, X_shape, kernel_size, s, groups, dilation=1):
     return X
 
 
+def _im2col_transpose3d_vectorized(X, kernel_size, s, output_shape, padding=0, dilation=1):
+    # X: (m, C, D, H, W) -> (C, D*H*W*m)
+    m, C, D, H, W = X.shape
+    cols = X.transpose(1, 2, 3, 4, 0).reshape(C, -1)
+    return cols
+
+
+def im2col_transpose3d(X, kernel_size, s, output_shape, padding=0, dilation=1):
+    return _im2col_transpose3d_vectorized(X, kernel_size, s, output_shape, padding, dilation)
+
+
+def im2col_transpose3d_grouped(X, kernel_size, s, output_shape, groups, padding=0, dilation=1):
+    m, C, D, H, W = X.shape
+    if C % groups != 0:
+        raise ValueError(f"Number of channels ({C}) must be divisible by groups ({groups})")
+    gc = C // groups
+    cols_list = []
+    for g in range(groups):
+        cs, ce = g * gc, (g + 1) * gc
+        cols_list.append(im2col_transpose3d(X[:, cs:ce, :, :, :], kernel_size, s, output_shape, padding, dilation))
+    return xp.concatenate(cols_list, axis=0)
+
+
+def _col2im_transpose3d_vectorized(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
+    """
+    input_shape : (m, C_in, D_in, H_in, W_in)
+    output_shape: (m, C_out, D_out, H_out, W_out)
+    cols shape  : (C_out*kD*kH*kW, (D_in*H_in*W_in)*m)
+    returns     : (m, C_out, D_out, H_out, W_out)
+    """
+    m, _, D_in, H_in, W_in = input_shape
+    m2, C_out, D_out, H_out, W_out = output_shape
+    if m2 != m:
+        raise ValueError("output_shape batch must match input_shape batch")
+
+    kD, kH, kW = _to_tuple(kernel_size, 3)
+    sD, sH, sW = _to_tuple(s, 3)
+    pD, pH, pW = _to_tuple(padding, 3)
+    dD, dH, dW = _to_tuple(dilation, 3)
+
+    # kernel offsets
+    d0 = xp.repeat(xp.arange(kD) * dD, kH * kW)                     # (kD*kH*kW,)
+    h0 = xp.tile(xp.repeat(xp.arange(kH) * dH, kW), kD)             # (kD*kH*kW,)
+    w0 = xp.tile(xp.arange(kW) * dW, kD * kH)                       # (kD*kH*kW,)
+
+    # input positions (flattened)
+    # order: d major, then h, then w
+    d_in = xp.repeat(xp.arange(D_in), H_in * W_in)
+    h_in = xp.tile(xp.repeat(xp.arange(H_in), W_in), D_in)
+    w_in = xp.tile(xp.arange(W_in), D_in * H_in)
+
+    d1 = d_in * sD - pD
+    h1 = h_in * sH - pH
+    w1 = w_in * sW - pW
+
+    dd = d0.reshape(-1, 1) + d1.reshape(1, -1)                      # (kK, patches)
+    hh = h0.reshape(-1, 1) + h1.reshape(1, -1)
+    ww = w0.reshape(-1, 1) + w1.reshape(1, -1)
+
+    kK = kD * kH * kW
+    patches = D_in * H_in * W_in
+    rows = C_out * kK
+
+    dd_full = xp.tile(dd, (C_out, 1))
+    hh_full = xp.tile(hh, (C_out, 1))
+    ww_full = xp.tile(ww, (C_out, 1))
+    c = xp.repeat(xp.arange(C_out), kK).reshape(-1, 1)
+
+    cols_r = cols.reshape(rows, patches, m).transpose(2, 0, 1)      # (m, rows, patches)
+    vals = cols_r.ravel()
+
+    row_patch_c = xp.tile(c, (1, patches)).ravel()
+    c_idx = xp.tile(row_patch_c, m)
+
+    d_idx = xp.tile(dd_full.ravel(), m)
+    h_idx = xp.tile(hh_full.ravel(), m)
+    w_idx = xp.tile(ww_full.ravel(), m)
+    b_idx = xp.repeat(xp.arange(m), rows * patches)
+
+    valid = (
+        (d_idx >= 0) & (d_idx < D_out) &
+        (h_idx >= 0) & (h_idx < H_out) &
+        (w_idx >= 0) & (w_idx < W_out)
+    )
+    if valid.ndim != 0:
+        b_idx = b_idx[valid]
+        c_idx = c_idx[valid]
+        d_idx = d_idx[valid]
+        h_idx = h_idx[valid]
+        w_idx = w_idx[valid]
+        vals  = vals[valid]
+
+    b_idx = b_idx.astype(xp.int32)
+    c_idx = c_idx.astype(xp.int32)
+    d_idx = d_idx.astype(xp.int32)
+    h_idx = h_idx.astype(xp.int32)
+    w_idx = w_idx.astype(xp.int32)
+
+    flat_idx = xp.ravel_multi_index((b_idx, c_idx, d_idx, h_idx, w_idx), output_shape)
+
+    out_flat = xp.zeros(_prod(output_shape), dtype=cols.dtype)
+    _scatter_add_flat(out_flat, flat_idx, vals)
+    return out_flat.reshape(output_shape)
+
+
+def _col2im_transpose3d_safe_batch(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
+    m, _, D_in, H_in, W_in = input_shape
+    patches = D_in * H_in * W_in
+    batch = _safe_batch_size(input_shape, kernel_size=(1, 1, 1), s=(1, 1, 1), dilation=(1, 1, 1))  # conservative
+
+    out = xp.zeros(output_shape, dtype=cols.dtype)
+    for start in range(0, m, batch):
+        end = min(start + batch, m)
+        cols_batch = cols[:, start * patches:end * patches]
+        out_batch = _col2im_transpose3d_vectorized(
+            cols_batch,
+            (end - start, input_shape[1], D_in, H_in, W_in),
+            kernel_size, s,
+            (end - start, output_shape[1], output_shape[2], output_shape[3], output_shape[4]),
+            padding, dilation
+        )
+        out[start:end] = out_batch
+    return out
+
+
+def col2im_transpose3d(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
+    try:
+        return _col2im_transpose3d_vectorized(cols, input_shape, kernel_size, s, output_shape, padding, dilation)
+    except Exception:
+        return _col2im_transpose3d_safe_batch(cols, input_shape, kernel_size, s, output_shape, padding, dilation)
+    
+
+def col2im_transpose3d_grouped(cols, input_shape, kernel_size, s, output_shape, groups, padding=0, dilation=1):
+    m, C_out, D_out, H_out, W_out = output_shape
+    if C_out % groups != 0:
+        raise ValueError(f"Output channels ({C_out}) must be divisible by groups ({groups})")
+    kD, kH, kW = _to_tuple(kernel_size, 3)
+    Cout_g = C_out // groups
+    rows_per_group = Cout_g * (kD * kH * kW)
+
+    out = xp.zeros(output_shape, dtype=cols.dtype)
+    for g in range(groups):
+        rs, re = g * rows_per_group, (g + 1) * rows_per_group
+        cs, ce = g * Cout_g, (g + 1) * Cout_g
+        cols_g = cols[rs:re, :]
+        out[:, cs:ce, :, :, :] = col2im_transpose3d(cols_g, input_shape, kernel_size, s, (m, Cout_g, D_out, H_out, W_out), padding, dilation)
+    return out
+
+
 # -------------------------
 # Dispatcher
 # -------------------------
+def im2col(X, kernel_size, s, dilation=1, groups=1):
+    """
+    Dispatch based on X.ndim:
+      3 -> 1D (m,C,L)
+      4 -> 2D (m,C,H,W)
+      5 -> 3D (m,C,D,H,W)
+
+    If groups > 1: slices channels into groups, runs per-group im2col, concatenates along row axis.
+    Output layout matches your 2D convention:
+      rows = C * prod(kernel)
+      cols = m * prod(out_spatial)
+    """
+    if groups < 1 or not isinstance(groups, int):
+        raise ValueError("groups must be a positive integer")
+
+    if X.ndim == 3:
+        if groups == 1:
+            return im2col1d(X, kernel_size, s, dilation)
+        return im2col1d_grouped(X, kernel_size, s, groups, dilation)
+
+    if X.ndim == 4:
+        if groups == 1:
+            return im2col2d(X, kernel_size, s, dilation)
+        return im2col2d_grouped(X, kernel_size, s, groups, dilation)
+
+    if X.ndim == 5:
+        if groups == 1:
+            return im2col3d(X, kernel_size, s, dilation)
+        return im2col3d_grouped(X, kernel_size, s, groups, dilation)
+
+    raise ValueError(f"Unsupported X.ndim={X.ndim}. Expected 3, 4, or 5.")
+
+
 def col2im(cols, X_shape, kernel_size, s, dilation=1, groups=1):
     """
     Dispatch based on X_shape rank:
@@ -935,239 +1333,134 @@ def col2im(cols, X_shape, kernel_size, s, dilation=1, groups=1):
     raise ValueError(f"Unsupported X_shape rank {ndim}. Expected 3, 4, or 5.")
 
 
-def _im2col_transpose_vectorized(X, kernel_size, s, output_shape):
+def im2col_transpose(X, kernel_size, s, output_shape, padding=0, dilation=1, groups=1):
     """
-    Transposed im2col (for Conv2DTranspose).
-    NCHW convention: (m, C, H, W)
+    Dispatch by X.ndim:
+      3 -> 1D: (m,C,L)
+      4 -> 2D: (m,C,H,W)
+      5 -> 3D: (m,C,D,H,W)
 
-    Parameters
-    ----------
-    X : xp.ndarray
-        Input tensor (m, C, H, W).
-    f : int
-        Kernel size (square).
-    s : int
-        Stride.
-    output_shape : tuple
-        (m, C, H_out, W_out) expected after Conv2DTranspose.
-
-    Returns
-    -------
-    cols : xp.ndarray
-        Columnized patches, shape (C * f * f, m * H_out * W_out).
+    Output layout:
+      (C, prod(in_spatial) * m) with batch last in the flatten order,
+      consistent with your im2col/col2im reshape conventions.
     """
-    m, n_C, n_H, n_W = X.shape
-    _, _, n_H_out, n_W_out = output_shape
-    f_h, f_w = kernel_size
+    if groups < 1 or not isinstance(groups, int):
+        raise ValueError("groups must be a positive integer")
 
-    # Step 1: Upsample input by inserting zeros
-    H_upsampled = (n_H - 1) * s + 1
-    W_upsampled = (n_W - 1) * s + 1
-    upsampled = xp.zeros((m, n_C, H_upsampled, W_upsampled), dtype=X.dtype)
-    upsampled[:, :, ::s, ::s] = X
+    if X.ndim == 3:
+        if groups == 1:
+            return im2col_transpose1d(X, kernel_size, s, output_shape, padding, dilation)
+        return im2col_transpose1d_grouped(X, kernel_size, s, output_shape, groups, padding, dilation)
 
-    # Step 2: Extract patches like in im2col
-    i0 = xp.repeat(xp.arange(f_h), f_w)
-    i0 = xp.tile(i0, n_C)
-    i1 = xp.repeat(xp.arange(n_H_out), n_W_out)
+    if X.ndim == 4:
+        if groups == 1:
+            return im2col_transpose2d(X, kernel_size, s, output_shape, padding, dilation)
+        return im2col_transpose2d_grouped(X, kernel_size, s, output_shape, groups, padding, dilation)
 
-    j0 = xp.tile(xp.arange(f_w), f_h * n_C)
-    j1 = xp.tile(xp.arange(n_W_out), n_H_out)
+    if X.ndim == 5:
+        if groups == 1:
+            return im2col_transpose3d(X, kernel_size, s, output_shape, padding, dilation)
+        return im2col_transpose3d_grouped(X, kernel_size, s, output_shape, groups, padding, dilation)
 
-    i = i0.reshape(-1, 1) + i1.reshape(1, -1)
-    j = j0.reshape(-1, 1) + j1.reshape(1, -1)
-    k = xp.repeat(xp.arange(n_C), f_h * f_w).reshape(-1, 1)
+    raise ValueError(f"Unsupported X.ndim={X.ndim}. Expected 3, 4, or 5.")
 
-    k = k.astype(xp.int32)
-    i = i.astype(xp.int32)
-    j = j.astype(xp.int32)
 
-    cols = upsampled[:, k, i, j]  # (m, f*f*C, H_out*W_out)
-    cols = cols.transpose(1, 2, 0).reshape(f_h * f_w * n_C, -1)
-    return cols
-
-def _im2col_transpose_safe_batch(X, kernel_size, s, output_shape):
-    m = X.shape[0]
-    batch = _safe_batch_size(X.shape, kernel_size, s)
-    out_list = []
-    for start in range(0, m, batch):
-        end = min(start + batch, m)
-        Xb = X[start:end]
-        out_list.append(_im2col_transpose_vectorized(Xb, kernel_size, s, output_shape))
-    return xp.concatenate(out_list, axis=1).astype(DTYPE)
-
-def im2col_transpose(X, kernel_size, s, output_shape):
-    if isinstance(kernel_size, int):
-        kernel_size = (kernel_size, kernel_size)
-    try:
-        return _im2col_transpose_vectorized(X, kernel_size, s, output_shape)
-    except Exception:
-        return _im2col_transpose_safe_batch(X, kernel_size, s, output_shape)
-    
-def _col2im_transpose_vectorized(cols, X_shape, kernel_size, s, output_shape):
+def col2im_transpose(cols, input_shape, kernel_size, s, output_shape, padding=0, dilation=1, groups=1):
     """
-    Channel-first col2im for Conv2DTranspose.
-    X_shape = (m, C, H, W)  -- input to the deconv
-    output_shape = (m, C, H_out, W_out)  -- final desired output
-    cols shape = (C*f*f, H_out*W_out*m)
+    Dispatch by input_shape rank:
+      3 -> 1D: (m,C,L)
+      4 -> 2D: (m,C,H,W)
+      5 -> 3D: (m,C,D,H,W)
+
+    cols shape must be:
+      (C_out * prod(kernel), prod(in_spatial) * m)
     """
-    m, C, H, W = X_shape
-    _, _, H_out, W_out = output_shape
-    f_h, f_w = kernel_size
+    if groups < 1 or not isinstance(groups, int):
+        raise ValueError("groups must be a positive integer")
 
-    # Expanded canvas (because stride "spreads" things out)
-    H_up = (H - 1) * s + 1
-    W_up = (W - 1) * s + 1
+    ndim = len(input_shape)
+    if ndim == 3:
+        if groups == 1:
+            return col2im_transpose1d(cols, input_shape, kernel_size, s, output_shape, padding, dilation)
+        return col2im_transpose1d_grouped(cols, input_shape, kernel_size, s, output_shape, groups, padding, dilation)
 
-    # Same indexing trick as im2col_transpose
-    i0 = xp.repeat(xp.arange(f_h), f_w)
-    i0 = xp.tile(i0, C)
-    i1 = xp.repeat(xp.arange(H_out), W_out)
+    if ndim == 4:
+        if groups == 1:
+            return col2im_transpose2d(cols, input_shape, kernel_size, s, output_shape, padding, dilation)
+        return col2im_transpose2d_grouped(cols, input_shape, kernel_size, s, output_shape, groups, padding, dilation)
 
-    j0 = xp.tile(xp.arange(f_w), f_h * C)
-    j1 = xp.tile(xp.arange(W_out), H_out)
+    if ndim == 5:
+        if groups == 1:
+            return col2im_transpose3d(cols, input_shape, kernel_size, s, output_shape, padding, dilation)
+        return col2im_transpose3d_grouped(cols, input_shape, kernel_size, s, output_shape, groups, padding, dilation)
 
-    i = i0.reshape(-1, 1) + i1.reshape(1, -1)
-    j = j0.reshape(-1, 1) + j1.reshape(1, -1)
-    k = xp.repeat(xp.arange(C), f_h * f_w).reshape(-1, 1)
-
-    cols_reshaped = cols.reshape(C * f_h * f_w, H_out * W_out, m)
-    cols_reshaped = cols_reshaped.transpose(2, 0, 1)  # (m, C*f*f, H_out*W_out)
-
-    batch_idx = xp.repeat(xp.arange(m), i.size)
-    total = batch_idx.size
-    k_idx = xp.repeat(xp.arange(C), f_h * f_w * H_out * W_out)
-    k_idx = xp.tile(k_idx, int(total / k_idx.size))
-    i_idx = xp.tile(i, (m, 1)).ravel()
-    j_idx = xp.tile(j, (m, 1)).ravel()
-
-    vals = cols_reshaped.ravel()
-
-    # Scatter-add into upsampled canvas
-    flat_idx = xp.ravel_multi_index((batch_idx, k_idx, i_idx, j_idx),
-                                    (m, C, H_up + f_h - 1, W_up + f_w - 1))
-    X_flat = xp.zeros((m * C * (H_up + f_h - 1) * (W_up + f_w - 1)), dtype=cols.dtype)
-    if xp.__name__ == 'cupy':
-        scatter_add(X_flat, flat_idx, vals)
-    else:
-        xp.add.at(X_flat, flat_idx, vals)
-
-    X_up = X_flat.reshape((m, C, H_up + f_h - 1, W_up + f_w - 1))
-
-    # Final crop to match requested output shape
-    H_start = (X_up.shape[2] - H_out) // 2
-    W_start = (X_up.shape[3] - W_out) // 2
-    return X_up[:, :, H_start:H_start + H_out, W_start:W_start + W_out]
-
-def _col2im_transpose_safe_batch(cols, X_shape, kernel_size, s, output_shape):
-    m, C, H, W = X_shape
-    _, _, H_out, W_out = output_shape
-    batch = _safe_batch_size(X_shape, kernel_size, s)
-    patches = H_out * W_out
-
-    X = xp.zeros(output_shape, dtype=cols.dtype)
-    for start in range(0, m, batch):
-        end = min(start + batch, m)
-        cols_batch = cols[:, start * patches:end * patches]
-        X_batch = _col2im_transpose_vectorized(
-            cols_batch, (end - start, C, H, W), kernel_size, s, (end - start, C, H_out, W_out)
-        )
-        X[start:end] = X_batch
-    return X
-
-def col2im_transpose(cols, X_shape, kernel_size, s, output_shape):
-    if isinstance(kernel_size, int):
-        kernel_size = (kernel_size, kernel_size)
-    try:
-        return _col2im_transpose_vectorized(cols, X_shape, kernel_size, s, output_shape)
-    except Exception:
-        return _col2im_transpose_safe_batch(cols, X_shape, kernel_size, s, output_shape)
+    raise ValueError(f"Unsupported input_shape rank {ndim}. Expected 3, 4, or 5.")
 
 
-def im2col_transpose_grouped(X, kernel_size, s, output_shape, groups):
+def im2col_transpose_grad_from_dout_2d(dout, input_shape, kernel_size, s, output_shape, padding=0, dilation=1):
     """
-    Group-aware im2col for transposed convolution.
+    This is the adjoint of _col2im_transpose2d_vectorized wrt cols.
 
-    Args:
-        X (ndarray): Input tensor of shape (m, C, H, W)
-        kernel_size (int or tuple): Filter size (f_h, f_w)
-        s (int): Stride of transposed convolution
-        output_shape (tuple): Target output shape (m, C, H_out, W_out)
-        groups (int): Number of groups (C must be divisible by groups)
-
-    Returns:
-        ndarray: Column-form tensor with grouped layout
-                 shape (C/group * f_h * f_w * groups, H_out * W_out * m)
+    dout: (m, C_out, H_out, W_out)
+    returns dcols: (C_out*kH*kW, (H_in*W_in)*m)
     """
-    m, C, H, W = X.shape
-    if C % groups != 0:
-        raise ValueError(f"Number of channels ({C}) must be divisible by groups ({groups})")
+    m, _, H_in, W_in = input_shape
+    m2, C_out, H_out, W_out = output_shape
+    if m2 != m:
+        raise ValueError("output_shape batch must match input_shape batch")
 
-    group_channels = C // groups
-    cols_list = []
+    kH, kW = _to_tuple(kernel_size, 2)
+    sH, sW = _to_tuple(s, 2)
+    pH, pW = _to_tuple(padding, 2)
+    dH, dW = _to_tuple(dilation, 2)
 
-    for g in range(groups):
-        start = g * group_channels
-        end = (g + 1) * group_channels
-        X_group = X[:, start:end, :, :]
+    # kernel offsets
+    i0 = xp.repeat(xp.arange(kH) * dH, kW)       # (kK,)
+    j0 = xp.tile(xp.arange(kW) * dW, kH)         # (kK,)
 
-        # Compute per-group output shape
-        out_group_shape = (
-            output_shape[0], group_channels,
-            output_shape[2], output_shape[3]
-        )
+    # input positions (flattened patches)
+    h_in = xp.repeat(xp.arange(H_in), W_in)      # (patches,)
+    w_in = xp.tile(xp.arange(W_in), H_in)        # (patches,)
 
-        cols_group = _im2col_transpose_vectorized(X_group, kernel_size, s, out_group_shape)
-        cols_list.append(cols_group)
+    i1 = h_in * sH - pH
+    j1 = w_in * sW - pW
 
-    cols = xp.concatenate(cols_list, axis=0)
-    return cols
+    i = i0.reshape(-1, 1) + i1.reshape(1, -1)    # (kK, patches)
+    j = j0.reshape(-1, 1) + j1.reshape(1, -1)    # (kK, patches)
 
-def col2im_transpose_grouped(cols, X_shape, kernel_size, s, output_shape, groups):
-    """
-    Group-aware col2im for transposed convolution.
+    kK = kH * kW
+    patches = H_in * W_in
+    rows = C_out * kK
 
-    Args:
-        cols (ndarray): Column tensor from grouped transposed convolution
-        X_shape (tuple): Original input shape (m, C, H, W)
-        kernel_size (int or tuple): Filter size (f_h, f_w)
-        s (int): Stride of transposed convolution
-        output_shape (tuple): Target output shape (m, C, H_out, W_out)
-        groups (int): Number of groups (C must be divisible by groups)
+    # replicate for channels to match forward indexing
+    i_full = xp.tile(i, (C_out, 1))              # (rows, patches)
+    j_full = xp.tile(j, (C_out, 1))              # (rows, patches)
+    c = xp.repeat(xp.arange(C_out), kK).reshape(-1, 1)  # (rows,1)
 
-    Returns:
-        ndarray: Reconstructed 4D tensor (m, C, H_out, W_out)
-    """
-    m, C, H, W = X_shape
-    if C % groups != 0:
-        raise ValueError(f"Number of channels ({C}) must be divisible by groups ({groups})")
+    # build gather indices in the same order as forward ravel: batch -> rows -> patches
+    b_idx = xp.repeat(xp.arange(m), rows * patches)
 
-    group_channels = C // groups
-    cols_per_group = cols.shape[0] // groups
+    c_idx = xp.tile(xp.tile(c, (1, patches)).ravel(), m)         # (m*rows*patches,)
+    i_idx = xp.tile(i_full.ravel(), m)
+    j_idx = xp.tile(j_full.ravel(), m)
 
-    X_reconstructed = xp.zeros(output_shape, dtype=cols.dtype)
+    valid = (i_idx >= 0) & (i_idx < H_out) & (j_idx >= 0) & (j_idx < W_out)
 
-    for g in range(groups):
-        start_cols = g * cols_per_group
-        end_cols = (g + 1) * cols_per_group
-        start_ch = g * group_channels
-        end_ch = (g + 1) * group_channels
+    # gather, invalid positions contribute 0
+    vals = xp.zeros_like(i_idx, dtype=dout.dtype)
+    if xp.any(valid):
+        bv = b_idx[valid].astype(xp.int32)
+        cv = c_idx[valid].astype(xp.int32)
+        iv = i_idx[valid].astype(xp.int32)
+        jv = j_idx[valid].astype(xp.int32)
+        vals_valid = dout[bv, cv, iv, jv]
+        vals[valid] = vals_valid
 
-        cols_group = cols[start_cols:end_cols, :]
-        group_output_shape = (
-            output_shape[0], group_channels,
-            output_shape[2], output_shape[3]
-        )
+    # reshape back to (m, rows, patches) then to (rows, patches, m) and flatten to (rows, patches*m)
+    vals = vals.reshape(m, rows, patches)
+    dcols = vals.transpose(1, 2, 0).reshape(rows, -1)  # (rows, patches*m)
+    return dcols
 
-        X_reconstructed[:, start_ch:end_ch, :, :] += _col2im_transpose_vectorized(
-            cols_group,
-            (m, group_channels, H, W),
-            kernel_size,
-            s,
-            group_output_shape
-        )
-
-    return X_reconstructed
 
 def upsample(x, scale_factor, mode, align_corners):
     if mode == "nearest":
