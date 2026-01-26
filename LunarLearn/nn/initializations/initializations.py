@@ -138,7 +138,7 @@ def get_initialization(name_or_fn, activation: str = None):
 
     raise TypeError("Weight initialization must be a string or a callable")
 
-def initialize_weights(w_shape, b_shape, w_init, activation, uniform=False, gain=1.0):
+def initialize_weights(w_shape, b_shape, w_init, activation, uniform=False, gain=1.0, zero_bias=False, bias_value=None, bias=True):
     """
     Initialize weights and biases based on chosen scheme and activation.
 
@@ -160,12 +160,17 @@ def initialize_weights(w_shape, b_shape, w_init, activation, uniform=False, gain
     # Initialize weights
     W = init_fn(w_shape, uniform=uniform) if w_init != "orthogonal" else init_fn(w_shape, gain=gain)
 
-    # Initialize biases depending on activation
-    if activation in {"relu", "leaky_relu", "elu"}:
-        # Small positive bias helps ReLU family avoid dead neurons
-        b = xp.full(b_shape, 0.01, dtype=DTYPE)
+    if bias:
+        if bias_value is not None:
+            b = xp.full(b_shape, bias_value, dtype=DTYPE)
+        # Initialize biases depending on activation
+        elif not zero_bias and activation in {"relu", "leaky_relu", "elu"}:
+            # Small positive bias helps ReLU family avoid dead neurons
+            b = xp.full(b_shape, 0.01, dtype=DTYPE)
+        else:
+            # Safe default: zeros
+            b = xp.zeros(b_shape, dtype=DTYPE)
     else:
-        # Safe default: zeros
-        b = xp.zeros(b_shape, dtype=DTYPE)
+        b = None
 
     return W, b

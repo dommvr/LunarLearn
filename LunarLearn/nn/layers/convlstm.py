@@ -56,8 +56,8 @@ class ConvLSTM(BaseLayer):
         H, W = spatial_shape
         h = xp.zeros((batch_size, C_h, H, W), dtype=dtype)
         c = xp.zeros((batch_size, C_h, H, W), dtype=dtype)
-        self.h_state = Tensor(h, requires_grad=True, dtype=dtype)
-        self.c_state = Tensor(c, requires_grad=True, dtype=dtype)
+        self.h_state = Tensor(h, requires_grad=False, dtype=dtype)
+        self.c_state = Tensor(c, requires_grad=False, dtype=dtype)
 
     def initialize(self, input_shape):
         """
@@ -87,9 +87,9 @@ class ConvLSTM(BaseLayer):
             c = self.c_state
         else:
             h = Tensor(xp.zeros((B, self.hidden_channels, H, W), dtype=x.dtype),
-                       requires_grad=True, dtype=x.dtype)
+                       requires_grad=False, dtype=x.dtype)
             c = Tensor(xp.zeros((B, self.hidden_channels, H, W), dtype=x.dtype),
-                       requires_grad=True, dtype=x.dtype)
+                       requires_grad=False, dtype=x.dtype)
 
         hs = []
         self.x_cache, self.h_cache = x, []

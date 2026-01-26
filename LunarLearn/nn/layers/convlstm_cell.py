@@ -39,8 +39,8 @@ class ConvLSTMCell(BaseLayer):
         B, _, H, W = x_t.shape
         h = xp.zeros((B, self.hidden_channels, H, W), dtype=x_t.dtype)
         c = xp.zeros((B, self.hidden_channels, H, W), dtype=x_t.dtype)
-        h = Tensor(h, requires_grad=True, dtype=x_t.dtype)
-        c = Tensor(c, requires_grad=True, dtype=x_t.dtype)
+        h = Tensor(h, requires_grad=False, dtype=x_t.dtype)
+        c = Tensor(c, requires_grad=False, dtype=x_t.dtype)
         return h, c
 
     def forward(self,

@@ -17,7 +17,8 @@ class DepthwiseSeparableConv2DTranspose(BaseLayer):
         w_init="auto",
         uniform=False,
         gain=1,
-        norm_layer=None
+        norm_layer=None,
+        bias=True
     ):
         super().__init__(trainable=True)
 
@@ -30,6 +31,7 @@ class DepthwiseSeparableConv2DTranspose(BaseLayer):
         self.uniform = uniform
         self.gain = gain
         self.norm_layer = norm_layer
+        self.bias = bias
 
         # These will be initialized on first forward call
         self.depthwise = None
@@ -50,7 +52,8 @@ class DepthwiseSeparableConv2DTranspose(BaseLayer):
             w_init=self.w_init,
             uniform=self.uniform,
             gain=self.gain,
-            groups=in_channels
+            groups=in_channels,
+            bias=self.bias
         )
 
         # Optional norm after depthwise
@@ -65,7 +68,8 @@ class DepthwiseSeparableConv2DTranspose(BaseLayer):
             activation="linear",
             w_init=self.w_init,
             uniform=self.uniform,
-            gain=self.gain
+            gain=self.gain,
+            bias=self.bias
         )
 
         # Optional norm after pointwise

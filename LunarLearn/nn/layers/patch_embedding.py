@@ -1,18 +1,20 @@
-from LunarLearn.nn.layers import BaseLayer, Dense
+from LunarLearn.nn.layers import BaseLayer, Dense, LayerNorm
 from LunarLearn.core import Tensor
 
 class PatchEmbedding(BaseLayer):
-    def __init__(self, patch_size: int = 16, emb_dim: int = 768):
+    def __init__(self, patch_size: int = 16, emb_dim: int = 768, norm: bool = True):
         super().__init__(trainable=True)
         self.patch_size = patch_size
         self.grid_h = None
         self.grid_w = None
         self.num_patches = None
         self.emb_dim = emb_dim
-        self.projection = Dense(emb_dim)
+        self.projection = Dense(emb_dim, bias=False)
+        self.norm = LayerNorm() if norm else None
 
     def initialize(self, input_shape):
         C, H, W = input_shape
+        assert H % self.patch_size == 0 and W % self.patch_size == 0
         self.grid_h = H // self.patch_size
         self.grid_w = W // self.patch_size
         self.num_patches = self.grid_h * self.grid_w
@@ -27,4 +29,6 @@ class PatchEmbedding(BaseLayer):
         x = x.transpose(0, 2, 4, 1, 3, 5)
         x = x.reshape(B, self.num_patches, -1)
         out = self.projection(x)
+        if self.norm is not None:
+            out = self.norm(out)
         return out

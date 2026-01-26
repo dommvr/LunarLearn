@@ -24,7 +24,8 @@ class LSTM(RecurrentBase):
     """
     def __init__(self, hidden_size, return_sequences=False,
                  activation="tanh", w_init="auto", uniform=False, gain=1,
-                 stateful=False, recurrent_keep_prob=1.0):
+                 stateful=False, recurrent_keep_prob=1.0, zero_bias=True, forget_bias=1.0, bias=True):
         super().__init__(LSTMCell, hidden_size, return_sequences,
                          activation, w_init, uniform, gain,
-                         stateful=stateful, recurrent_keep_prob=recurrent_keep_prob)
+                         stateful=stateful, recurrent_keep_prob=recurrent_keep_prob,
+                         zero_bias=zero_bias, forget_bias=forget_bias, bias=bias)
