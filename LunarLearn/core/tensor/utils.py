@@ -206,7 +206,7 @@ def _prod(xs):
 def _scatter_add_flat(dst_flat, flat_idx, vals):
     # dst_flat: 1D
     if xp.__name__ == "cupy":
-        scatter_add(dst_flat, flat_idx, vals)
+        scatter_add(dst_flat, (flat_idx,), vals)
     else:
         xp.add.at(dst_flat, flat_idx, vals)
 
