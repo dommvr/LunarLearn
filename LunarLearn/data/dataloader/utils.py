@@ -110,6 +110,10 @@ def _pad_1d(ids, max_len, pad_id=0, truncate=True):
     return out, mask, np.asarray(L, dtype=np.int64)
 
 
+def split_dataset_by_indices(dataset, train_idx, test_idx):
+    return SubsetDataset(dataset, train_idx), SubsetDataset(dataset, test_idx)
+
+
 def random_split(dataset, lengths, random_state=None):
     """
     Split a dataset into multiple SubsetDatasets with given lengths.

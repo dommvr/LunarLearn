@@ -36,7 +36,17 @@ from .datasets import (
     SubsetDataset,
     CacheDataset
 )
-from .utils import random_split
+from .split import (
+    train_test_split_indices,
+    KFold,
+    StratifiedKFold,
+    ShuffleSplit,
+    StratifiedShuffleSplit
+)
+from .utils import (
+    split_dataset_by_indices,
+    random_split
+)
 
 __all__ = [
     "collate_xy_stack",
@@ -73,5 +83,11 @@ __all__ = [
     "MixedDataset",
     "SubsetDataset",
     "CacheDataset",
+    "train_test_split_indices",
+    "KFold",
+    "StratifiedKFold",
+    "ShuffleSplit",
+    "StratifiedShuffleSplit",
+    "split_dataset_by_indices",
     "random_split"
 ]
