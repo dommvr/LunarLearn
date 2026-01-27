@@ -2,16 +2,11 @@ from __future__ import annotations
 
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, RegressorMixin
+from .utils import row_scatter_add
 from LunarLearn.core import Tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
-
-if xp.__name__ == 'cupy':
-    try:
-        from cupyx.scatter_add import scatter_add
-    except ImportError:
-        from cupyx._scatter import scatter_add
 
 
 class BiasedMF(Estimator, RegressorMixin):
@@ -177,16 +172,10 @@ class BiasedMF(Estimator, RegressorMixin):
                 grad_Q = err[:, None] * Pu - reg_f * Qi    # (n_samples, k)
 
                 # scatter-add updates
-                if xp.__name__ == "cupy":
-                    scatter_add(bu, (u_idx,), lr * grad_bu)
-                    scatter_add(bi, (i_idx,), lr * grad_bi)
-                    scatter_add(P,  (u_idx, slice(None)), lr * grad_P)
-                    scatter_add(Q,  (i_idx, slice(None)), lr * grad_Q)
-                else:
-                    xp.add.at(bu, u_idx, lr * grad_bu)
-                    xp.add.at(bi, i_idx, lr * grad_bi)
-                    xp.add.at(P,  u_idx, lr * grad_P)
-                    xp.add.at(Q,  i_idx, lr * grad_Q)
+                row_scatter_add(bu, u_idx, lr * grad_bu)
+                row_scatter_add(bi, i_idx, lr * grad_bi)
+                row_scatter_add(P,  u_idx, lr * grad_P)
+                row_scatter_add(Q,  i_idx, lr * grad_Q)
 
             self.user_factors = P
             self.item_factors = Q

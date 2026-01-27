@@ -1,6 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, ClassifierMixin, TransformMixin
 from LunarLearn.ml.decomp.utils import _encode_labels
+from LunarLearn.ml.preprocessing import LabelEncoder
 from LunarLearn.core import Tensor
 import math
 
