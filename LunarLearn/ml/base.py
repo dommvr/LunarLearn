@@ -19,9 +19,9 @@ class RegressorMixin:
         """
         Default R^2 score. Replace with your metrics if needed.
         """
+        metric = R2Score()
         y_pred = self.predict(X)
-        # Here you'd probably call LunarLearn.metrics.r2_score
-        return 1.0 - ((y - y_pred) ** 2).sum() / (((y - y.mean()) ** 2).sum() + 1e-12)
+        return metric(y_pred, y)
 
 
 class ClassifierMixin:
@@ -31,8 +31,9 @@ class ClassifierMixin:
         """
         Default accuracy.
         """
+        metric = Accuracy()
         y_pred = self.predict(X)
-        return (y_pred == y).astype("float32").mean()
+        return metric(y_pred, y)
 
 
 class ClusterMixin:
