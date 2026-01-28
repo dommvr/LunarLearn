@@ -1,14 +1,14 @@
 import json
-import regex as re
 import heapq
 from collections import Counter, OrderedDict, defaultdict
+from .utlis import compile_pattern
 
 class BPETokenizer:
     def __init__(self, type="bytes", vocab_size=32000, regex_pattern=None, lowercase=True, add_special_tokens=True, freq_threshold=None):
         assert type in ["bytes", "characters"]
         self.type = type
         self.vocab_size = vocab_size
-        self.regex = re.compile(regex_pattern) if regex_pattern is not None else None
+        self.regex = compile_pattern(regex_pattern) if regex_pattern is not None else None
         self.lowercase = lowercase
         self.add_special_tokens = add_special_tokens
         self.special_tokens = OrderedDict([("<pad>", 0), ("<unk>", 1), ("<bos>", 2), ("<eos>", 3)])

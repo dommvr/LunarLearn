@@ -1,8 +1,9 @@
 import math
-import regex as re
 import heapq
 import json
 from collections import defaultdict
+from .utlis import compile_pattern
+
 
 class UnigramTokenizer:
     def __init__(self,
@@ -17,7 +18,7 @@ class UnigramTokenizer:
         self.vocab_size = vocab_size
         self.max_vocab = vocab_size * max_vocab_mul
         self.max_len = max_len
-        self.regex = re.compile(regex_pattern) if regex_pattern is not None else None
+        self.regex = compile_pattern(regex_pattern) if regex_pattern is not None else None
         self.lowercase = lowercase
         self.add_special_tokens = add_special_tokens
         self.freq_threshold = freq_threshold
