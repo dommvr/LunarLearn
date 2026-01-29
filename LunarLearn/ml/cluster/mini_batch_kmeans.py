@@ -2,6 +2,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, ClusterMixin
 from LunarLearn.ml.cluster import KMeans
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -76,6 +77,7 @@ class MiniBatchKMeans(Estimator, ClusterMixin):
 
     def fit(self, X: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
             X_arr = X.data.astype(DTYPE, copy=False)
@@ -144,6 +146,7 @@ class MiniBatchKMeans(Estimator, ClusterMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.cluster_centers_ is None:
                 raise RuntimeError("MiniBatchKMeans not fitted.")
             if X.ndim == 1:

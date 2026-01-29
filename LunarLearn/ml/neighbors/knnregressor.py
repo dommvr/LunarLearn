@@ -2,6 +2,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import RegressorMixin
 from LunarLearn.ml.neighbors import BaseKNeighbors
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 DTYPE = backend.DTYPE
 
@@ -23,6 +24,7 @@ class KNNRegressor(BaseKNeighbors, RegressorMixin):
         """
         Predict continuous targets by averaging neighbor targets.
         """
+        X = ensure_tensor(X)
         self._check_is_fitted()
         y_train = self.y_train
 

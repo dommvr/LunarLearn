@@ -2,6 +2,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import ClassifierMixin
 from LunarLearn.ml.neighbors import BaseKNeighbors
 from LunarLearn.core import Tensor, ops
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -26,6 +27,8 @@ class KNNClassifier(BaseKNeighbors, ClassifierMixin):
         Store training data and build label encoding.
         """
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             # Normalize shapes
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
@@ -56,6 +59,7 @@ class KNNClassifier(BaseKNeighbors, ClassifierMixin):
         -------
         Tensor of shape (n_samples, n_classes)
         """
+        X = ensure_tensor(X)
         self._check_is_fitted()
         if self.classes_ is None:
             raise RuntimeError("KNNClassifier not fitted properly: classes_ is None.")
@@ -95,6 +99,7 @@ class KNNClassifier(BaseKNeighbors, ClassifierMixin):
         Predict class labels for each sample (original label space).
         """
         with backend.no_grad():
+            X = ensure_tensor(X)
             probs = self.predict_proba(X)
             enc_idx = ops.argmax(probs, axis=1)          # Tensor of encoded indices
             enc_idx_arr = enc_idx.data.astype("int64")  # xp array

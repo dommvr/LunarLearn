@@ -4,6 +4,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, RegressorMixin
 from .utils import row_scatter_add
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -73,6 +74,8 @@ class MatrixFactorization(Estimator, RegressorMixin):
             Ratings.
         """
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             # Normalize shapes
             if X.ndim == 1:
                 X = X.reshape(-1, 2)
@@ -178,6 +181,7 @@ class MatrixFactorization(Estimator, RegressorMixin):
         Tensor of shape (n_samples,)
         """
         with backend.no_grad():
+            X = ensure_tensor(X)
             if X.ndim == 1:
                 X = X.reshape(-1, 2)
 

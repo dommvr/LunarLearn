@@ -3,6 +3,7 @@ from LunarLearn.ml.base import Estimator, RegressorMixin
 from LunarLearn.ml.tree import DecisionTreeRegressor
 from LunarLearn.ml.ensemble.utils import _resolve_max_features
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -50,6 +51,8 @@ class RandomForestRegressor(Estimator, RegressorMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             if self.n_estimators <= 0:
                 raise ValueError("n_estimators must be > 0.")
 
@@ -100,6 +103,7 @@ class RandomForestRegressor(Estimator, RegressorMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if not self.estimators_:
                 raise RuntimeError("RandomForestRegressor not fitted.")
 

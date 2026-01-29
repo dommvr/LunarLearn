@@ -1,6 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, RegressorMixin
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 from LunarLearn.ml.tree.utils import _TreeNode
 
 xp = backend.xp
@@ -206,6 +207,8 @@ class DecisionTreeRegressor(Estimator, RegressorMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
             if y.ndim > 1:
@@ -231,6 +234,7 @@ class DecisionTreeRegressor(Estimator, RegressorMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.root is None:
                 raise RuntimeError("DecisionTreeRegressor not fitted.")
 

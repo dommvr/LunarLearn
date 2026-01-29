@@ -1,6 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, ClassifierMixin
 from LunarLearn.core import Tensor, Parameter, ops
+from LunarLearn.core.tensor import ensure_tensor
 from LunarLearn.amp import amp
 from LunarLearn.nn.optim.optimizers import BaseOptimizer, SGD
 
@@ -26,6 +27,8 @@ class LogisticRegression(Estimator, ClassifierMixin):
         return [p for p in (self.W, self.b) if p is not None]
 
     def fit(self, X: Tensor, y: Tensor, use_amp: bool = True):
+        X = ensure_tensor(X)
+        y = ensure_tensor(y)
         if X.ndim == 1:
             X = X.reshape(-1, 1)
         if y.ndim > 1:
@@ -60,6 +63,7 @@ class LogisticRegression(Estimator, ClassifierMixin):
         
     def predict_proba(self, X: Tensor, use_amp: bool = True) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
 
@@ -73,6 +77,7 @@ class LogisticRegression(Estimator, ClassifierMixin):
 
     def predict(self, X: Tensor, use_amp: bool = True) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             with amp.autocast(enabled=use_amp):
                 probs = self.predict_proba(X, use_amp=use_amp)
                 return ops.argmax(probs, axis=1)

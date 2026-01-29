@@ -3,6 +3,7 @@ from LunarLearn.ml.base import Estimator, ClassifierMixin
 from LunarLearn.ml.tree import DecisionTreeRegressor
 from LunarLearn.ml.ensemble.utils import _encode_labels
 from LunarLearn.core import Tensor, ops
+from LunarLearn.core.tensor import ensure_tensor
 import math
 
 xp = backend.xp
@@ -51,6 +52,8 @@ class GradientBoostingClassifier(Estimator, ClassifierMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             if self.n_estimators <= 0:
                 raise ValueError("n_estimators must be > 0.")
 
@@ -133,6 +136,7 @@ class GradientBoostingClassifier(Estimator, ClassifierMixin):
 
     def predict_proba(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.classes_ is None:
                 raise RuntimeError("GradientBoostingClassifier not fitted.")
 
@@ -147,6 +151,7 @@ class GradientBoostingClassifier(Estimator, ClassifierMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             probs = self.predict_proba(X)                # Tensor (N, 2)
             enc_idx = ops.argmax(probs, axis=1)          # encoded 0/1
             enc_idx_arr = enc_idx.data.astype("int64")

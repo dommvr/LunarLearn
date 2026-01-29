@@ -1,6 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, TransformMixin
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -34,6 +35,7 @@ class PCA(Estimator, TransformMixin):
 
     def fit(self, X: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
 
@@ -79,6 +81,7 @@ class PCA(Estimator, TransformMixin):
 
     def transform(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.components_ is None or self.mean_ is None:
                 raise RuntimeError("PCA not fitted.")
 
@@ -101,6 +104,7 @@ class PCA(Estimator, TransformMixin):
 
     def inverse_transform(self, Z: Tensor) -> Tensor:
         with backend.no_grad():
+            Z = ensure_tensor(Z)
             if self.components_ is None or self.mean_ is None:
                 raise RuntimeError("PCA not fitted.")
 

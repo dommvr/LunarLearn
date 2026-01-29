@@ -1,6 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, RegressorMixin
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -53,6 +54,8 @@ class LinearSVR(Estimator, RegressorMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
             if y.ndim > 1:
@@ -121,6 +124,7 @@ class LinearSVR(Estimator, RegressorMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.coef_ is None:
                 raise RuntimeError("LinearSVR not fitted.")
 

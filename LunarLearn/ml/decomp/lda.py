@@ -3,6 +3,7 @@ from LunarLearn.ml.base import Estimator, ClassifierMixin, TransformMixin
 from LunarLearn.ml.decomp.utils import _encode_labels
 from LunarLearn.ml.preprocessing import LabelEncoder
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 import math
 
 xp = backend.xp
@@ -46,6 +47,8 @@ class LDA(Estimator, ClassifierMixin, TransformMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
             if y.ndim > 1:
@@ -185,6 +188,7 @@ class LDA(Estimator, ClassifierMixin, TransformMixin):
 
     def predict_proba(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.coef_ is None or self.intercept_ is None or self.classes_ is None:
                 raise RuntimeError("LDA not fitted.")
 
@@ -202,6 +206,7 @@ class LDA(Estimator, ClassifierMixin, TransformMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.coef_ is None or self.intercept_ is None or self.classes_ is None:
                 raise RuntimeError("LDA not fitted.")
 
@@ -223,6 +228,7 @@ class LDA(Estimator, ClassifierMixin, TransformMixin):
         Tensor of shape (n_samples, n_components_)
         """
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.scalings_ is None or self.mean_ is None:
                 raise RuntimeError("LDA not fitted or no components available.")
 

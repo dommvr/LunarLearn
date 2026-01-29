@@ -2,6 +2,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, ClusterMixin
 from LunarLearn.ml.cluster import KMeans
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 import math
 
 xp = backend.xp
@@ -185,6 +186,7 @@ class GaussianMixture(Estimator, ClusterMixin):
 
     def fit(self, X: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
             X_arr = X.data.astype(DTYPE, copy=False)
@@ -221,6 +223,7 @@ class GaussianMixture(Estimator, ClusterMixin):
 
     def predict_proba(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.weights_ is None:
                 raise RuntimeError("GaussianMixture not fitted.")
 
@@ -234,6 +237,7 @@ class GaussianMixture(Estimator, ClusterMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             resp = self.predict_proba(X)
             labels = resp.data.argmax(axis=1).astype("int64")
             return Tensor(labels, dtype=DTYPE)
@@ -243,6 +247,7 @@ class GaussianMixture(Estimator, ClusterMixin):
         Return log probability density for each sample under the model.
         """
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.weights_ is None:
                 raise RuntimeError("GaussianMixture not fitted.")
 

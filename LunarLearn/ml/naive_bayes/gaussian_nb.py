@@ -2,6 +2,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, ClassifierMixin
 from LunarLearn.ml.naive_bayes.utils import _encode_labels
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 import math
 
 xp = backend.xp
@@ -54,6 +55,8 @@ class GaussianNB(Estimator, ClassifierMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             # Ensure shapes
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
@@ -101,6 +104,7 @@ class GaussianNB(Estimator, ClassifierMixin):
 
     def predict_proba(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             jll = self._joint_log_likelihood(X)              # (N, C)
 
             # softmax over classes
@@ -114,6 +118,7 @@ class GaussianNB(Estimator, ClassifierMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             jll = self._joint_log_likelihood(X)              # (N, C)
             enc_idx = jll.argmax(axis=1).astype("int64")     # xp array
             labels = self.classes_[enc_idx]                  # original labels

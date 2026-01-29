@@ -1,6 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, ClassifierMixin
 from LunarLearn.core import Tensor, ops
+from LunarLearn.core.tensor import ensure_tensor
 from LunarLearn.ml.tree.utils import _TreeNode, _encode_labels
 
 xp = backend.xp
@@ -236,6 +237,8 @@ class DecisionTreeClassifier(Estimator, ClassifierMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
             if y.ndim > 1:
@@ -268,6 +271,7 @@ class DecisionTreeClassifier(Estimator, ClassifierMixin):
 
     def predict_proba(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.root is None or self.classes_ is None:
                 raise RuntimeError("DecisionTreeClassifier not fitted.")
 
@@ -286,6 +290,7 @@ class DecisionTreeClassifier(Estimator, ClassifierMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             probs = self.predict_proba(X)
             enc_idx = ops.argmax(probs, axis=1)              # encoded indices (Tensor)
             enc_idx_arr = enc_idx.data.astype("int64")       # xp array

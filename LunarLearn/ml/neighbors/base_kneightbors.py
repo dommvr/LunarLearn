@@ -1,6 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator
 from LunarLearn.core import Tensor, ops
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 
@@ -25,6 +26,8 @@ class BaseKNeighbors(Estimator):
         Store the training data. KNN is a lazy learner.
         """
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             # Normalize shapes
             if X.ndim == 1:
                 X = X.reshape(-1, 1)

@@ -9,11 +9,6 @@ C_DTYPE = backend.C_DTYPE
 MIXED_PRECISION = backend.MIXED_PRECISION
 SAFE_FACTOR = backend.SAFE_FACTOR
 
-if xp.__name__ == 'cupy':
-    try:
-        from cupyx.scatter_add import scatter_add
-    except ImportError:
-        from cupyx._scatter import scatter_add
 
 def ensure_tensor(obj, dtype=None):
     """

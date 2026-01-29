@@ -2,6 +2,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, ClassifierMixin
 from LunarLearn.ml.svm.utils import _encode_labels
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -107,6 +108,8 @@ class LinearSVC(Estimator, ClassifierMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             # normalize shapes
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
@@ -161,6 +164,7 @@ class LinearSVC(Estimator, ClassifierMixin):
         Tensor of shape (n_samples,) for binary or (n_samples, n_classes) for multi-class.
         """
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.coef_ is None or self.intercept_ is None or self.classes_ is None:
                 raise RuntimeError("LinearSVC not fitted.")
 
@@ -184,6 +188,7 @@ class LinearSVC(Estimator, ClassifierMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             scores = self.decision_function(X)
             if scores.ndim == 1:
                 # binary: scores shape (n,)

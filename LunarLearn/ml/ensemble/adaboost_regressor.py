@@ -2,6 +2,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, RegressorMixin
 from LunarLearn.ml.tree import DecisionTreeRegressor
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 import math
 
 xp = backend.xp
@@ -39,6 +40,8 @@ class AdaBoostRegressor(Estimator, RegressorMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             if self.n_estimators <= 0:
                 raise ValueError("n_estimators must be > 0.")
 
@@ -130,6 +133,7 @@ class AdaBoostRegressor(Estimator, RegressorMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if not self.estimators_ or self.estimator_weights_ is None:
                 raise RuntimeError("AdaBoostRegressor not fitted.")
 

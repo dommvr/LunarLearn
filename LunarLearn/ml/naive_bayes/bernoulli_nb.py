@@ -2,6 +2,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, ClassifierMixin
 from LunarLearn.ml.naive_bayes.utils import _encode_labels
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -52,6 +53,7 @@ class BernoulliNB(Estimator, ClassifierMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
             if y.ndim > 1:
@@ -98,6 +100,7 @@ class BernoulliNB(Estimator, ClassifierMixin):
 
     def predict_proba(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             jll = self._joint_log_likelihood(X)
 
             max_log = jll.max(axis=1, keepdims=True)
@@ -108,6 +111,7 @@ class BernoulliNB(Estimator, ClassifierMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             jll = self._joint_log_likelihood(X)
             enc_idx = jll.argmax(axis=1).astype("int64")
             labels = self.classes_[enc_idx]

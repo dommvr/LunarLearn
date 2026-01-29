@@ -2,6 +2,7 @@ import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, RegressorMixin
 from LunarLearn.ml.tree import DecisionTreeRegressor
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -38,6 +39,8 @@ class GradientBoostingRegressor(Estimator, RegressorMixin):
 
     def fit(self, X: Tensor, y: Tensor):
         with backend.no_grad():
+            X = ensure_tensor(X)
+            y = ensure_tensor(y)
             if self.n_estimators <= 0:
                 raise ValueError("n_estimators must be > 0.")
             if X.ndim == 1:
@@ -84,6 +87,7 @@ class GradientBoostingRegressor(Estimator, RegressorMixin):
 
     def predict(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.init_ is None:
                 raise RuntimeError("GradientBoostingRegressor not fitted.")
 

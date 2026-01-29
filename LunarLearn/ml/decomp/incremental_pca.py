@@ -1,6 +1,7 @@
 import LunarLearn.core.backend.backend as backend
 from LunarLearn.ml.base import Estimator, TransformMixin
 from LunarLearn.core import Tensor
+from LunarLearn.core.tensor import ensure_tensor
 
 xp = backend.xp
 DTYPE = backend.DTYPE
@@ -45,6 +46,7 @@ class IncrementalPCA(Estimator, TransformMixin):
         X : Tensor of shape (n_samples_batch, n_features)
         """
         with backend.no_grad():
+            X = ensure_tensor(X)
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
 
@@ -137,6 +139,7 @@ class IncrementalPCA(Estimator, TransformMixin):
 
     def fit(self, X: Tensor):
         # Just a convenience wrapper: one-shot fit using partial_fit
+        X = ensure_tensor(X)
         self.n_samples_seen_ = 0
         self.mean_ = None
         self.cov_ = None
@@ -144,6 +147,7 @@ class IncrementalPCA(Estimator, TransformMixin):
 
     def transform(self, X: Tensor) -> Tensor:
         with backend.no_grad():
+            X = ensure_tensor(X)
             if self.components_ is None or self.mean_ is None:
                 raise RuntimeError("IncrementalPCA not fitted.")
 
@@ -157,6 +161,7 @@ class IncrementalPCA(Estimator, TransformMixin):
 
     def inverse_transform(self, Z: Tensor) -> Tensor:
         with backend.no_grad():
+            Z = ensure_tensor(Z)
             if self.components_ is None or self.mean_ is None:
                 raise RuntimeError("IncrementalPCA not fitted.")
 
